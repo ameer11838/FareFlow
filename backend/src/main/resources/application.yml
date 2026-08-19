@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: fareflow
+
+  datasource:
+    # Non-secret values get sensible local defaults so the app is easy to run.
+    # DB_PASSWORD deliberately has NO default: if it is missing, startup fails
+    # loudly instead of silently trying to connect with an empty password.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fareflow}
+    username: ${DB_USERNAME:fareflow}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema. Hibernate is only allowed to check that the
+      # tables it expects actually exist. Never 'update' -- that lets Hibernate
+      # silently mutate the database and desync it from the migration history.
+      ddl-auto: validate
+    # Closes the persistence session at the end of the service call rather than
+    # keeping it open through view rendering. Prevents accidental lazy loading
+    # in the serialization layer.
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    org.flywaydb: INFO

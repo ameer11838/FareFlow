@@ -1,0 +1,43 @@
+# ---------- Secrets (never commit) ----------
+.env
+.env.local
+.env.*.local
+
+# ---------- Java / Maven ----------
+target/
+*.class
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# ---------- Logs ----------
+logs/
+*.log
+hs_err_pid*
+replay_pid*
+
+# ---------- Frontend (used from M5 onward) ----------
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ---------- IDE ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+
+# ---------- macOS / OS ----------
+.DS_Store
+Thumbs.db

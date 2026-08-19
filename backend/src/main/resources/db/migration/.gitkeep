@@ -1,0 +1,2 @@
+# Flyway migrations live here. Naming: V<version>__<description>.sql
+# The first real migration (V1__create_transit_routes.sql) arrives in M1.
