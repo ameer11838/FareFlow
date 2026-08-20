@@ -4,22 +4,39 @@ import { WalletPage } from '../WalletPage'
 import { renderWithProviders } from '../../../test/renderWith'
 import * as api from '../../../api'
 import { ApiError } from '../../../api/client'
-import { demoConfig, user, wallet } from '../../../test/fixtures'
+import { demoConfig, insights, user, wallet } from '../../../test/fixtures'
 
 describe('WalletPage', () => {
   beforeEach(() => {
     vi.spyOn(api.authApi, 'config').mockResolvedValue(demoConfig)
     vi.spyOn(api.authApi, 'me').mockResolvedValue(user)
+    // The wallet reads projections from insights: the ledger knows what was
+    // spent, only the travel profile knows what the week is heading toward.
+    vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
   })
 
-  it('shows the balance derived from the weekly budget', async () => {
+  it('leads with what is left, not with what was spent', async () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
-    // $21.60 appears twice on purpose: the balance card and the "Remaining" tile.
+    // Remaining is the figure that changes a decision, so it is the hero.
+    // It appears twice: the hero panel and the "Remaining" module beneath it.
     expect(await screen.findAllByText('$21.60')).toHaveLength(2)
-    expect(screen.getByText(/available balance/i)).toBeInTheDocument()
-    expect(screen.getByText('$28.40')).toBeInTheDocument()
+    // Scoped to the hero: "weekly transportation" also appears in the page
+    // subtitle, and matching both would prove nothing about the hierarchy.
+    const hero = document.querySelector('.budget-hero') as HTMLElement
+    expect(within(hero).getByText('Weekly transportation')).toBeInTheDocument()
+    expect(within(hero).getByText('remaining')).toBeInTheDocument()
+    // Spent is present, but as support rather than as the headline.
+    expect(screen.getByText(/\$28\.40 spent of \$50\.00/)).toBeInTheDocument()
+  })
+
+  it('gives a verdict on the week rather than only figures', async () => {
+    vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
+    renderWithProviders(<WalletPage />)
+
+    // insights fixture projects $18.48 against a $50.00 budget.
+    expect(await screen.findByText('On track')).toBeInTheDocument()
   })
 
   it('marks only the budget-backed method as active', async () => {
@@ -88,6 +105,8 @@ describe('WalletPage — no budget set', () => {
     expect(screen.getByRole('link', { name: /set a budget/i })).toHaveAttribute('href', '/settings')
     // "$0.00" would read as "you are out of money", which is not what is true.
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Not set').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Not set')).toBeInTheDocument()
+    // And no verdict is offered about a budget that does not exist.
+    expect(screen.queryByText(/on track|over budget/i)).not.toBeInTheDocument()
   })
 })

@@ -46,7 +46,11 @@ describe('LedgerPage', () => {
     renderWithProviders(<LedgerPage />)
 
     // A charge and its refund on the same day net to zero.
-    expect(await screen.findByText('Net $0.00')).toBeInTheDocument()
+    // The day header carries the net, the entry count, and the date.
+    await screen.findByTestId('ledger-1')
+    const header = document.querySelector('.ledger-day') as HTMLElement
+    expect(within(header).getByText('$0.00')).toBeInTheDocument()
+    expect(within(header).getByText(/2 entries/i)).toBeInTheDocument()
   })
 
   it('links each entry back to its trip', async () => {

@@ -23,11 +23,13 @@ describe('TripHistoryPage', () => {
     renderWithProviders(<TripHistoryPage />)
 
     const row = await screen.findByTestId('trip-1')
-    expect(within(row).getByText('Newark → Manhattan')).toBeInTheDocument()
+    // The route is a heading built from three elements, so it is asserted by its
+    // accessible name rather than as one text node.
+    expect(within(row).getByRole('heading', { name: 'Newark to Manhattan' })).toBeInTheDocument()
     expect(within(row).getByText('PATH')).toBeInTheDocument()
     expect(within(row).getByText('38 min')).toBeInTheDocument()
     expect(within(row).getByText('$3.00')).toBeInTheDocument()
-    expect(within(row).getByText(/Saved \$3\.25 vs fastest/)).toBeInTheDocument()
+    expect(within(row).getByText(/Saved \$3\.25 vs the fastest route/)).toBeInTheDocument()
     expect(within(row).getByText('Completed')).toBeInTheDocument()
   })
 
@@ -47,7 +49,7 @@ describe('TripHistoryPage', () => {
       page([{ ...trip, baselineFareCents: null, savedVersusFastestCents: null }]))
     renderWithProviders(<TripHistoryPage />)
 
-    expect(await screen.findByText(/no comparison available/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no alternative route to compare against/i)).toBeInTheDocument()
   })
 
   it('reports zero savings for the fastest route rather than hiding it', async () => {
@@ -106,7 +108,7 @@ describe('TripHistoryPage — multi-leg journeys', () => {
     renderWithProviders(<TripHistoryPage />)
 
     const row = await screen.findByTestId('trip-3')
-    expect(within(row).getByText('Philadelphia, PA → Manhattan, NY')).toBeInTheDocument()
+    expect(within(row).getByRole('heading', { name: 'Philadelphia, PA to Manhattan, NY' })).toBeInTheDocument()
     expect(within(row).getByText(/SEPTA Trenton Line → NJ Transit/)).toBeInTheDocument()
     expect(within(row).getByText('$27.60')).toBeInTheDocument()
   })
@@ -132,11 +134,16 @@ describe('TripHistoryPage — multi-leg journeys', () => {
 
     await waitFor(() => expect(detail).toHaveBeenCalledWith(9))
     const itinerary = await screen.findByTestId('itinerary-9')
-    expect(within(itinerary).getByText(/Walk to Suburban Station/)).toBeInTheDocument()
+    // Stations and the lines between them are separate rungs of the timeline, so
+    // each is asserted on its own rather than as one "Walk to X" sentence.
     expect(within(itinerary).getByText('SEPTA Trenton Line')).toBeInTheDocument()
     expect(within(itinerary).getByText('NJ Transit Northeast Corridor')).toBeInTheDocument()
-    // Appears twice by design: the arrival of one leg and the departure of the next.
     expect(within(itinerary).getAllByText(/Trenton Transit Center/).length).toBeGreaterThan(0)
+    // The final arrival is rendered as a destination, closing the timeline.
+    expect(within(itinerary).getByText('Manhattan, NY')).toBeInTheDocument()
+    // And the figures a rider would check against the fare.
+    expect(within(itinerary).getByText('Total duration')).toBeInTheDocument()
+    expect(within(itinerary).getByText('2 hr 57 min')).toBeInTheDocument()
   })
 
   it('shows the fare breakdown that was frozen at selection time', async () => {

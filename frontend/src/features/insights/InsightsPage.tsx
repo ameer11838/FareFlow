@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { insightsApi, usersApi } from '../../api'
-import type { Insights, InsightsPersonalization, ProviderBreakdown } from '../../api/types'
-import { RouteIcon } from '../../components/Icons'
+import { insightsApi, passesApi, usersApi } from '../../api'
+import type { Insights, InsightsPersonalization, PassRecommendation } from '../../api/types'
+import { BarChart, ComparisonBars } from '../../components/charts'
+import { RouteIcon, SparkleIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
-import { StatTile } from '../../components/StatTile'
-import { EmptyState, ErrorState, LoadingState } from '../../components/states'
+import { Card, Metric, Meter, Section, Skeleton } from '../../components/Surface'
+import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
 import { formatCents, formatMinutes, formatOptionalCents, formatPercent } from '../../lib/format'
@@ -13,16 +14,28 @@ import { formatCents, formatMinutes, formatOptionalCents, formatPercent } from '
 /**
  * Transportation financial intelligence.
  *
- * Every figure is derived from real trips and ledger entries. Where the backend
- * returns null — no trips, no comparable baseline, only one provider used — the
- * tile renders a dash and says why. Nothing here is invented to fill a layout.
+ * <p>Every figure is derived from real trips and ledger entries. Where the backend
+ * returns null — no trips, no comparable baseline, only one operator used — the
+ * module says why rather than rendering a zero. Nothing here is invented to fill
+ * a layout, which is also why there is no trend line: the API returns one week,
+ * and a trend drawn from one point would be a decoration pretending to be data.
+ *
+ * <p>The page answers four questions in order: how am I travelling, what am I
+ * spending, where is it going, and how could FareFlow save me money.
  */
 export function InsightsPage() {
   const { user, refresh } = useAuth()
   const { data, loading, error, refetch } = useAsync<Insights>(() => insightsApi.get(), [])
+  const passes = useAsync<PassRecommendation>(() => passesApi.recommendation(), [])
 
-  if (loading) return <div className="page"><div className="card"><LoadingState /></div></div>
-  if (error) return <div className="page"><div className="card"><ErrorState error={error} onRetry={refetch} /></div></div>
+  if (loading) return <InsightsSkeleton />
+  if (error) {
+    return (
+      <div className="page">
+        <Card className="card-body"><ErrorState error={error} onRetry={refetch} /></Card>
+      </div>
+    )
+  }
   if (!data) return null
 
   const noTrips = data.tripCount === 0
@@ -36,125 +49,82 @@ export function InsightsPage() {
         actions={<BudgetEditor current={data.weeklyBudgetCents} onSaved={() => { refresh(); refetch() }} />}
       />
 
-      {data.personalization && <PersonalNotes personal={data.personalization} />}
-
-      <section className="section">
-        <div className="stat-grid">
-          <StatTile label="Spent" value={formatCents(data.spentCents)}
-                    caption="Derived from ledger entries" accent />
-          <StatTile label="Weekly budget"
-                    value={formatOptionalCents(data.weeklyBudgetCents)}
-                    tone={data.weeklyBudgetCents === null ? 'muted' : 'default'}
-                    caption={data.weeklyBudgetCents === null ? 'Set one to track against it' : undefined} />
-          <StatTile label="Remaining"
-                    value={formatOptionalCents(data.remainingCents)}
-                    tone={data.remainingCents === null ? 'muted' : 'default'}
-                    caption={data.remainingCents !== null && data.remainingCents < 0
-                      ? 'Over budget'
-                      : undefined} />
-          <Metric label="Saved vs. fastest" cents={data.savedVersusFastestCents}
-                  emptyCaption="Not enough route options to compare"
-                  caption="By not always taking the fastest" positive />
-          <StatTile label="Trips" value={String(data.tripCount)} caption="Completed this week" />
-        </div>
-      </section>
-
       {noTrips ? (
-        <section className="section">
-          <div className="card">
+        <Section>
+          <Card>
             <EmptyState
-              icon={<RouteIcon size={20} />}
-              title="No trips this week yet"
-              description="Insights are computed from real trips. Take one and this page fills in — nothing here is simulated."
-              action={<Link className="btn btn-primary" to="/plan">Plan a trip</Link>}
+              icon={<RouteIcon size={22} />}
+              title="Your insights are getting ready"
+              description="Complete a few trips and FareFlow will start identifying spending patterns, the operators you rely on, and opportunities to save. Nothing here is simulated — it fills in from real trips."
+              action={<Link className="btn btn-primary btn-lg" to="/plan">Plan a trip</Link>}
             />
-          </div>
-        </section>
+          </Card>
+        </Section>
       ) : (
         <>
-          <section className="section">
-            <div className="section-head">
-              <div>
-                <h2 className="section-title">Spending by provider</h2>
-                <p className="section-sub">Completed trips this week</p>
-              </div>
-            </div>
-            <ProviderChart rows={data.spendingByProvider} total={data.spentCents} />
-          </section>
+          <Section>
+            <HeadlineCard data={data} />
+          </Section>
 
-          <section className="section">
-            <div className="section-head">
-              <div>
-                <h2 className="section-title">Travel patterns</h2>
-                <p className="section-sub">Averages across this week's completed trips</p>
-              </div>
-            </div>
+          <Section title="Budget adherence" caption="Where this week sits against the budget you set.">
+            <BudgetAdherence data={data} />
+          </Section>
 
-            <div className="stat-grid">
-              <StatTile label="Average fare"
-                        value={data.averageFareCents === null ? '—' : formatCents(data.averageFareCents)}
-                        tone={data.averageFareCents === null ? 'muted' : 'default'} />
-              <StatTile label="Average duration"
+          <Section title="Where your money goes" caption="Completed trips this week, by operator.">
+            <div className="split-grid">
+              <Card className="card-body">
+                <BarChart
+                  data={data.spendingByProvider.map((row) => ({
+                    id: row.provider,
+                    label: row.providerName,
+                    value: row.totalFareCents,
+                    display: formatCents(row.totalFareCents),
+                    meta: `${row.tripCount} trip${row.tripCount === 1 ? '' : 's'} · ${formatCents(row.averageFareCents)} avg · ${formatMinutes(row.averageDurationMinutes)} avg`,
+                  }))}
+                  total={data.spentCents}
+                />
+              </Card>
+
+              <Card className="card-body">
+                <ProviderVerdicts data={data} />
+              </Card>
+            </div>
+          </Section>
+
+          <Section title="How you travel" caption="Averages across this week's completed trips.">
+            <div className="module-grid">
+              <Card className="card-body">
+                <Metric label="Average fare"
+                        value={formatOptionalCents(data.averageFareCents, '—')}
+                        tone={data.averageFareCents === null ? 'muted' : 'default'}
+                        caption="Per completed trip" />
+              </Card>
+              <Card className="card-body">
+                <Metric label="Average trip"
                         value={data.averageDurationMinutes === null ? '—' : formatMinutes(data.averageDurationMinutes)}
-                        tone={data.averageDurationMinutes === null ? 'muted' : 'default'} />
-              <StatTile label="Budget used"
-                        value={data.budgetUtilization === null ? '—' : formatPercent(data.budgetUtilization)}
-                        tone={data.budgetUtilization === null ? 'muted' : 'default'}
-                        caption={data.budgetUtilization === null ? 'No budget set' : undefined} />
-              <StatTile label="Time traded for savings"
-                        value={data.minutesTradedForSavings === null
-                          ? '—'
-                          : formatMinutes(data.minutesTradedForSavings)}
+                        tone={data.averageDurationMinutes === null ? 'muted' : 'default'}
+                        caption="Door to door" />
+              </Card>
+              <Card className="card-body">
+                <Metric label="Time traded for savings"
+                        value={data.minutesTradedForSavings === null ? '—' : formatMinutes(data.minutesTradedForSavings)}
                         tone={data.minutesTradedForSavings === null ? 'muted' : 'default'}
                         caption={data.minutesTradedForSavings === null
                           ? 'No comparable trips yet'
                           : 'Extra travel time versus the fastest routes'} />
+              </Card>
+              <Card className="card-body">
+                <Metric label="Projected monthly"
+                        value={formatOptionalCents(data.projectedMonthlyCents, '—')}
+                        tone={data.projectedMonthlyCents === null ? 'muted' : 'default'}
+                        caption={data.projectedMonthlyCents === null
+                          ? 'Needs a week with spending'
+                          : 'Straight-line from this week alone'} />
+              </Card>
             </div>
-          </section>
+          </Section>
 
-          <section className="section">
-            <div className="grid-2">
-              <div className="card card-body">
-                <span className="stat-label">Cheapest provider used</span>
-                <div className="insight-value">
-                  {data.cheapestProviderName ?? <span className="muted">—</span>}
-                </div>
-                <p className="stat-caption">
-                  {data.cheapestProviderName
-                    ? 'Lowest fare among the providers you travelled with'
-                    : 'Needs trips on at least two providers to compare'}
-                </p>
-              </div>
-
-              <div className="card card-body">
-                <span className="stat-label">Fastest provider used</span>
-                <div className="insight-value">
-                  {data.fastestProviderName ?? <span className="muted">—</span>}
-                </div>
-                <p className="stat-caption">
-                  {data.fastestProviderName
-                    ? 'Shortest trip among the providers you travelled with'
-                    : 'Needs trips on at least two providers to compare'}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="section">
-            <div className="card card-body">
-              <span className="stat-label">Projected monthly transit spend</span>
-              <div className="insight-value numeric">
-                {data.projectedMonthlyCents === null
-                  ? <span className="muted">—</span>
-                  : formatCents(data.projectedMonthlyCents)}
-              </div>
-              <p className="stat-caption">
-                {data.projectedMonthlyCents === null
-                  ? 'Needs a week with spending before a projection means anything.'
-                  : 'Straight-line projection from this week alone. One week is not a trend — this becomes meaningful once several weeks of history exist.'}
-              </p>
-            </div>
-          </section>
+          {passes.data && <PassModule recommendation={passes.data} />}
         </>
       )}
     </div>
@@ -162,123 +132,208 @@ export function InsightsPage() {
 }
 
 /**
- * The sentences the backend built from this rider's own profile and ledger.
+ * The one thing worth knowing this week.
  *
- * Every one arrives fully composed, including the assumption it rests on. The
- * client does not calculate, round, or rephrase a financial claim — it renders
- * what the deterministic engine said, or nothing.
+ * <p>Savings leads because it is the only figure on the page that answers "was
+ * FareFlow worth using". When it cannot be computed the card says so and leads
+ * with spend instead, rather than printing a confident $0.00.
  */
-function PersonalNotes({ personal }: { personal: InsightsPersonalization }) {
-  const hasCommute = personal.typicalOriginName && personal.typicalDestinationName
-
-  if (personal.notes.length === 0 && !hasCommute) return null
+function HeadlineCard({ data }: { data: Insights }) {
+  const saved = data.savedVersusFastestCents
+  const personal = data.personalization
 
   return (
-    <section className="section">
-      <div className="card card-body personal-card">
-        <div className="personal-head">
-          <span className="stat-label">For your travel</span>
-          {hasCommute && (
-            <Link
-              className="personal-commute"
-              to={`/plan?from=${encodeURIComponent(personal.typicalOriginName!)}`
-                + `&to=${encodeURIComponent(personal.typicalDestinationName!)}`}
-            >
-              {personal.typicalOriginName} → {personal.typicalDestinationName}
-            </Link>
-          )}
-        </div>
+    <Card tone="navy" className="headline">
+      <div className="headline-main">
+        <span className="headline-label">
+          {saved !== null && saved > 0 ? 'Saved this week' : 'Spent this week'}
+        </span>
+        <span className="headline-value numeric">
+          {saved !== null && saved > 0 ? formatCents(saved) : formatCents(data.spentCents)}
+        </span>
+        <span className="headline-sub">
+          {saved !== null && saved > 0
+            ? `By not always taking the fastest route, across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}.`
+            : saved === null
+              ? `Across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}. Savings need at least one comparable alternative route.`
+              : `Across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}. You took the fastest route each time.`}
+        </span>
+      </div>
 
-        <ul className="personal-notes">
-          {personal.notes.map((note) => (
-            <li key={note}>
-              <span className="personal-dot" aria-hidden="true" />
-              {note}
-            </li>
+      {personal && personal.notes.length > 0 && (
+        <ul className="headline-notes">
+          {personal.notes.slice(0, 3).map((note) => (
+            <li key={note}><span className="headline-dot" aria-hidden="true" />{note}</li>
           ))}
         </ul>
+      )}
 
-        {(personal.projectedWeeklySpendCents !== null || personal.budgetBufferCents !== null) && (
-          <div className="personal-figures">
-            {personal.projectedWeeklySpendCents !== null && (
-              <div className="personal-figure">
-                <span className="stat-label">Projected this week</span>
-                <span className="personal-figure-value numeric">
-                  {formatCents(personal.projectedWeeklySpendCents)}
-                </span>
-              </div>
-            )}
-            {personal.budgetBufferCents !== null && (
-              <div className="personal-figure">
-                <span className="stat-label">Budget buffer</span>
-                <span className={`personal-figure-value numeric${personal.budgetBufferCents < 0 ? ' negative' : ''}`}>
-                  {formatCents(personal.budgetBufferCents)}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+      {personal && <CommuteChip personal={personal} />}
+    </Card>
   )
 }
 
-function ProviderChart({ rows, total }: { rows: ProviderBreakdown[]; total: number }) {
-  if (rows.length === 0) {
-    return <div className="card"><EmptyState title="No completed trips this week" /></div>
+function CommuteChip({ personal }: { personal: InsightsPersonalization }) {
+  if (!personal.typicalOriginName || !personal.typicalDestinationName) return null
+  return (
+    <Link
+      className="headline-commute"
+      to={`/plan?from=${encodeURIComponent(personal.typicalOriginName)}`
+        + `&to=${encodeURIComponent(personal.typicalDestinationName)}`}
+    >
+      {personal.typicalOriginName} → {personal.typicalDestinationName}
+    </Link>
+  )
+}
+
+function BudgetAdherence({ data }: { data: Insights }) {
+  if (data.weeklyBudgetCents === null) {
+    return (
+      <Card className="card-body adherence-empty">
+        <div>
+          <h3 className="section-title">No weekly budget set</h3>
+          <p className="section-sub">
+            Set one and FareFlow will track this week against it, and lean toward cheaper
+            routes as you approach it.
+          </p>
+        </div>
+        <Link className="btn btn-primary" to="/settings">Set a budget</Link>
+      </Card>
+    )
   }
 
-  const max = Math.max(...rows.map((row) => row.totalFareCents), 1)
+  const budget = data.weeklyBudgetCents
+  const over = (data.remainingCents ?? 0) < 0
+  const projected = data.personalization?.projectedWeeklySpendCents ?? null
 
   return (
-    <div className="card">
-      <div className="provider-chart">
-        {rows.map((row) => (
-          <div key={row.provider} className="provider-row" data-testid={`provider-${row.provider}`}>
-            <div className="provider-head">
-              <span className="provider-name">{row.providerName}</span>
-              <span className="provider-total numeric">{formatCents(row.totalFareCents)}</span>
-            </div>
-            <div className="provider-bar">
-              <div className="provider-bar-fill" style={{ width: `${(row.totalFareCents / max) * 100}%` }} />
-            </div>
-            <div className="provider-meta">
-              <span>{row.tripCount} trip{row.tripCount === 1 ? '' : 's'}</span>
-              <span className="option-sep" />
-              <span>{formatCents(row.averageFareCents)} avg</span>
-              <span className="option-sep" />
-              <span>{formatMinutes(row.averageDurationMinutes)} avg</span>
-              {total > 0 && (
-                <>
-                  <span className="option-sep" />
-                  <span>{formatPercent(row.totalFareCents / total)} of spend</span>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+    <Card className="card-body adherence">
+      <div className="adherence-figures">
+        <Metric label="Spent" value={formatCents(data.spentCents)} emphasis="hero" />
+        <Metric label="Budget" value={formatCents(budget)} />
+        <Metric label="Remaining"
+                value={formatOptionalCents(data.remainingCents)}
+                tone={over ? 'negative' : 'positive'} />
+      </div>
+
+      <div className="adherence-meter">
+        <Meter value={data.spentCents} max={budget} over={over}
+               label={`${formatCents(data.spentCents)} of ${formatCents(budget)} spent`} />
+        <div className="adherence-scale">
+          <span>{data.budgetUtilization === null ? '0%' : formatPercent(data.budgetUtilization)} used</span>
+          <span>{formatCents(budget)}</span>
+        </div>
+      </div>
+
+      {projected !== null && (
+        <ComparisonBars rows={[
+          { id: 'spent', label: 'Spent so far', value: data.spentCents,
+            display: formatCents(data.spentCents), tone: 'brand' },
+          { id: 'projected', label: 'Projected by week end', value: projected,
+            display: formatCents(projected), tone: projected > budget ? 'muted' : 'positive' },
+          { id: 'budget', label: 'Your budget', value: budget,
+            display: formatCents(budget), tone: 'muted' },
+        ]} />
+      )}
+    </Card>
+  )
+}
+
+/**
+ * Cheapest and fastest operator used.
+ *
+ * <p>Both are null until the rider has travelled on at least two operators, since
+ * "cheapest of one" is not a comparison. The card says that instead of naming the
+ * only operator available and implying a choice was made.
+ */
+function ProviderVerdicts({ data }: { data: Insights }) {
+  const comparable = data.cheapestProviderName !== null || data.fastestProviderName !== null
+
+  if (!comparable) {
+    return (
+      <div className="verdict-empty">
+        <span className="stat-label">Operator comparison</span>
+        <p className="section-sub">
+          FareFlow compares operators once you have travelled on at least two of them.
+          Ranking a single operator against itself would not tell you anything.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="verdicts">
+      <div className="verdict-item">
+        <span className="stat-label">Cheapest you used</span>
+        <span className="verdict-name">{data.cheapestProviderName ?? '—'}</span>
+        <span className="stat-caption">Lowest fare among the operators you travelled with</span>
+      </div>
+      <div className="verdict-item">
+        <span className="stat-label">Fastest you used</span>
+        <span className="verdict-name">{data.fastestProviderName ?? '—'}</span>
+        <span className="stat-caption">Shortest trip among the operators you travelled with</span>
       </div>
     </div>
   )
 }
 
-function Metric({ label, cents, caption, emptyCaption, positive }: {
-  label: string
-  cents: number | null
-  caption?: string
-  emptyCaption: string
-  positive?: boolean
-}) {
-  if (cents === null) {
-    return <StatTile label={label} value="—" caption={emptyCaption} tone="muted" />
+/**
+ * Whether a pass beats paying per ride.
+ *
+ * <p>Rendered straight from the pass service's verdict, including when the verdict
+ * is "keep paying per ride" — a recommender that only ever says "buy the pass" is
+ * a sales tool, not an advisor.
+ */
+function PassModule({ recommendation }: { recommendation: PassRecommendation }) {
+  if (!recommendation.hasEnoughHistory) {
+    return (
+      <Section title="Pass recommendation">
+        <Card className="card-body">
+          <p className="section-sub">
+            FareFlow needs at least a full week of trips before comparing passes against
+            paying per ride. Averaging less than that would be noise, not a pattern.
+          </p>
+        </Card>
+      </Section>
+    )
   }
+
+  const worthwhile = recommendation.recommendedPassCode !== null
+
   return (
-    <StatTile
-      label={label}
-      value={formatCents(cents)}
-      tone={positive && cents > 0 ? 'positive' : 'default'}
-      caption={cents < 0 ? 'More than always taking the fastest' : caption}
-    />
+    <Section title="Pass recommendation" caption={`Based on ${recommendation.weeksOfHistory} week${recommendation.weeksOfHistory === 1 ? '' : 's'} of travel.`}>
+      <Card className="card-body pass-card">
+        <div className="pass-verdict">
+          <span className={`pass-icon${worthwhile ? ' pass-icon-good' : ''}`} aria-hidden="true">
+            <SparkleIcon size={18} />
+          </span>
+          <div>
+            <p className="pass-text">{recommendation.verdict}</p>
+            <p className="stat-caption">
+              Observed {formatCents(recommendation.observedWeeklySpendCents)} a week ·
+              projected {formatCents(recommendation.projectedMonthlySpendCents)} a month ·
+              confidence {recommendation.confidence.toLowerCase()}
+            </p>
+          </div>
+        </div>
+
+        {recommendation.options.length > 0 && (
+          <ul className="pass-options">
+            {recommendation.options.map((option) => (
+              <li key={option.code} className={option.worthwhile ? 'worthwhile' : undefined}>
+                <span className="pass-option-name">{option.name}</span>
+                <span className="pass-option-price numeric">{formatCents(option.priceCents)}</span>
+                <span className={`pass-option-delta numeric${option.worthwhile ? ' good' : ''}`}>
+                  {option.monthlySavingsCents > 0
+                    ? `saves ${formatCents(option.monthlySavingsCents)}/mo`
+                    : `costs ${formatCents(-option.monthlySavingsCents)}/mo more`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </Section>
   )
 }
 
@@ -328,6 +383,23 @@ function BudgetEditor({ current, onSaved }: { current: number | null; onSaved: (
         {saving ? 'Saving…' : 'Save'}
       </button>
       <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
+    </div>
+  )
+}
+
+function InsightsSkeleton() {
+  return (
+    <div className="page">
+      <div className="page-header">
+        <Skeleton width={80} height={12} />
+        <div style={{ marginTop: 12 }}><Skeleton width={300} height={30} /></div>
+      </div>
+      <Card tone="navy" className="headline-skeleton"><Skeleton width="55%" height={110} /></Card>
+      <div className="module-grid" style={{ marginTop: 'var(--space-7)' }}>
+        {[0, 1, 2, 3].map((index) => (
+          <Card key={index} className="card-body"><Skeleton height={62} /></Card>
+        ))}
+      </div>
     </div>
   )
 }

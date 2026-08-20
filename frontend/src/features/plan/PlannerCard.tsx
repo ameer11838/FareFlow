@@ -2,10 +2,16 @@ import type { ContextProfileOption } from '../../api/types'
 import { SearchIcon, SwapIcon } from '../../components/Icons'
 import { LocationInput } from '../../components/LocationInput'
 
+/*
+ * Short chip labels. The backend still owns what a profile *means* — the weights
+ * and the full display names come from /api/recommendations/profiles — but a chip
+ * has room for one or two words, and "Fastest" is what a rider is actually asking
+ * for when they pick RUSH.
+ */
 const STANCE_LABELS: Record<string, string> = {
   BALANCED: 'Balanced',
-  RUSH: 'Rush',
-  SAVE_MONEY: 'Save money',
+  RUSH: 'Fastest',
+  SAVE_MONEY: 'Cheapest',
   FEWER_TRANSFERS: 'Fewer transfers',
 }
 

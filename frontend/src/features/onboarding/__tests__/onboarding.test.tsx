@@ -11,6 +11,7 @@ import {
   emptyInsights,
   emptyTravelProfile,
   newUser,
+  passRecommendation,
   philadelphia,
   profileOptions,
   profiles,
@@ -25,6 +26,9 @@ function stubAppData() {
   vi.spyOn(api.locationsApi, 'search').mockResolvedValue([])
   vi.spyOn(api.profileApi, 'options').mockResolvedValue(profileOptions)
   vi.spyOn(api.profileApi, 'get').mockResolvedValue(travelProfile)
+  // Insights asks the pass service whether a pass beats paying per ride. Left
+  // unstubbed it reaches the network, and a pending request outlives the test.
+  vi.spyOn(api.passesApi, 'recommendation').mockResolvedValue(passRecommendation)
 }
 
 const welcome = /let's make fareflow work for you/i

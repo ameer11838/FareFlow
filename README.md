@@ -214,11 +214,14 @@ outside the transaction that created its trip.
 
 ### Design system
 
-The identity comes from the app mark: a cyan → indigo → magenta spectrum on deep
-ink navigation. The gradient is a **brand device, not a background** — it appears
-on the mark, the primary action, and thin progress/selection accents, and nowhere
-else. Text, icons, and data bars use the flat indigo the spectrum resolves to,
-because a gradient has a different contrast ratio at each end.
+The identity comes from the app mark: a cyan → electric blue → violet → magenta
+spectrum on deep navy. Two rules govern it — the gradient marks **intent, never
+surface** (the mark, the primary action, thin progress and selection accents), and
+anything that must be *read* uses a flat colour with a known contrast ratio.
+
+The chart palette is deliberately **not** the brand gradient: sampled for series it
+scored ΔE 1.7 between blue and violet under deuteranopia, two series most people
+cannot tell apart. The palette actually shipped is validated on every axis.
 [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Personalization

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ApiError } from '../../api/client'
 import type { JourneyOption, JourneySearchResponse } from '../../api/types'
-import { ClockIcon, InfoIcon, ModeIcon, TransferIcon } from '../../components/Icons'
+import { InfoIcon, ModeIcon, TransferIcon } from '../../components/Icons'
 import { formatCents, formatMinutes, labelText } from '../../lib/format'
 import { JourneyLegs } from './JourneyLegs'
 
@@ -118,6 +118,7 @@ function JourneyTile({ option, selected, dimmed, onSelect, onHover, onChoose, ch
 }) {
   const [showLegs, setShowLegs] = useState(false)
   const primaryLabel = option.labels[0]
+  const rides = option.legs.filter((leg) => leg.mode !== 'WALK')
 
   return (
     <div
@@ -136,43 +137,67 @@ function JourneyTile({ option, selected, dimmed, onSelect, onHover, onChoose, ch
         }
       }}
     >
-      <div className="route-tile-top">
-        {primaryLabel && (
-          <span className={`route-flag flag-${primaryLabel.toLowerCase()}`}>
-            {labelText(primaryLabel)}
-          </span>
-        )}
-        <span className="route-tile-mode">
-          <ModeIcon mode={option.legs.find((leg) => leg.mode !== 'WALK')?.mode ?? 'BUS'} size={15} />
+      {primaryLabel && (
+        <span className={`route-flag flag-${primaryLabel.toLowerCase()}`}>
+          {labelText(primaryLabel)}
         </span>
+      )}
+
+      {/*
+        The transit-line strip. A rider recognises a route as a sequence of modes
+        before they read a word of it, so the modes are drawn as connected nodes
+        rather than described in a sentence.
+      */}
+      <div className="line-strip" aria-hidden="true">
+        {rides.slice(0, 4).map((leg, index) => (
+          <span key={index} className="line-strip-item">
+            {index > 0 && <span className="line-strip-link" />}
+            <span className={`line-strip-node mode-${leg.mode.toLowerCase()}`}>
+              <ModeIcon mode={leg.mode} size={13} />
+            </span>
+          </span>
+        ))}
+        {rides.length > 4 && <span className="line-strip-more">+{rides.length - 4}</span>}
       </div>
 
       <div className="route-tile-provider">{option.summary}</div>
 
       <div className="route-tile-figures">
-        <span className="route-tile-time numeric">
-          <ClockIcon size={14} />{formatMinutes(option.totalMinutes)}
-        </span>
+        <span className="route-tile-time numeric">{formatMinutes(option.totalMinutes)}</span>
         <Fare option={option} />
       </div>
 
-      <div className="route-tile-transfers numeric">
+      <div className="route-tile-transfers">
         <TransferIcon size={13} />
         {option.transfers === 0 ? 'Direct' : `${option.transfers} transfer${option.transfers > 1 ? 's' : ''}`}
-        {option.walkingMinutes > 0 && <> · {option.walkingMinutes} min walking</>}
+        {option.walkingMinutes > 0 && <> · {option.walkingMinutes} min walk</>}
       </div>
 
-      <button
-        type="button"
-        className="route-tile-legs-toggle"
-        onClick={(event) => { event.stopPropagation(); setShowLegs((value) => !value) }}
-        aria-expanded={showLegs}
-      >
-        {showLegs ? 'Hide steps' : `${option.legs.length} steps`}
-      </button>
+      {/* The one line that says why this option might be the right one. */}
+      {option.explanation && (
+        <p className="route-tile-why">{option.explanation}</p>
+      )}
+
+      <div className="route-tile-actions">
+        <button
+          type="button"
+          className="route-tile-detail"
+          onClick={(event) => { event.stopPropagation(); setShowLegs((value) => !value) }}
+          aria-expanded={showLegs}
+        >
+          {showLegs ? 'Hide details' : 'View details'}
+        </button>
+        <button
+          className="route-tile-choose"
+          onClick={(event) => { event.stopPropagation(); onChoose() }}
+          disabled={disabled}
+        >
+          {choosing ? 'Starting…' : 'Choose route'}
+        </button>
+      </div>
 
       {showLegs && (
-        <div onClick={(event) => event.stopPropagation()}>
+        <div className="route-tile-legs" onClick={(event) => event.stopPropagation()}>
           <JourneyLegs legs={option.legs} />
           {option.fareBreakdown.length > 0 && (
             <details className="fare-breakdown">
@@ -184,14 +209,6 @@ function JourneyTile({ option, selected, dimmed, onSelect, onHover, onChoose, ch
           )}
         </div>
       )}
-
-      <button
-        className="route-tile-choose"
-        onClick={(event) => { event.stopPropagation(); onChoose() }}
-        disabled={disabled}
-      >
-        {choosing ? 'Starting…' : 'Choose'}
-      </button>
     </div>
   )
 }

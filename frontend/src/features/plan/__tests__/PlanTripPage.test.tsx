@@ -69,7 +69,10 @@ describe('PlanTripPage — journey search', () => {
     await search()
 
     const cheapest = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
-    expect(within(cheapest).getByText(/SEPTA Trenton Line/)).toBeInTheDocument()
+    // The operator names the card and also appears in its one-line reason, so
+    // this asserts the title specifically rather than either occurrence.
+    expect(cheapest.querySelector('.route-tile-provider'))
+      .toHaveTextContent('SEPTA Trenton Line')
     expect(within(cheapest).getByText('$27.60')).toBeInTheDocument()
     expect(within(cheapest).getByText('2 hr 57 min')).toBeInTheDocument()
     expect(within(cheapest).getByText('Best value')).toBeInTheDocument()
@@ -149,7 +152,7 @@ describe('PlanTripPage — multi-leg journeys', () => {
     // Concise by default.
     expect(within(card).queryByText(/Trenton Transit Center/)).not.toBeInTheDocument()
 
-    await userEvent.click(within(card).getByRole('button', { name: /4 steps/i }))
+    await userEvent.click(within(card).getByRole('button', { name: /view details/i }))
 
     // The line name now appears twice on purpose: the card title and the timeline.
     expect(within(card).getAllByText(/SEPTA Trenton Line/).length).toBeGreaterThan(1)
@@ -163,7 +166,7 @@ describe('PlanTripPage — multi-leg journeys', () => {
     await search()
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
-    await userEvent.click(within(card).getByRole('button', { name: /steps/i }))
+    await userEvent.click(within(card).getByRole('button', { name: /view details/i }))
 
     expect(within(card).getByText(/SEPTA Regional Rail \(Zone 4/)).toBeInTheDocument()
     expect(within(card).getByText(/NJ Transit rail \(Trenton/)).toBeInTheDocument()
@@ -175,7 +178,7 @@ describe('PlanTripPage — multi-leg journeys', () => {
     await search()
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
-    expect(within(card).getByText(/15 min walking/)).toBeInTheDocument()
+    expect(within(card).getByText(/15 min walk/)).toBeInTheDocument()
   })
 })
 
@@ -191,7 +194,7 @@ describe('PlanTripPage — context profiles', () => {
     await search()
     await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rush' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Fastest' }))
 
     await waitFor(() =>
       expect(call).toHaveBeenLastCalledWith('Newark', 'Manhattan', 'RUSH'))
@@ -205,8 +208,8 @@ describe('PlanTripPage — context profiles', () => {
     const balanced = await screen.findByRole('button', { name: 'Balanced' })
     expect(balanced).toHaveAttribute('aria-pressed', 'true')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Save money' }))
-    expect(screen.getByRole('button', { name: 'Save money' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Cheapest' }))
+    expect(screen.getByRole('button', { name: 'Cheapest' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows no context note when the stance changed nothing', async () => {
@@ -514,7 +517,7 @@ describe('PlanTripPage — the saved commute', () => {
     })
     renderWithProviders(<PlanTripPage />)
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save money' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cheapest' }))
       .toHaveAttribute('aria-pressed', 'true'))
 
     await userEvent.click(screen.getByRole('button', { name: /plan commute/i }))
@@ -529,10 +532,10 @@ describe('PlanTripPage — the saved commute', () => {
     })
     renderWithProviders(<PlanTripPage />)
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save money' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cheapest' }))
       .toHaveAttribute('aria-pressed', 'true'))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rush' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Fastest' }))
     await userEvent.click(screen.getByRole('button', { name: /find routes/i }))
 
     await waitFor(() => expect(call).toHaveBeenCalledWith('Newark', 'Manhattan', 'RUSH'))

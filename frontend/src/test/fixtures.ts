@@ -383,9 +383,17 @@ export const emptyInsights: Insights = {
   personalization: null,
 }
 
-/** A rider who chose "I'm not sure" at the budget step. */
+/**
+ * A rider who chose "I'm not sure" at the budget step, and has travelled since.
+ * Trips matter here: with none, the page shows its empty state rather than the
+ * budget module this fixture exists to exercise.
+ */
 export const noBudgetInsights: Insights = {
   ...emptyInsights,
+  spentCents: 900,
+  tripCount: 3,
+  averageFareCents: 300,
+  averageDurationMinutes: 38,
   weeklyBudgetCents: null,
   remainingCents: null,
   budgetUtilization: null,

@@ -133,8 +133,10 @@ describe('auth mode', () => {
     vi.spyOn(api.authApi, 'me').mockRejectedValue(new ApiError(401, { title: 'Authentication required' }))
     renderWithProviders(<App />, { route: '/login' })
 
-    expect(await screen.findByText(/plan smarter/i)).toBeInTheDocument()
-    expect(screen.getByText(/spend less/i)).toBeInTheDocument()
+    expect(await screen.findByText(/travel smarter/i)).toBeInTheDocument()
+    expect(screen.getByText(/spend better/i)).toBeInTheDocument()
+    expect(screen.getByText(/based on your time, budget, and travel preferences/i))
+      .toBeInTheDocument()
   })
 })
 
