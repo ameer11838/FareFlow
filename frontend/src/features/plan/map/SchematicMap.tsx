@@ -1,0 +1,190 @@
+import { useMemo } from 'react'
+import type { JourneyOption } from '../../../api/types'
+import { AlertIcon } from '../../../components/Icons'
+
+/**
+ * Fallback route view used when no TomTom key is configured.
+ *
+ * This is a working schematic, not a placeholder: it projects the same real station
+ * coordinates the TomTom layer uses, supports the same selection interaction, and
+ * keeps the rest of Plan Trip fully functional. What it lacks is the basemap —
+ * streets, water, and labels — which is precisely what the TomTom key buys.
+ *
+ * Rendering it honestly matters: it is clearly labelled as a schematic so nobody
+ * mistakes it for a real map.
+ */
+export function SchematicMap({ journeys, selectedJourneyId, highlightedJourneyId, onSelectJourney, reason }: {
+  journeys: JourneyOption[]
+  selectedJourneyId: string | null
+  highlightedJourneyId?: string | null
+  onSelectJourney: (journeyId: string) => void
+  reason: string
+}) {
+  const drawable = journeys
+    .map((option) => ({
+      id: option.journeyId,
+      name: option.summary,
+      waypoints: option.legs.flatMap((leg) => leg.waypoints),
+    }))
+    .filter((entry) => entry.waypoints.length > 1)
+
+  const projection = useMemo(() => buildProjection(drawable), [drawable])
+
+  return (
+    <div className="map-canvas map-canvas-schematic" data-testid="schematic-map">
+      <div className="map-notice">
+        <AlertIcon size={16} />
+        <span>
+          <strong>Schematic view.</strong>{' '}
+          {reason === 'missing-key'
+            ? 'Set VITE_TOMTOM_API_KEY to load the TomTom basemap.'
+            : reason}{' '}
+          Station positions are real; connecting lines are indicative.
+        </span>
+      </div>
+
+      {projection && (
+        <svg
+          className="map-schematic-svg"
+          viewBox={`0 0 ${projection.width} ${projection.height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label="Schematic route diagram"
+        >
+          <defs>
+            <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+              <path d="M48 0H0V48" fill="none" stroke="rgba(13,23,32,0.05)" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width={projection.width} height={projection.height} fill="url(#grid)" />
+
+          {/* Unselected routes first so the selected line draws on top. */}
+          {[...drawable]
+            .sort((a, b) => Number(a.id === selectedJourneyId) - Number(b.id === selectedJourneyId))
+            .map((route) => {
+              const isSelected = route.id === selectedJourneyId
+              const isHighlighted = route.id === highlightedJourneyId
+              const points = route.waypoints.map((point) => projection.project(point))
+              const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ')
+
+              return (
+                <g key={route.id}>
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke={isSelected || isHighlighted ? 'var(--color-accent)' : '#9aa6b2'}
+                    strokeWidth={isSelected ? 5 : isHighlighted ? 4 : 3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity={isSelected ? 1 : isHighlighted ? 0.85 : 0.45}
+                    strokeDasharray={isSelected ? undefined : '7 6'}
+                  />
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={22}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => onSelectJourney(route.id)}
+                  >
+                    <title>{route.name}</title>
+                  </path>
+
+                  {isSelected && points.slice(1, -1).map((point, index) => (
+                    <circle
+                      key={index}
+                      cx={point.x}
+                      cy={point.y}
+                      r={4.5}
+                      fill="#fff"
+                      stroke="var(--color-accent)"
+                      strokeWidth={2.5}
+                    />
+                  ))}
+                </g>
+              )
+            })}
+
+          {/* Endpoints of the selected route (or the first, before any selection). */}
+          {(() => {
+            const anchor = drawable.find((r) => r.id === selectedJourneyId) ?? drawable[0]
+            if (!anchor) return null
+            const points = anchor.waypoints
+            const start = projection.project(points[0])
+            const end = projection.project(points[points.length - 1])
+            return (
+              <g>
+                <circle cx={start.x} cy={start.y} r={9} fill="#fff" stroke="var(--color-accent)" strokeWidth={4} />
+                <rect
+                  x={end.x - 8} y={end.y - 8} width={16} height={16} rx={3}
+                  fill="var(--color-accent)" stroke="#fff" strokeWidth={3}
+                />
+                <text x={start.x + 16} y={start.y + 4} className="map-schematic-label">
+                  {points[0].name}
+                </text>
+                <text x={end.x + 16} y={end.y + 4} className="map-schematic-label">
+                  {points[points.length - 1].name}
+                </text>
+              </g>
+            )
+          })()}
+        </svg>
+      )}
+
+      {!projection && (
+        <div className="map-loading">
+          <span className="muted">Search for a route to see it here.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface Projection {
+  width: number
+  height: number
+  project: (point: { latitude: number; longitude: number }) => { x: number; y: number }
+}
+
+/**
+ * Equirectangular projection fitted to the bounding box of all routes. Good enough
+ * at city scale, and honest: this is a diagram, not a survey.
+ */
+function buildProjection(routes: { waypoints: { latitude: number; longitude: number }[] }[]): Projection | null {
+  const points = routes.flatMap((route) => route.waypoints)
+  if (points.length < 2) return null
+
+  const lats = points.map((point) => point.latitude)
+  const lngs = points.map((point) => point.longitude)
+  const minLat = Math.min(...lats)
+  const maxLat = Math.max(...lats)
+  const minLng = Math.min(...lngs)
+  const maxLng = Math.max(...lngs)
+
+  const width = 1000
+  const height = 620
+  // Asymmetric padding: the floating panels cover the left edge of the viewport,
+  // and station labels extend to the right of their marker. Without this the
+  // origin label renders underneath the search panel.
+  const padLeft = 320
+  const padRight = 170
+  const padY = 110
+
+  const spanLng = Math.max(maxLng - minLng, 1e-6)
+  const spanLat = Math.max(maxLat - minLat, 1e-6)
+
+  // Preserve aspect ratio so the diagram is not stretched.
+  const scale = Math.min((width - padLeft - padRight) / spanLng, (height - padY * 2) / spanLat)
+  const offsetX = padLeft + (width - padLeft - padRight - spanLng * scale) / 2
+  const offsetY = (height - spanLat * scale) / 2
+
+  return {
+    width,
+    height,
+    project: (point) => ({
+      x: offsetX + (point.longitude - minLng) * scale,
+      // SVG y grows downward; latitude grows northward.
+      y: offsetY + (maxLat - point.latitude) * scale,
+    }),
+  }
+}

@@ -1,0 +1,47 @@
+# Integration test configuration.
+#
+# Points at a throwaway `fareflow_test` database, separate from development data.
+# Flyway rebuilds it from scratch on every run (clean-disabled: false + a clean
+# in the test base class), so tests never depend on leftover state.
+#
+# The password default below is a local-only development credential for a
+# disposable test database. Override it with DB_PASSWORD in any other environment.
+
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/fareflow_test}
+    username: ${DB_USERNAME:fareflow}
+    password: ${DB_PASSWORD:fareflow_dev_password}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: false
+
+fareflow:
+  auth:
+    # Demo mode for the behavioural suites: every request resolves to the seeded
+    # demo user. The auth-specific suites override this with @TestPropertySource.
+    enabled: false
+    demo-user-email: demo@fareflow.app
+  jwt:
+    secret: test-only-secret-value-at-least-32-bytes-long!!
+    expiration-seconds: 3600
+
+  optimization:
+    default-cost-priority: 0.45
+    default-time-priority: 0.45
+    default-transfer-priority: 0.10
+    budget-pressure-beta: 0.40
+  cors:
+    allowed-origins: http://localhost:5173
+
+logging:
+  level:
+    org.flywaydb: WARN
+    org.hibernate.SQL: WARN

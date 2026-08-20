@@ -29,6 +29,36 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
+fareflow:
+  auth:
+    # true  -> JWT required, identity comes from the token
+    # false -> demo mode: every request resolves to the seeded demo user
+    enabled: ${FAREFLOW_AUTH_ENABLED:true}
+    demo-user-email: ${FAREFLOW_DEMO_USER_EMAIL:demo@fareflow.app}
+
+  jwt:
+    # No default. When auth is enabled a missing or short secret fails startup
+    # rather than signing tokens with a guessable key. Not needed in demo mode.
+    secret: ${JWT_SECRET:}
+    expiration-seconds: ${JWT_EXPIRATION:86400}
+
+  optimization:
+    # Phase 1 defaults. Cost and time matter equally; transfers matter a little.
+    # These are configuration rather than constants so they can be tuned without
+    # a rebuild, and so the numbers live in one visible place.
+    default-cost-priority: 0.45
+    default-time-priority: 0.45
+    default-transfer-priority: 0.10
+    # Maximum fraction of the time weight shifted to cost at full budget pressure.
+    budget-pressure-beta: 0.40
+  tomtom:
+    # Used server-side for geocoding only. Optional: without it the built-in
+    # gazetteer serves location search and the app still routes.
+    api-key: ${TOMTOM_API_KEY:}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
 server:
   port: ${SERVER_PORT:8080}
 

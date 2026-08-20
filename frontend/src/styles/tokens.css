@@ -1,0 +1,134 @@
+/*
+ * FareFlow design tokens.
+ *
+ * Identity: a transit product that handles money. Deep ink navigation, a calm
+ * paper canvas, and one signature spectrum — cyan through indigo to magenta —
+ * taken from the app mark.
+ *
+ * The gradient is a *brand* device, not a background treatment. It appears on the
+ * logo, the primary action, and the thin accents that mark progress or selection,
+ * and nowhere else. A page-sized gradient behind financial figures makes them
+ * harder to read and dates the product in about a year; a gradient used as an
+ * accent reads as identity. Semantic colour still appears only where it carries
+ * meaning (money in/out, budget pressure).
+ */
+:root {
+  /* ---- Brand spectrum: the four stops of the app mark, in order ---- */
+  --ff-grad-1: #22d3ee;
+  --ff-grad-2: #4f6bf6;
+  --ff-grad-3: #8b3ff0;
+  --ff-grad-4: #e935d6;
+
+  /* The canonical brand gradient. One definition, used everywhere, so the angle
+     and stops cannot drift between the logo, a button, and a progress bar. */
+  --ff-gradient: linear-gradient(135deg,
+    var(--ff-grad-1) 0%, var(--ff-grad-2) 38%, var(--ff-grad-3) 72%, var(--ff-grad-4) 100%);
+  /* A shorter sweep for small elements, where the full four-stop run turns to mush. */
+  --ff-gradient-compact: linear-gradient(135deg, var(--ff-grad-2) 0%, var(--ff-grad-3) 100%);
+
+  /* ---- Indigo: the solid accent the spectrum resolves to ----
+     Text, icons, and borders need one flat colour with a known contrast ratio;
+     a gradient has a different ratio at each end. This is that colour, picked
+     from the middle of the spectrum so the two never look unrelated.
+     --ff-indigo-700 on white is 7.1:1, which clears AAA for body text. */
+  --ff-indigo-800: #3524a8;
+  --ff-indigo-700: #4327c9;
+  --ff-indigo-600: #5b3ce8;
+  --ff-indigo-500: #7857f6;
+  --ff-indigo-200: #d6ccfd;
+  --ff-indigo-100: #e8e2fe;
+  --ff-indigo-50:  #f4f1ff;
+
+  /* Retained so the map's route colours and the auth artwork keep one shared
+     source of truth with the palette rather than hardcoding hexes. */
+  --ff-cyan-400: #22d3ee;
+  --ff-magenta-500: #e935d6;
+
+  /* ---- Ink (navigation + text) ---- */
+  --ff-ink-900: #100e1c;
+  --ff-ink-800: #171528;
+  --ff-ink-700: #221f38;
+  --ff-ink-600: #332f4f;
+
+  /* ---- Neutrals ---- */
+  /* Neutrals carry a few degrees of the brand hue so white surfaces sit on the
+     canvas as a deliberate pairing rather than as two unrelated greys. */
+  --color-canvas: #f5f5fa;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f8f8fc;
+  --color-border: #e6e5ef;
+  --color-border-strong: #cdcbdc;
+
+  --color-text: #14121f;
+  --color-text-secondary: #55536b;
+  --color-text-muted: #83819a;
+  --color-text-inverse: #ffffff;
+
+  /* ---- Accent ---- */
+  --color-accent: var(--ff-indigo-600);
+  --color-accent-hover: var(--ff-indigo-700);
+  --color-accent-soft: var(--ff-indigo-100);
+  --color-accent-faint: var(--ff-indigo-50);
+  --color-accent-ring: rgba(91, 60, 232, 0.32);
+
+  /* ---- Semantic ---- */
+  --color-positive: #11734f;
+  --color-positive-soft: #e4f4ec;
+  --color-positive-border: #b6ddc8;
+  --color-negative: #a92e22;
+  --color-negative-soft: #fceceb;
+  --color-negative-border: #f0c4c0;
+  --color-amber: #9a5b09;
+  --color-amber-soft: #fdf3e2;
+  --color-amber-border: #f0d9ac;
+
+  /* ---- Spacing: 4px scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --space-9: 64px;
+
+  /* ---- Type ---- */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+  --text-4xl: 42px;
+
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Shadows are structural, never decorative. Tinted with the brand hue rather
+     than neutral black, which is what stops a stack of white cards from looking
+     like it was cut out of a different design. */
+  --shadow-xs: 0 1px 2px rgba(20, 18, 31, 0.05);
+  --shadow-sm: 0 1px 3px rgba(20, 18, 31, 0.08), 0 1px 2px rgba(20, 18, 31, 0.04);
+  --shadow-md: 0 4px 14px rgba(20, 18, 31, 0.09);
+  --shadow-lg: 0 12px 32px rgba(20, 18, 31, 0.13);
+  /* The lift a raised brand element gets, in the brand hue. */
+  --shadow-brand: 0 6px 20px rgba(91, 60, 232, 0.28);
+
+  /* One easing curve and two durations for the whole app, so nothing animates at
+     a speed nothing else uses. */
+  --ease: cubic-bezier(0.32, 0.72, 0.28, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+
+  --sidebar-width: 248px;
+  --content-max: 1180px;
+}
