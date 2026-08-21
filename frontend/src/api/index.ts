@@ -20,6 +20,7 @@ import type {
   Trip,
   Wallet,
   AssistantConfig,
+  AssistantPageContext,
   AssistantResponse,
   AssistantTurn,
   HistoryRange,

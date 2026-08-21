@@ -8,7 +8,7 @@ import type {
 } from '../../api/types'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
-import { AssistantPanel } from './AssistantPanel'
+import { useAssistant } from '../assistant/AssistantContext'
 import { CommuteShortcut } from './CommuteShortcut'
 import { CheckoutSheet } from './CheckoutSheet'
 import { PlannerCard } from './PlannerCard'
@@ -29,6 +29,7 @@ export function PlanTripPage() {
   const { user, loading: userLoading } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const assistant = useAssistant()
 
   // Empty rather than a hardcoded pair: the rider's own commute fills these in
   // once their profile loads, and a deep link overrides both.
@@ -150,6 +151,31 @@ export function PlanTripPage() {
       ?? null)
     setActiveLegIndex(null)
   }
+
+  // Give the persistent assistant only navigation context. Route facts are
+  // always regenerated server-side before Gemini sees or explains them.
+  useEffect(() => {
+    assistant.setActiveRouteContext({
+      origin: result?.origin.displayName ?? origin,
+      destination: result?.destination.displayName ?? destination,
+      profile,
+      selectedJourneyId,
+    })
+    return () => assistant.setActiveRouteContext(null)
+  }, [
+    origin, destination, profile, selectedJourneyId, result?.origin.displayName,
+    result?.destination.displayName, assistant.setActiveRouteContext,
+  ])
+
+  // A planning action requested in the conversation drives the exact same map,
+  // cards, and selected-route state as a manual search.
+  const appliedAssistantRevision = useRef(0)
+  useEffect(() => {
+    if (!assistant.latestRoutes || assistant.routeRevision <= appliedAssistantRevision.current) return
+    appliedAssistantRevision.current = assistant.routeRevision
+    applyAssistantRoutes(assistant.latestRoutes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistant.latestRoutes, assistant.routeRevision])
 
   /**
    * Takes the selected journey.
@@ -287,11 +313,7 @@ export function PlanTripPage() {
             profiles={profiles.data ?? []}
             selectedProfile={profile}
             onProfileChange={setProfile}
-          >
-            <AssistantPanel
-              onRoutes={applyAssistantRoutes}
-            />
-          </PlannerCard>
+          />
 
           {/* One tap to the trip this rider actually takes, in either direction. */}
           {commute && !result && !searching && (

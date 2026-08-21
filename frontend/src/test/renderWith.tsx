@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
+import { AssistantRoot } from '../features/assistant/AssistantRoot'
 import { AuthProvider } from '../hooks/useAuth'
 import { ThemeProvider } from '../hooks/useTheme'
 
@@ -9,7 +10,7 @@ export function renderWithProviders(ui: ReactElement, { route = '/' } = {}) {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <ThemeProvider>
-        <AuthProvider>{ui}</AuthProvider>
+        <AuthProvider><AssistantRoot>{ui}</AssistantRoot></AuthProvider>
       </ThemeProvider>
     </MemoryRouter>,
   )
