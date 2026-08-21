@@ -19,14 +19,16 @@ describe('WalletPage', () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
-    // Remaining is the figure that changes a decision, so it is the hero.
-    // It appears twice: the hero panel and the "Remaining" module beneath it.
+    // Remaining is the figure that changes a decision, so it leads the page.
+    // It appears twice: the lede and the "Remaining" figure in the row beneath.
     expect(await screen.findAllByText('$21.60')).toHaveLength(2)
-    // Scoped to the hero: "weekly transportation" also appears in the page
+    // Scoped to the lede: "weekly transportation" also appears in the page
     // subtitle, and matching both would prove nothing about the hierarchy.
-    const hero = document.querySelector('.budget-hero') as HTMLElement
-    expect(within(hero).getByText('Weekly transportation')).toBeInTheDocument()
-    expect(within(hero).getByText('remaining')).toBeInTheDocument()
+    const lede = document.querySelector('.budget-lede') as HTMLElement
+    expect(within(lede).getByText('Weekly transportation')).toBeInTheDocument()
+    expect(within(lede).getByText('remaining')).toBeInTheDocument()
+    // The figure gets its prominence from type, not from a container.
+    expect(lede.querySelector('.lede-value')).toHaveTextContent('$21.60')
     // Spent is present, but as support rather than as the headline.
     expect(screen.getByText(/\$28\.40 spent of \$50\.00/)).toBeInTheDocument()
   })
@@ -39,16 +41,14 @@ describe('WalletPage', () => {
     expect(await screen.findByText('On track')).toBeInTheDocument()
   })
 
-  it('marks only the budget-backed method as active', async () => {
+  it('shows both implemented payment methods as active', async () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
     const balance = await screen.findByTestId('payment-FAREFLOW_BALANCE')
     expect(within(balance).getByText('Active')).toBeInTheDocument()
 
-    // Nothing that cannot actually move money may look selectable.
-    expect(within(screen.getByTestId('payment-CARD')).getByText(/coming later/i)).toBeInTheDocument()
-    expect(within(screen.getByTestId('payment-STABLECOIN')).getByText(/coming later/i)).toBeInTheDocument()
+    expect(within(screen.getByTestId('payment-SIMULATED_CARD')).getByText('Active')).toBeInTheDocument()
   })
 
   it('renders recent activity straight from the ledger', async () => {
@@ -63,11 +63,11 @@ describe('WalletPage', () => {
     expect(within(refund).getByText('+$3.00')).toHaveClass('amount-in')
   })
 
-  it('says the other rails do not move real money', async () => {
+  it('says the simulated rail does not move real money', async () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
-    expect(await screen.findByText(/neither moves real money today/i)).toBeInTheDocument()
+    expect(await screen.findByText(/never moves real money/i)).toBeInTheDocument()
   })
 
   it('shows an empty state when nothing has happened yet', async () => {

@@ -159,6 +159,26 @@ export const FerryIcon = ({ size = 18, className }: IconProps) => (
   </svg>
 )
 
+export const SunIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="4.2" />
+    <path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.3 6.3 4.8 4.8M19.2 19.2l-1.5-1.5M17.7 6.3l1.5-1.5M4.8 19.2l1.5-1.5" />
+  </svg>
+)
+
+export const MoonIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z" />
+  </svg>
+)
+
+export const SystemIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="2.6" y="4.2" width="18.8" height="12.4" rx="2" />
+    <path d="M8.4 20.2h7.2M12 16.6v3.6" />
+  </svg>
+)
+
 export const WalkIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <circle cx="13" cy="4.5" r="1.6" />

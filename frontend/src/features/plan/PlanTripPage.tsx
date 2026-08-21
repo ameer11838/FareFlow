@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { journeysApi, profileApi, recommendationsApi } from '../../api'
+import { journeysApi, paymentsApi, profileApi, recommendationsApi } from '../../api'
 import { ApiError } from '../../api/client'
 import { BottomNav, TopBar } from '../../components/AppShell'
-import type { JourneyOption, JourneySearchResponse, TravelProfile } from '../../api/types'
+import type {
+  JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, TravelProfile,
+} from '../../api/types'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
 import { AssistantPanel } from './AssistantPanel'
 import { CommuteShortcut } from './CommuteShortcut'
+import { CheckoutSheet } from './CheckoutSheet'
 import { PlannerCard } from './PlannerCard'
 import { RouteDrawer } from './RouteDrawer'
 import { RouteMap } from './map/RouteMap'
@@ -36,9 +39,17 @@ export function PlanTripPage() {
   const [result, setResult] = useState<JourneySearchResponse | null>(null)
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null)
   const [hoveredJourneyId, setHoveredJourneyId] = useState<string | null>(null)
+  const [activeLegIndex, setActiveLegIndex] = useState<number | null>(null)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [choosingJourneyId, setChoosingJourneyId] = useState<string | null>(null)
+  const [checkout, setCheckout] = useState<{
+    option: JourneyOption
+    confirmUnknownFare: boolean
+  } | null>(null)
+  const [payment, setPayment] = useState<PaymentIntent | null>(null)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const applyingAssistantResult = useRef(false)
 
   const profiles = useAsync(() => recommendationsApi.profiles(), [])
   const travelProfile = useAsync<TravelProfile>(() => profileApi.get(), [])
@@ -90,6 +101,7 @@ export function PlanTripPage() {
       setSelectedJourneyId(response.options.find((option) => option.recommended)?.journeyId
         ?? response.options[0]?.journeyId
         ?? null)
+      setActiveLegIndex(null)
     } catch (caught) {
       setError(toApiError(caught))
       setResult(null)
@@ -113,7 +125,11 @@ export function PlanTripPage() {
 
   // Switching stance re-scores immediately -- that immediacy is the whole point.
   useEffect(() => {
-    if (result) void runSearch(profile)
+    if (applyingAssistantResult.current) {
+      applyingAssistantResult.current = false
+    } else if (result) {
+      void runSearch(profile)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile])
 
@@ -121,6 +137,19 @@ export function PlanTripPage() {
     () => result?.options.find((option) => option.journeyId === selectedJourneyId) ?? null,
     [result, selectedJourneyId],
   )
+
+  const applyAssistantRoutes = (routes: JourneySearchResponse) => {
+    setOrigin(routes.origin.displayName)
+    setDestination(routes.destination.displayName)
+    if (routes.profile.id !== profile) applyingAssistantResult.current = true
+    setProfile(routes.profile.id)
+    setResult(routes)
+    setError(null)
+    setSelectedJourneyId(routes.options.find((option) => option.recommended)?.journeyId
+      ?? routes.options[0]?.journeyId
+      ?? null)
+    setActiveLegIndex(null)
+  }
 
   /**
    * Takes the selected journey.
@@ -132,8 +161,8 @@ export function PlanTripPage() {
   // One key per (journey, search) so a retry of the same click dedupes, while a
   // deliberate second trip on the same route does not.
   const idempotencyKeys = useRef(new Map<string, string>())
-  const idempotencyKeyFor = (option: JourneyOption) => {
-    const cacheKey = `${result?.origin.displayName}|${result?.destination.displayName}|${option.journeyId}`
+  const idempotencyKeyFor = (option: JourneyOption, method: PaymentRail) => {
+    const cacheKey = `${result?.origin.displayName}|${result?.destination.displayName}|${option.journeyId}|${method}`
     const existing = idempotencyKeys.current.get(cacheKey)
     if (existing) return existing
     const key = `${cacheKey}|${crypto.randomUUID()}`
@@ -141,36 +170,80 @@ export function PlanTripPage() {
     return key
   }
 
-  const chooseJourney = async (option: JourneyOption, confirmUnknownFare = false) => {
+  const chooseJourney = (option: JourneyOption) => {
     if (!user || !result) return
+    let confirmUnknownFare = false
+    if (option.fareCents === null) {
+      confirmUnknownFare = window.confirm(
+        'FareFlow cannot calculate a published fare for this journey. Record it without a charge?')
+      if (!confirmUnknownFare) return
+    }
+    setPayment(null)
+    setPaymentError(null)
+    setCheckout({ option, confirmUnknownFare })
+  }
+
+  const payForJourney = async (method: PaymentRail) => {
+    if (!user || !result || !checkout) return
+    const { option, confirmUnknownFare } = checkout
     setChoosingJourneyId(option.journeyId)
-    setError(null)
+    setPaymentError(null)
     try {
-      await journeysApi.take(
+      if (option.fareCents === null) {
+        await journeysApi.take(
+          {
+            from: result.origin.displayName,
+            to: result.destination.displayName,
+            journeyId: option.journeyId,
+            profile,
+            confirmUnknownFare,
+          },
+          idempotencyKeyFor(option, method),
+        )
+        navigate('/trips')
+        return
+      }
+      const created = await paymentsApi.create(
         {
           from: result.origin.displayName,
           to: result.destination.displayName,
           journeyId: option.journeyId,
+          profile,
           confirmUnknownFare,
+          paymentMethod: method,
         },
-        idempotencyKeyFor(option),
+        idempotencyKeyFor(option, method),
       )
-      navigate('/trips')
+      setPayment(created)
+      const settled = created.status === 'FAILED'
+        ? await paymentsApi.retry(created.id)
+        : created.status === 'CREATED'
+          ? await paymentsApi.confirm(created.id)
+          : created
+      setPayment(settled)
+      if (settled.status === 'SETTLED' && settled.trip) {
+        navigate(`/trips?payment=${settled.id}`)
+      }
     } catch (caught) {
       const apiError = toApiError(caught)
-      // The server refuses to charge a journey it cannot price until the rider
-      // explicitly accepts that. Ask, then retry with the confirmation.
-      if (apiError.problem.code === 'FARE_CONFIRMATION_REQUIRED' && !confirmUnknownFare) {
-        const accepted = window.confirm(
-          `${apiError.message}\n\nRecord this trip with no charge?`)
-        if (accepted) {
-          setChoosingJourneyId(null)
-          return chooseJourney(option, true)
-        }
-        setChoosingJourneyId(null)
-        return
+      setPaymentError(apiError.message)
+    } finally {
+      setChoosingJourneyId(null)
+    }
+  }
+
+  const retryPayment = async () => {
+    if (!payment || !checkout) return
+    setChoosingJourneyId(checkout.option.journeyId)
+    setPaymentError(null)
+    try {
+      const retried = await paymentsApi.retry(payment.id)
+      setPayment(retried)
+      if (retried.status === 'SETTLED' && retried.trip) {
+        navigate(`/trips?payment=${retried.id}`)
       }
-      setError(apiError)
+    } catch (caught) {
+      setPaymentError(toApiError(caught).message)
     } finally {
       setChoosingJourneyId(null)
     }
@@ -187,7 +260,15 @@ export function PlanTripPage() {
           journeys={result?.options ?? []}
           selectedJourneyId={selectedJourneyId}
           highlightedJourneyId={hoveredJourneyId}
-          onSelectJourney={setSelectedJourneyId}
+          activeLegIndex={activeLegIndex}
+          onSelectJourney={(journeyId) => {
+            setSelectedJourneyId(journeyId)
+            setActiveLegIndex(null)
+          }}
+          onSelectLeg={(journeyId, index) => {
+            setSelectedJourneyId(journeyId)
+            setActiveLegIndex(index)
+          }}
           focus={commute ? [
             { lng: commute.typicalOrigin!.longitude, lat: commute.typicalOrigin!.latitude },
             { lng: commute.typicalDestination!.longitude, lat: commute.typicalDestination!.latitude },
@@ -208,9 +289,7 @@ export function PlanTripPage() {
             onProfileChange={setProfile}
           >
             <AssistantPanel
-              profiles={profiles.data ?? []}
-              selectedProfile={profile}
-              onSelectProfile={setProfile}
+              onRoutes={applyAssistantRoutes}
             />
           </PlannerCard>
 
@@ -243,15 +322,39 @@ export function PlanTripPage() {
           <RouteDrawer
             result={result}
             selectedJourneyId={selectedJourneyId}
-            onSelectJourney={setSelectedJourneyId}
+            onSelectJourney={(journeyId) => {
+              setSelectedJourneyId(journeyId)
+              setActiveLegIndex(null)
+            }}
             onHoverJourney={setHoveredJourneyId}
             onChoose={chooseJourney}
             choosingJourneyId={choosingJourneyId}
             searching={searching}
             error={error}
             onRetry={() => void runSearch(profile)}
+            activeLegIndex={activeLegIndex}
+            onSelectLeg={setActiveLegIndex}
           />
         </div>
+
+        {checkout && result && (
+          <CheckoutSheet
+            option={checkout.option}
+            result={result}
+            payment={payment}
+            processing={choosingJourneyId !== null}
+            error={paymentError}
+            onClose={() => {
+              if (choosingJourneyId === null) {
+                setCheckout(null)
+                setPayment(null)
+                setPaymentError(null)
+              }
+            }}
+            onPay={(method) => void payForJourney(method)}
+            onRetry={() => void retryPayment()}
+          />
+        )}
       </div>
 
       <BottomNav />

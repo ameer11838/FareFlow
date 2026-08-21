@@ -64,6 +64,14 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Conflicting request", exception.getMessage());
     }
 
+    /** Optional upstream AI failures should be retryable, not generic 500s. */
+    @ExceptionHandler(com.fareflow.assistant.AssistantUnavailableException.class)
+    public ProblemDetail handleAssistantUnavailable(
+            com.fareflow.assistant.AssistantUnavailableException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Ask FareFlow is unavailable",
+                exception.getMessage());
+    }
+
     /** Bean Validation failures on {@code @RequestBody} DTOs. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleBodyValidation(MethodArgumentNotValidException exception) {

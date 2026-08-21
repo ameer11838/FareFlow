@@ -6,7 +6,8 @@ import { renderWithProviders } from '../../../test/renderWith'
 import * as api from '../../../api'
 import { ApiError } from '../../../api/client'
 import {
-  demoConfig, emptyInsights, insights, noBudgetInsights, passRecommendation, user,
+  demoConfig, emptyInsights, emptySpendingHistory, insights, noBudgetInsights, passRecommendation,
+  spendingHistory, user,
 } from '../../../test/fixtures'
 
 describe('InsightsPage', () => {
@@ -14,6 +15,7 @@ describe('InsightsPage', () => {
     vi.spyOn(api.authApi, 'config').mockResolvedValue(demoConfig)
     vi.spyOn(api.authApi, 'me').mockResolvedValue(user)
     vi.spyOn(api.passesApi, 'recommendation').mockResolvedValue(passRecommendation)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(emptySpendingHistory)
   })
 
   it('shows the headline weekly figures', async () => {
@@ -23,29 +25,35 @@ describe('InsightsPage', () => {
     // Savings leads: it is the only figure that answers "was FareFlow worth it".
     expect(await screen.findByText(/saved this week/i)).toBeInTheDocument()
     const headline = document.querySelector('.headline') as HTMLElement
-    expect(headline.querySelector('.headline-value')).toHaveTextContent('$13.40')
+    expect(headline.querySelector('.lede-value')).toHaveTextContent('$13.40')
     expect(within(headline).getByText(/across 8 trips/i)).toBeInTheDocument()
 
     // Spend and budget are support, in the adherence module. Each figure appears
     // twice there by design — once as a metric, once as a bar on the shared
     // baseline that makes the three directly comparable.
-    const figures = document.querySelector('.adherence-figures') as HTMLElement
+    // Spend and budget are support, in the divided figure row beneath the lede.
+    const figures = document.querySelector('.figures-row') as HTMLElement
     expect(within(figures).getByText('$24.65')).toBeInTheDocument()   // spent
     expect(within(figures).getByText('$50.00')).toBeInTheDocument()   // budget
-    expect(within(figures).getByText('$25.35')).toBeInTheDocument()   // remaining
+    // Remaining moved into the budget band, on the shared baseline with the
+    // projection so the three can be compared.
+    expect(within(screen.getByTestId('compare-budget')).getByText('$50.00')).toBeInTheDocument()
   })
 
   it('breaks spending down by provider', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
     renderWithProviders(<InsightsPage />)
 
-    const path = await screen.findByTestId('chart-bar-PATH')
+    // A table, not a chart: share, trip count, and average fare are all real
+    // columns, where a bar chart would give one of them and need a legend.
+    const path = await screen.findByTestId('operator-PATH')
     expect(within(path).getByText('PATH')).toBeInTheDocument()
-    expect(within(path).getByText('$15.00')).toBeInTheDocument()
-    expect(within(path).getByText(/5 trips/)).toBeInTheDocument()
+    expect(within(path).getByText(/\$15\.00/)).toBeInTheDocument()
+    expect(within(path).getByText('5')).toBeInTheDocument()
+    expect(within(path).getByText('$3.00')).toBeInTheDocument()
 
-    expect(screen.getByTestId('chart-bar-NJ_TRANSIT')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-bar-NYC_BUS')).toBeInTheDocument()
+    expect(screen.getByTestId('operator-NJ_TRANSIT')).toBeInTheDocument()
+    expect(screen.getByTestId('operator-NYC_BUS')).toBeInTheDocument()
   })
 
   it('shows travel-pattern averages', async () => {
@@ -71,6 +79,22 @@ describe('InsightsPage', () => {
 
     expect(await screen.findByText('$106.82')).toBeInTheDocument()
     expect(screen.getByText(/straight-line from this week alone/i)).toBeInTheDocument()
+  })
+
+  it('explores only history periods backed by completed trips', async () => {
+    vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
+    renderWithProviders(<InsightsPage />)
+
+    expect(await screen.findByRole('heading', { name: /travel over time/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '7 days' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '30 days' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '3 months' })).not.toBeInTheDocument()
+    expect(screen.getByText(/spending is up \$2\.85/i)).toBeInTheDocument()
+    expect(screen.getByText(/PATH accounts for 77%/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Trips' }))
+    expect(screen.getByRole('img', { name: /trips over 30 days/i })).toBeInTheDocument()
   })
 
   it('invents nothing when there are no trips yet', async () => {
@@ -115,6 +139,7 @@ describe('InsightsPage — personalized from the profile', () => {
     vi.spyOn(api.authApi, 'config').mockResolvedValue(demoConfig)
     vi.spyOn(api.authApi, 'me').mockResolvedValue(user)
     vi.spyOn(api.passesApi, 'recommendation').mockResolvedValue(passRecommendation)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(emptySpendingHistory)
   })
 
   it('renders the sentences the backend derived, verbatim', async () => {

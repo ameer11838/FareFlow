@@ -180,3 +180,67 @@ export function ComparisonBars({ rows }: {
     </div>
   )
 }
+
+export interface TimeDatum {
+  id: string
+  label: string
+  value: number | null
+  display: string
+  details: string[]
+}
+
+/** Compact interactive time series. Null values render as gaps, never zeroes. */
+export function TimeSeriesChart({ data, ariaLabel }: { data: TimeDatum[]; ariaLabel: string }) {
+  const [active, setActive] = useState<number | null>(null)
+  const width = 760
+  const height = 230
+  const plotTop = 18
+  const plotBottom = 188
+  const plotHeight = plotBottom - plotTop
+  const values = data.flatMap((datum) => datum.value === null ? [] : [datum.value])
+  const max = Math.max(...values, 1)
+  const slot = width / Math.max(data.length, 1)
+  const barWidth = Math.max(4, Math.min(34, slot * .64))
+  const activeDatum = active === null ? null : data[active]
+
+  if (data.length === 0) return <p className="chart-empty">Nothing to show for this period.</p>
+
+  return (
+    <div className="time-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
+        {[0, .5, 1].map((line) => (
+          <line key={line} x1="0" x2={width} y1={plotBottom - plotHeight * line}
+                y2={plotBottom - plotHeight * line} className="time-chart-grid" />
+        ))}
+        {data.map((datum, index) => {
+          const x = slot * index + slot / 2
+          const barHeight = datum.value === null ? 0 : (datum.value / max) * plotHeight
+          const showLabel = data.length <= 10 || index === 0 || index === data.length - 1
+            || index % Math.ceil(data.length / 6) === 0
+          return (
+            <g key={datum.id}
+               onMouseEnter={() => setActive(index)} onMouseLeave={() => setActive(null)}
+               onFocus={() => setActive(index)} onBlur={() => setActive(null)} tabIndex={0}>
+              {datum.value !== null && (
+                <rect x={x - barWidth / 2} y={plotBottom - barHeight}
+                      width={barWidth} height={Math.max(barHeight, 2)} rx="3"
+                      className={`time-chart-bar${active === index ? ' active' : ''}`} />
+              )}
+              <rect x={slot * index} y={plotTop} width={slot} height={plotHeight}
+                    fill="transparent" className="time-chart-hit" />
+              {showLabel && <text x={x} y="215" textAnchor="middle" className="time-chart-label">{datum.label}</text>}
+            </g>
+          )
+        })}
+      </svg>
+      <div className={`time-chart-tooltip${activeDatum ? ' visible' : ''}`} aria-live="polite">
+        {activeDatum ? (
+          <>
+            <strong>{activeDatum.label} · {activeDatum.display}</strong>
+            {activeDatum.details.map((detail) => <span key={detail}>{detail}</span>)}
+          </>
+        ) : <span>Hover or focus a period for details</span>}
+      </div>
+    </div>
+  )
+}

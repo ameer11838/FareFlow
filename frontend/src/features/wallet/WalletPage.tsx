@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { insightsApi, walletApi } from '../../api'
-import type { Insights, LedgerEntry, PaymentMethod, Wallet } from '../../api/types'
-import { BarChart } from '../../components/charts'
+import type { Insights, LedgerEntry, PaymentIntent, PaymentMethod, Wallet } from '../../api/types'
+import { seriesColor } from '../../components/charts'
 import { CheckIcon, LedgerIcon, WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
-import { Card, Metric, Meter, Section, Skeleton } from '../../components/Surface'
+import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import {
@@ -58,101 +58,104 @@ export function WalletPage() {
         subtitle="Fares are charged against your weekly transportation budget. Every movement is recorded in the ledger."
       />
 
-      <Section>
-        {hasBudget
-          ? <BudgetCard wallet={data} projectedCents={projected} pastUsualPace={pastUsualPace} />
-          : <NoBudgetCard />}
-      </Section>
+      {/*
+        The lead figure sits on the page, not in a container. A rider checking
+        their wallet before a trip is asking "can I afford this", and 56px of
+        tightly tracked type answers that better than a box does.
+      */}
+      {hasBudget
+        ? <BudgetLede wallet={data} projectedCents={projected} pastUsualPace={pastUsualPace} />
+        : <NoBudgetLede />}
 
-      <Section title="This week" caption="Derived from ledger entries, not a stored total.">
-        <div className="module-grid">
-          <Card className="card-body">
-            <Metric
-              label="Spent"
-              value={formatCents(data.spentThisWeekCents)}
-              caption={`${data.recentActivity.length > 0 ? 'Across ' : ''}${
-                data.recentActivity.filter((entry) => entry.type === 'TRIP_CHARGE').length
-              } charge${data.recentActivity.filter((e) => e.type === 'TRIP_CHARGE').length === 1 ? '' : 's'}`}
-            />
-          </Card>
-
-          <Card className="card-body">
-            <Metric
-              label="Remaining"
-              value={formatOptionalCents(data.availableBalanceCents)}
-              tone={data.availableBalanceCents === null
-                ? 'muted'
-                : data.availableBalanceCents < 0 ? 'negative' : 'positive'}
-              caption={data.availableBalanceCents === null
-                ? 'No budget set'
-                : data.availableBalanceCents < 0 ? 'Over budget' : 'Left to spend'}
-            />
-          </Card>
-
-          <Card className="card-body">
-            <Metric
-              label="Projected spend"
-              value={formatOptionalCents(projected, '—')}
-              tone={projected === null ? 'muted' : 'default'}
-              caption={projected === null
-                ? 'Needs a commute frequency and a completed trip'
-                : pastUsualPace
-                  ? 'You have already passed your usual weekly pace'
-                  : 'At your usual commute rate'}
-            />
-          </Card>
-
-          <Card className="card-body">
-            <Metric
-              label="Saved"
-              value={formatOptionalCents(savedCents, '—')}
-              tone={savedCents !== null && savedCents > 0 ? 'positive' : 'muted'}
-              caption={savedCents === null
-                ? 'Needs a comparable alternative route'
-                : 'By not always taking the fastest route'}
-            />
-          </Card>
+      <section className="band">
+        <div className="band-head">
+          <h2 className="band-title">This week</h2>
+          <span className="band-note">Derived from ledger entries, not a stored total</span>
         </div>
-      </Section>
+
+        {/* One row, divided by rules: the figures sit on a shared baseline and
+            are directly comparable, which four separate tiles never are. */}
+        <div className="figures-row">
+          <Metric
+            label="Spent"
+            value={formatCents(data.spentThisWeekCents)}
+            caption={`${chargeCount(data)} charge${chargeCount(data) === 1 ? '' : 's'}`}
+          />
+          <Metric
+            label="Remaining"
+            value={formatOptionalCents(data.availableBalanceCents)}
+            tone={data.availableBalanceCents === null
+              ? 'muted'
+              : data.availableBalanceCents < 0 ? 'negative' : 'positive'}
+            caption={data.availableBalanceCents === null
+              ? 'No budget set'
+              : data.availableBalanceCents < 0 ? 'Over budget' : 'Left to spend'}
+          />
+          <Metric
+            label="Projected"
+            value={formatOptionalCents(projected, '—')}
+            tone={projected === null ? 'muted' : 'default'}
+            caption={projected === null
+              ? 'Needs a completed trip'
+              : pastUsualPace ? 'Past your usual pace' : 'At your usual commute rate'}
+          />
+          <Metric
+            label="Saved"
+            value={formatOptionalCents(savedCents, '—')}
+            tone={savedCents !== null && savedCents > 0 ? 'positive' : 'muted'}
+            caption={savedCents === null ? 'No comparable route' : 'vs the fastest route'}
+          />
+        </div>
+      </section>
 
       {insights.data && insights.data.spendingByProvider.length > 0 && (
-        <Section title="Where it went" caption="Completed trips this week, by operator.">
-          <Card className="card-body">
-            <BarChart
-              data={insights.data.spendingByProvider.map((row) => ({
-                id: row.provider,
-                label: row.providerName,
-                value: row.totalFareCents,
-                display: formatCents(row.totalFareCents),
-                meta: `${row.tripCount} trip${row.tripCount === 1 ? '' : 's'} · ${formatCents(row.averageFareCents)} avg`,
-              }))}
-              total={insights.data.spentCents}
-            />
-          </Card>
-        </Section>
+        <section className="band">
+          <div className="band-head">
+            <h2 className="band-title">Where it went</h2>
+            <span className="band-note">Completed trips this week, by operator</span>
+          </div>
+          <OperatorTable rows={insights.data.spendingByProvider} total={insights.data.spentCents} />
+        </section>
       )}
 
-      <Section title="Payment methods">
+      <section className="band">
+        <div className="band-head">
+          <h2 className="band-title">Payment methods</h2>
+        </div>
         <Card>
           <div className="method-list">
             {data.paymentMethods.map((method) => (
               <PaymentMethodRow key={method.id} method={method} />
             ))}
           </div>
-          <div className="card-footer">
-            <span className="stat-caption">
-              Card and stablecoin rails are declared so the checkout flow has a shape to
-              grow into. Neither moves real money today.
-            </span>
-          </div>
         </Card>
-      </Section>
+        <p className="band-note" style={{ marginTop: 'var(--space-3)' }}>
+          The card rail is a simulation for exercising authorization, settlement,
+          failure, retry, and refund flows. It never moves real money.
+        </p>
+      </section>
 
-      <Section
-        title="Recent activity"
-        caption="Straight from the ledger."
-        action={<Link className="btn btn-sm" to="/ledger">View ledger</Link>}
-      >
+      {data.recentPayments.length > 0 && (
+        <section className="band">
+          <div className="band-head">
+            <h2 className="band-title">Payment activity</h2>
+            <span className="band-note">Intent status and authoritative settled fare</span>
+          </div>
+          <Card>
+            <ul className="txn-list">
+              {data.recentPayments.map((payment) => (
+                <PaymentRow key={payment.id} payment={payment} />
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
+
+      <section className="band">
+        <div className="band-head">
+          <h2 className="band-title">Recent activity</h2>
+          <Link className="btn btn-sm" to="/ledger">View ledger</Link>
+        </div>
         <Card>
           {data.recentActivity.length === 0 ? (
             <EmptyState
@@ -169,7 +172,68 @@ export function WalletPage() {
             </ul>
           )}
         </Card>
-      </Section>
+      </section>
+    </div>
+  )
+}
+
+function chargeCount(wallet: Wallet): number {
+  return wallet.recentActivity.filter((entry) => entry.type === 'TRIP_CHARGE').length
+}
+
+/**
+ * Spend by operator as a table.
+ *
+ * <p>A table rather than a chart: with four columns of real numbers the reader
+ * gets share *and* trip count *and* average fare, where a bar chart gives one
+ * of them and needs a legend. The inline bar keeps the visual comparison
+ * without spending a whole card on it.
+ */
+function OperatorTable({ rows, total }: {
+  rows: Insights['spendingByProvider']
+  total: number
+}) {
+  const max = Math.max(...rows.map((row) => row.totalFareCents), 1)
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Operator</th>
+            <th className="col-num">Trips</th>
+            <th className="col-num">Avg fare</th>
+            <th style={{ width: '28%' }}>Share</th>
+            <th className="col-total">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.provider} data-testid={`operator-${row.provider}`}>
+              <td className="col-name">
+                <span className="table-swatch" style={{ background: seriesColor(index) }}
+                      aria-hidden="true" />
+                {row.providerName}
+              </td>
+              <td className="col-num">{row.tripCount}</td>
+              <td className="col-num">{formatCents(row.averageFareCents)}</td>
+              <td>
+                <span className="cell-bar">
+                  <span style={{
+                    width: `${(row.totalFareCents / max) * 100}%`,
+                    background: seriesColor(index),
+                  }} />
+                </span>
+              </td>
+              <td className="col-total">
+                {formatCents(row.totalFareCents)}
+                <span className="cell-share">
+                  {total > 0 ? ` ${Math.round((row.totalFareCents / total) * 100)}%` : ''}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -181,7 +245,7 @@ export function WalletPage() {
  * checking their wallet before a trip is asking "can I afford this", not "what
  * have I spent". Spent, the meter, and the projection are all support for it.
  */
-function BudgetCard({ wallet, projectedCents, pastUsualPace }: {
+function BudgetLede({ wallet, projectedCents, pastUsualPace }: {
   wallet: Wallet
   projectedCents: number | null
   pastUsualPace: boolean
@@ -192,26 +256,29 @@ function BudgetCard({ wallet, projectedCents, pastUsualPace }: {
   const projectedRemaining = projectedCents === null ? null : budget - projectedCents
 
   return (
-    <Card tone="navy" className="budget-hero">
-      <div className="budget-hero-main">
-        <span className="budget-hero-label">Weekly transportation</span>
-        <div className="budget-hero-figure">
-          <span className="budget-hero-value numeric">{formatCents(remaining)}</span>
-          <span className="budget-hero-unit">{over ? 'over budget' : 'remaining'}</span>
+    <section className="budget-lede">
+      <div className="lede">
+        <span className="lede-eyebrow">Weekly transportation</span>
+        <div className="lede-figure">
+          <span className="lede-value">{formatCents(remaining)}</span>
+          <span className="lede-unit">{over ? 'over budget' : 'remaining'}</span>
         </div>
-        <span className="budget-hero-sub numeric">
+        <span className="lede-sub numeric">
           {formatCents(wallet.spentThisWeekCents)} spent of {formatCents(budget)}
+          {projectedCents !== null && !pastUsualPace && (
+            <> · {formatCents(projectedCents)} projected by week end</>
+          )}
+          {pastUsualPace && <> · already past your usual weekly pace</>}
         </span>
+      </div>
 
-        <div className="budget-hero-meter">
-          <Meter
-            value={wallet.spentThisWeekCents}
-            max={budget}
-            over={over}
-            label={`${formatCents(wallet.spentThisWeekCents)} spent of ${formatCents(budget)}`}
-          />
-        </div>
-
+      <div className="budget-lede-track">
+        <Meter
+          value={wallet.spentThisWeekCents}
+          max={budget}
+          over={over}
+          label={`${formatCents(wallet.spentThisWeekCents)} spent of ${formatCents(budget)}`}
+        />
         <BudgetVerdict
           spent={wallet.spentThisWeekCents}
           budget={budget}
@@ -220,38 +287,12 @@ function BudgetCard({ wallet, projectedCents, pastUsualPace }: {
         />
       </div>
 
-      {/* Projections are separated by a rule rather than a second card: they are
-          the same story told forward, not a different subject. */}
-      <div className="budget-hero-side">
-        {pastUsualPace ? (
-          /* Repeating "remaining" under a "projected" label would look broken.
-             What is true and useful here is that the week is already ahead of
-             the rider's usual pattern. */
-          <Metric
-            label="This week so far"
-            value={formatCents(wallet.spentThisWeekCents)}
-            caption="Already past your usual weekly pace, so there is nothing left to project."
-          />
-        ) : (
-          <>
-            <Metric
-              label="Projected spend"
-              value={formatOptionalCents(projectedCents, '—')}
-              tone={projectedCents === null ? 'muted' : 'default'}
-              caption={projectedCents === null ? 'Needs a trip to project from' : undefined}
-            />
-            <Metric
-              label="Projected remaining"
-              value={formatOptionalCents(projectedRemaining, '—')}
-              tone={projectedRemaining !== null && projectedRemaining < 0 ? 'negative' : 'default'}
-              caption={projectedRemaining !== null && projectedRemaining < 0
-                ? 'This pace exceeds your budget'
-                : undefined}
-            />
-          </>
-        )}
-      </div>
-    </Card>
+      {projectedRemaining !== null && projectedRemaining < 0 && (
+        <p className="budget-lede-warn">
+          At this pace the week ends {formatCents(-projectedRemaining)} over budget.
+        </p>
+      )}
+    </section>
   )
 }
 
@@ -293,22 +334,24 @@ function BudgetVerdict({ spent, budget, projected, utilization }: {
   )
 }
 
-function NoBudgetCard() {
+function NoBudgetLede() {
   return (
-    <Card tone="navy" className="budget-hero budget-hero-empty">
-      <div className="budget-hero-main">
-        <span className="budget-hero-label">Weekly transportation</span>
-        <div className="budget-hero-figure">
-          <span className="budget-hero-value budget-hero-value-unset">Set a weekly budget</span>
+    <section className="budget-lede">
+      <div className="lede">
+        <span className="lede-eyebrow">Weekly transportation</span>
+        <div className="lede-figure">
+          <span className="lede-value lede-value-unset">Set a weekly budget</span>
         </div>
-        <span className="budget-hero-sub">
+        <span className="lede-sub">
           FareFlow tracks spending against a weekly transportation budget, and leans
           toward cheaper routes as you approach it. Until you set one there is no
           balance to show.
         </span>
-        <Link className="btn btn-primary budget-hero-cta" to="/settings">Set a budget</Link>
       </div>
-    </Card>
+      <Link className="btn btn-primary" to="/settings" style={{ justifySelf: 'start' }}>
+        Set a budget
+      </Link>
+    </section>
   )
 }
 
@@ -325,6 +368,23 @@ function PaymentMethodRow({ method }: { method: PaymentMethod }) {
         {available ? 'Active' : 'Coming later'}
       </span>
     </div>
+  )
+}
+
+function PaymentRow({ payment }: { payment: PaymentIntent }) {
+  return (
+    <li className="txn" data-testid={`wallet-payment-${payment.id}`}>
+      <span className={`payment-state-dot state-${payment.status.toLowerCase()}`} aria-hidden="true" />
+      <div className="txn-text">
+        <span className="txn-title">{payment.origin} → {payment.destination}</span>
+        <span className="txn-meta">
+          {payment.paymentMethod === 'FAREFLOW_WALLET' ? 'FareFlow Wallet' : 'Simulated card'}
+          {' · '}{payment.status.toLowerCase()}
+          {' · '}{payment.attemptCount} attempt{payment.attemptCount === 1 ? '' : 's'}
+        </span>
+      </div>
+      <span className="txn-amount numeric">{formatCents(payment.amountCents)}</span>
+    </li>
   )
 }
 
@@ -362,12 +422,8 @@ function WalletSkeleton() {
         <Skeleton width={90} height={12} />
         <div style={{ marginTop: 12 }}><Skeleton width={260} height={30} /></div>
       </div>
-      <Card tone="navy" className="budget-hero-skeleton"><Skeleton width="60%" height={120} /></Card>
-      <div className="module-grid" style={{ marginTop: 'var(--space-7)' }}>
-        {[0, 1, 2, 3].map((index) => (
-          <Card key={index} className="card-body"><Skeleton height={62} /></Card>
-        ))}
-      </div>
+      <Skeleton width="42%" height={56} />
+      <div style={{ marginTop: 'var(--space-7)' }}><Skeleton height={92} /></div>
     </div>
   )
 }

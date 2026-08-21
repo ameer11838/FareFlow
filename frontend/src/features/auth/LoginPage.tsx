@@ -50,12 +50,18 @@ export function LoginPage() {
           />
         </div>
 
+        {/*
+          The placeholder is words, not bullets. A "••••••••" placeholder renders
+          identically to a filled password field, so a rider who clicks in and
+          types sees dots before and dots after and concludes the field is
+          broken — which is exactly the report this changed in response to.
+        */}
         <div className="field">
           <label className="label" htmlFor="password">Password</label>
           <input
             id="password" className="input" type="password" autoComplete="current-password" required
             value={password} onChange={(event) => setPassword(event.target.value)}
-            placeholder="••••••••"
+            placeholder="Your password"
           />
         </div>
 

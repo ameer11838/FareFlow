@@ -1,6 +1,7 @@
 package com.fareflow.trip;
 
 import com.fareflow.auth.CurrentUserService;
+import com.fareflow.payment.PaymentService;
 import com.fareflow.trip.dto.CreateTripRequest;
 import com.fareflow.trip.dto.TripResponse;
 import jakarta.validation.Valid;
@@ -23,10 +24,14 @@ import java.util.Map;
 public class TripController {
 
     private final TripService tripService;
+    private final PaymentService paymentService;
     private final CurrentUserService currentUserService;
 
-    public TripController(TripService tripService, CurrentUserService currentUserService) {
+    public TripController(TripService tripService,
+                          PaymentService paymentService,
+                          CurrentUserService currentUserService) {
         this.tripService = tripService;
+        this.paymentService = paymentService;
         this.currentUserService = currentUserService;
     }
 
@@ -54,7 +59,13 @@ public class TripController {
      */
     @PostMapping("/trips/{id}/cancel")
     public TripResponse cancel(@PathVariable long id) {
-        return TripResponse.from(tripService.cancelTrip(currentUserService.requireId(), id));
+        long userId = currentUserService.requireId();
+        // Payment-backed trips refund through the payment state machine so the
+        // intent, trip, and append-only ledger remain reconciled. Legacy seeded
+        // trips keep their existing cancellation path.
+        Trip trip = paymentService.refundTrip(userId, id)
+                .orElseGet(() -> tripService.cancelTrip(userId, id));
+        return TripResponse.from(trip);
     }
 
     /** Always the caller's own trips; there is no way to ask for anyone else's. */

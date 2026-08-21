@@ -19,6 +19,14 @@ import type {
   RecommendationResponse,
   Trip,
   Wallet,
+  AssistantConfig,
+  AssistantResponse,
+  AssistantTurn,
+  HistoryRange,
+  SpendingHistory,
+  PaymentIntent,
+  PaymentRail,
+  PaymentReconciliation,
 } from './types'
 
 export const authApi = {
@@ -98,12 +106,46 @@ export const journeysApi = {
    * The idempotency key makes a double-submitted Choose safe.
    */
   take: (
-    body: { from: string; to: string; journeyId: string; confirmUnknownFare?: boolean },
+    body: {
+      from: string
+      to: string
+      journeyId: string
+      profile?: string
+      confirmUnknownFare?: boolean
+    },
     idempotencyKey: string,
   ) => api.post<Trip>('/api/journeys/take', body, { 'Idempotency-Key': idempotencyKey }),
 
   detail: (journeyId: number) =>
     api.get<PersistedJourneyDetail>(`/api/journeys/${journeyId}`),
+}
+
+export const paymentsApi = {
+  create: (
+    body: {
+      from: string
+      to: string
+      journeyId: string
+      profile?: string
+      confirmUnknownFare?: boolean
+      paymentMethod: PaymentRail
+    },
+    idempotencyKey: string,
+  ) => api.post<PaymentIntent>(
+    '/api/payments/intents', body, { 'Idempotency-Key': idempotencyKey }),
+  confirm: (id: string, simulatedCardToken?: string) =>
+    api.post<PaymentIntent>(
+      `/api/payments/intents/${id}/confirm`, { simulatedCardToken }),
+  retry: (id: string, simulatedCardToken?: string) =>
+    api.post<PaymentIntent>(
+      `/api/payments/intents/${id}/retry`, { simulatedCardToken }),
+  refund: (id: string) =>
+    api.post<PaymentIntent>(`/api/payments/intents/${id}/refund`),
+  list: (page = 0, size = 20) =>
+    api.get<Page<PaymentIntent>>(
+      `/api/payments/intents?page=${page}&size=${size}`),
+  reconcile: () =>
+    api.get<PaymentReconciliation>('/api/payments/reconciliation'),
 }
 
 export const passesApi = {
@@ -129,6 +171,14 @@ export const dashboardApi = {
 
 export const insightsApi = {
   get: () => api.get<Insights>('/api/insights'),
+  history: (range: HistoryRange) =>
+    api.get<SpendingHistory>(`/api/insights/history?range=${range}`),
+}
+
+export const assistantApi = {
+  config: () => api.get<AssistantConfig>('/api/assistant/config'),
+  ask: (question: string, history: AssistantTurn[], context: AssistantPageContext) =>
+    api.post<AssistantResponse>('/api/assistant/ask', { question, history, context }),
 }
 
 export const walletApi = {

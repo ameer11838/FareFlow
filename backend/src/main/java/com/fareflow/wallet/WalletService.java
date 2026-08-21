@@ -4,6 +4,8 @@ import com.fareflow.budget.BudgetService;
 import com.fareflow.budget.WeeklySummary;
 import com.fareflow.ledger.LedgerService;
 import com.fareflow.ledger.dto.LedgerEntryResponse;
+import com.fareflow.payment.PaymentService;
+import com.fareflow.payment.dto.PaymentIntentResponse;
 import com.fareflow.user.User;
 import com.fareflow.wallet.dto.WalletResponse;
 import org.springframework.data.domain.PageRequest;
@@ -25,10 +27,14 @@ public class WalletService {
 
     private final BudgetService budgetService;
     private final LedgerService ledgerService;
+    private final PaymentService paymentService;
 
-    public WalletService(BudgetService budgetService, LedgerService ledgerService) {
+    public WalletService(BudgetService budgetService,
+                         LedgerService ledgerService,
+                         PaymentService paymentService) {
         this.budgetService = budgetService;
         this.ledgerService = ledgerService;
+        this.paymentService = paymentService;
     }
 
     public WalletResponse forUser(User user) {
@@ -39,6 +45,9 @@ public class WalletService {
                 .getContent().stream()
                 .map(LedgerEntryResponse::from)
                 .toList();
+        List<PaymentIntentResponse> recentPayments = paymentService
+                .list(user, PageRequest.of(0, 6))
+                .getContent();
 
         return new WalletResponse(
                 summary.remainingCents(),
@@ -46,13 +55,13 @@ public class WalletService {
                 summary.weeklyBudgetCents(),
                 summary.budgetUtilization(),
                 paymentMethods(),
-                recent);
+                recent,
+                recentPayments);
     }
 
     /**
-     * Payment rails. Only the budget-backed one works; the rest are declared so the
-     * checkout flow has a real shape to grow into, and are marked COMING_SOON so
-     * the UI cannot let anyone select something that does not exist.
+     * Payment rails. Both use the same intent lifecycle; the card rail is an
+     * explicit simulation and never stores or moves real card data.
      */
     private static List<WalletResponse.PaymentMethod> paymentMethods() {
         return List.of(
@@ -62,14 +71,9 @@ public class WalletService {
                         "Fares are charged against your weekly transportation budget",
                         WalletResponse.PaymentMethod.AVAILABLE),
                 new WalletResponse.PaymentMethod(
-                        "CARD",
-                        "Debit or credit card",
-                        "Card payments arrive in a later phase",
-                        WalletResponse.PaymentMethod.COMING_SOON),
-                new WalletResponse.PaymentMethod(
-                        "STABLECOIN",
-                        "Stablecoin",
-                        "Testnet stablecoin settlement arrives in a later phase",
-                        WalletResponse.PaymentMethod.COMING_SOON));
+                        "SIMULATED_CARD",
+                        "Simulated card",
+                        "Exercises authorization and settlement without moving real money",
+                        WalletResponse.PaymentMethod.AVAILABLE));
     }
 }

@@ -1,86 +1,87 @@
-# Replacing mock routes with real transit data
+# GTFS transit infrastructure
 
-FareFlow reads routes through `TransitRouteProvider`, so the recommendation engine
-does not know or care where a route came from. This document records what is already
-built and exactly what is still needed.
+FareFlow has a provider-neutral GTFS Schedule and GTFS-Realtime layer for public
+transit only: train, subway/light rail, bus, and ferry. Walking exists solely as
+access, egress, or a transfer between transit legs.
 
-## What exists today
+## Truth and coverage model
 
+A feed in `gtfs_feeds` is only **configured** until its archive has passed validation
+and imported atomically. `GET /api/transit/coverage` exposes the distinction, the
+service-date window, agencies, modes, record counts, import time, and whether a live
+overlay is currently fresh. The app never treats an advertised URL as proof of
+coverage.
+
+The initial official publisher registry contains:
+
+| Region | Feed | Schedule | Trip updates |
+| --- | --- | --- | --- |
+| Greater Boston | MBTA | `cdn.mbta.com/MBTA_GTFS.zip` | MBTA GTFS-Realtime |
+| Chicago | CTA | CTA `google_transit.zip` | not configured |
+| San Francisco Bay Area | BART | BART `google_transit.zip` | BART GTFS-Realtime |
+
+These rows begin as `CONFIGURED`; they become `READY` only after an actual import.
+
+## Data flow
+
+```text
+official ZIP
+  → validate required GTFS tables and calendars
+  → strict route_type allow-list
+  → atomic normalized import
+  → time-dependent multi-agency router
+  → existing FareEngine / optimizer / personalization
+
+official TripUpdates protobuf
+  → atomic, expiring overlay
+  → cancellation / stop update / propagated delay
+  → scheduled route with clearly marked live facts
 ```
-com.fareflow.route.provider
-├── TransitRouteProvider          interface: sourceName, supports, findRoutes, knownOrigins/Destinations
-├── TransitRouteData              plain value type — no JPA, so any source can produce it
-├── DatabaseTransitRouteProvider  @Order(100), reads the Flyway-seeded transit_routes table
-└── TransitRouteCatalog           consults providers in @Order sequence, first match wins
+
+Identifiers are always scoped by `feed_id`; GTFS only promises uniqueness inside
+one dataset. Normalized tables cover agencies, stops, routes, calendars and date
+exceptions, trips, stop times, and transfers. Cross-feed transfer links can be
+reviewed explicitly. The router also permits a conservative inferred walking link
+when official stops from different ready feeds have the same normalized name and
+are within 150 metres. That link supplies no schedule or fare.
+
+Stop times with no explicit arrival or departure are not interpolated. Trips with
+fewer than two explicit timepoints are excluded from routing. Missing real-time data
+means “no live fact,” never “on time.” Live records expire automatically.
+
+## Enabling synchronization
+
+All downloading is opt-in so tests and local startup never depend on the network:
+
+```dotenv
+FAREFLOW_GTFS_SCHEDULE_ENABLED=true
+FAREFLOW_GTFS_IMPORT_ON_STARTUP=true
+FAREFLOW_GTFS_REALTIME_ENABLED=true
 ```
 
-`TransitRouteCatalog` falls through when a provider claims support but returns nothing,
-which is the realistic failure mode for a live feed that is up but has no data for a
-given pair. That behaviour is covered by `TransitRouteCatalogTest`.
+Static feeds refresh daily and live feeds every 30 seconds by default. Both periods
+and the live freshness window are configurable in `application.yml`. A failed refresh
+does not destroy the last successful schedule; a partial archive cannot commit.
 
-**Adding a live provider requires no change to the engine, the service, or the
-controller.** Implement the interface, annotate `@Component` with an `@Order` below
-100, and it takes precedence automatically. The database provider stays in place as
-the development and test source.
+## Adding another agency
 
-## What is NOT built, and why
+Add one registry row with a stable `feed_key`, region metadata, the publisher's
+official HTTPS Schedule URL, and optionally an official TripUpdates URL. No routing,
+optimization, payment, ledger, AI, or personalization code changes are required.
 
-No live integration is implemented, because every option for the NY/NJ region either
-needs credentials I do not have or needs a data pipeline well beyond a provider class.
+Before enabling a feed, verify its license, service calendar, route types, and stop
+coordinates. If separate feeds share a complex interchange, add reviewed rows to
+`gtfs_inter_feed_transfers` rather than relying on a loose geographic guess.
 
-### Option A — GTFS static feeds (no per-request credentials)
+## Fares and payments
 
-| Agency | Feed | Access |
-| --- | --- | --- |
-| MTA (subway/bus) | `gtfs_subway.zip`, borough bus feeds | public download, no key |
-| NJ Transit (rail/bus) | GTFS rail + bus | **free developer account required** to download |
-| PATH | GTFS via PANYNJ | public download |
+GTFS routing does not turn an absent fare into zero. Until an agency has an
+authoritative FareEngine policy, its result carries `UNKNOWN` fare status and cannot
+create a paid PaymentIntent. Schedule expansion therefore cannot bypass FareFlow's
+server-side pricing or financial controls.
 
-GTFS static gives scheduled times and route structure. It does **not** give fares in a
-usable form for our model: `fare_attributes.txt` / `fare_rules.txt` are optional, and
-PATH/NJ Transit zone fares would need to be modelled by hand.
+## Geometry boundary
 
-The real work here is not the HTTP call — it is:
-
-1. Downloading and unzipping multi-hundred-megabyte feeds on a schedule.
-2. Loading `stops`, `routes`, `trips`, `stop_times`, `calendar` into Postgres.
-3. Implementing a **journey planner** (RAPTOR or CSA) over that data to turn
-   "Newark → Manhattan" into concrete itineraries with transfer counts.
-4. Mapping each itinerary to a fare using hand-modelled agency rules.
-
-That is a multi-week project and a phase of its own, not a provider implementation.
-
-### Option B — a routing API (credentials required)
-
-| Service | What it gives | Blocker |
-| --- | --- | --- |
-| Google Routes API (TRANSIT mode) | itineraries, durations, transfers, some fares | API key + billing account |
-| Transitland / Transitous | GTFS aggregation, routing | key for production rate limits |
-| OpenTripPlanner (self-hosted) | full journey planning | needs a server and a GTFS load |
-
-**To integrate any of these, I need from you:** an API key, and confirmation of which
-service you want to pay for. None of them work anonymously at a usable rate limit.
-
-### Option C — real-time arrivals only
-
-MTA GTFS-Realtime feeds are now open without a key. These give live arrival
-predictions but no origin-to-destination planning and no fares, so they would enrich
-an existing itinerary rather than produce one. A reasonable later addition; not a
-replacement for the catalog.
-
-## Recommended sequence
-
-1. **Fares first, still seeded.** Model real NJ Transit / PATH / MTA fare rules
-   (zones, peak/off-peak, transfers, weekly caps) against the existing seeded routes.
-   This is the highest-value work for a fintech portfolio and needs no external data.
-2. **`GtfsTransitRouteProvider`** reading a locally loaded MTA + PATH GTFS feed, with
-   a simple direct-route planner before attempting full RAPTOR.
-3. **`RoutingApiTransitRouteProvider`** behind a feature flag, once a key exists.
-
-## One schema note
-
-`trips.transit_route_id` is a foreign key into `transit_routes`. A route that came
-from a live feed has no row there, so taking such a trip must first persist it as a
-cached catalog entry. The snapshot columns on `trips` already hold everything needed
-for history and the ledger, so this is a small addition to `TripService` and one
-migration — but it is not done yet, and taking a trip currently requires a database route.
+Every transit waypoint is an official GTFS stop coordinate. FareFlow does not yet
+ingest `shapes.txt`, so the map connects those waypoints schematically and does not
+claim track-accurate geometry.

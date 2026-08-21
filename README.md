@@ -1,7 +1,15 @@
 # FareFlow
 
-FareFlow is an intelligent transit and fintech platform that helps commuters choose
-transportation based on travel time, fare cost, personal budget, and situational context.
+FareFlow is a public-transit and fintech platform that helps riders plan, compare,
+pay for, travel, and track train, subway, bus, and ferry journeys based on travel
+time, fare cost, transfers, walking connections, personal budget, and current context.
+
+Cars, taxis, rideshare, flights, and bicycle routing are deliberately outside the
+product. The product loop is:
+
+```
+PLAN → COMPARE → CHOOSE → PAY → TRAVEL → TRACK → PERSONALIZE
+```
 
 The core idea: the *best* route is not always the cheapest or the fastest one.
 
@@ -29,8 +37,8 @@ REGISTER → ONBOARDING → TRAVEL + FINANCIAL PROFILE → PLAN → PERSONALIZED
 
 ![Onboarding](docs/screenshots/onboarding-frequency.png)
 
-Design notes: [docs/ONBOARDING.md](docs/ONBOARDING.md) ·
-[docs/DESIGN.md](docs/DESIGN.md).
+Product boundary: [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md) · Design notes:
+[docs/ONBOARDING.md](docs/ONBOARDING.md) · [docs/DESIGN.md](docs/DESIGN.md).
 
 ---
 
@@ -42,8 +50,9 @@ Design notes: [docs/ONBOARDING.md](docs/ONBOARDING.md) ·
 | Database | PostgreSQL 17, schema owned by Flyway            |
 | Frontend | React 19, TypeScript, Vite, TomTom Maps SDK, Vitest + Testing Library |
 
-No Lombok, no MapStruct, no Tailwind, no state-management library. Phase 1 has no
-Docker, Kafka, Redis, authentication, AI, or payment processing — those are later phases.
+No Lombok, no MapStruct, no Tailwind, and no state-management library. Ask FareFlow
+uses Google's official Gen AI Java SDK with Gemini when configured; route ranking and every
+financial calculation remain deterministic Java services.
 
 ---
 
@@ -143,6 +152,10 @@ Trip renders a schematic route diagram instead of TomTom tiles; everything else 
 scoring, recommendations, route selection, trip creation — works identically.
 See [docs/MAP.md](docs/MAP.md).
 
+**Optional — Ask FareFlow.** Set `GEMINI_API_KEY` in the root `.env`. Without
+it the assistant panel shows a configuration notice and the planner, wallet,
+history, budgets, maps, and deterministic recommendations continue to work.
+
 **4. Verify**
 
 ```bash
@@ -155,8 +168,8 @@ curl "http://localhost:8080/api/recommendations?origin=Newark&destination=Manhat
 ## Tests
 
 ```bash
-cd backend  && mvn test          # 242 tests
-cd frontend && npm test          # 119 tests
+cd backend  && mvn test          # 252 tests
+cd frontend && npm test          # 129 tests
 cd frontend && npm run typecheck
 ```
 
@@ -185,6 +198,7 @@ com.fareflow
 ├── recommendation/
 │   └── optimization/    ⭐ the scoring engine — no Spring, no JPA, no HTTP
 ├── trip/            trip creation and cancellation
+├── payment/         provider-neutral intent lifecycle + reconciliation
 ├── ledger/          append-only financial ledger
 ├── user/            users and weekly budgets
 ├── auth/            JWT, current-user resolution, demo-mode identity
@@ -208,9 +222,14 @@ Weekly spend is `SUM(amount_cents)` over the ledger. A mutable running total can
 drift on a partial failure, cannot be audited back to its trips, cannot be corrected
 retroactively, and races under concurrency.
 
-**A trip and its charge commit together.** `TripService.takeTrip` is `@Transactional`
-and `LedgerService` uses `MANDATORY` propagation, so a charge cannot be written
-outside the transaction that created its trip.
+**A payment settles, then its trip and charge commit together.** The server re-plans
+and re-prices the selected journey before creating an immutable payment amount. The
+payment transition, trip, and ledger charge share one transaction, while database
+triggers reject updates and deletes to ledger entries and payment events.
+
+**Unknown is never zero.** A journey without an authoritative fare can be recorded
+only after explicit confirmation. It creates neither a payment intent nor a ledger
+charge, so the product never represents an unavailable fare as a free trip.
 
 ### Design system
 
@@ -339,11 +358,10 @@ Plan Trip is a full-viewport map with floating panels, deliberately different fr
 the sidebar shell the reporting pages use. Clicking a route card highlights its line;
 clicking a line selects its card. They share one piece of state.
 
-**TomTom's Routing API has no public-transit mode**, so it cannot produce the shape of
-a PATH or NJ Transit journey. Rather than draw a driving route and mislabel it,
-geometry is modelled as transit data: real published station coordinates in
-`transit_route_waypoints`, with straight segments between them marked
-`geometry.source = "SCHEMATIC"` and labelled as such in the UI.
+Geometry comes only from transit data. Curated routes use published station
+coordinates; GTFS routes use imported official stops. FareFlow does not draw a
+driving route and relabel it as transit. Until `shapes.txt` is ingested, lines between
+stops remain explicitly schematic.
 
 Four layers stay separate — transit/fare data, route geometry, recommendation logic,
 and map rendering. The invariant that matters: **`RouteCandidate`, the type the
@@ -354,38 +372,32 @@ See [docs/MAP.md](docs/MAP.md) for what is real versus approximate.
 
 ### Route sources
 
-Routes are read through `TransitRouteProvider`, so the recommendation engine does
-not know where they came from:
+Journey discovery is provider-neutral. Imported GTFS Schedule data is tried first;
+the curated Philadelphia–New York graph remains an offline fallback. Both produce
+the same `Journey` model, so fare calculation, recommendation scoring, payments,
+personalization, AI tools, itinerary rendering, and map selection stay downstream.
 
-```
-route/provider/
-├── TransitRouteProvider          interface
-├── TransitRouteData              plain value type — no JPA
-├── DatabaseTransitRouteProvider  @Order(100), reads the Flyway-seeded table
-└── TransitRouteCatalog           first provider that serves the pair wins
-```
-
-Adding a live feed means implementing the interface with a lower `@Order` — no
-change to the engine, the service, or the controller. The catalog also falls
-through when a provider claims support but returns nothing, which is the realistic
-failure mode for a live feed with a coverage gap.
+GTFS identifiers are feed-scoped and normalized in Postgres. Routing is
+time-dependent, honors calendars and date exceptions, can transfer across agencies,
+and applies only fresh GTFS-Realtime facts. `GET /api/transit/coverage` reports what
+has actually imported—not merely what is configured.
 
 See [docs/TRANSIT_DATA.md](docs/TRANSIT_DATA.md) for exactly what is needed to
 replace mock routes with real data, and which options require credentials.
 
 ### The AI boundary
 
-Not implemented in Phase 1 — but the seam exists. `PreferenceResolver` returns
-`OptimizationWeights`, a record containing three dimensionless priorities, a source,
-and a budget-pressure reading. **It has no fare, route id, or dollar field**, so a
-future model is structurally incapable of naming a route or computing money. A later
-`AiPreferenceResolver` would translate "I'm running late for an interview" into a
-weight proposal, sanitize it, and hand it to the same deterministic engine.
+Ask FareFlow is implemented as a stateless, tool-using assistant. The model receives
+no private rider data or financial figures in its prompt. It can only retrieve them
+through server-side tools that call the same budget, insights, history, profile,
+pass, trip, and journey-planning services used by the rest of the application.
+Identity always comes from the authenticated request; no tool accepts a user id.
 
-The context profiles are the deterministic rehearsal for this: the interaction model,
-the API shape, and the explanation machinery all already exist. Adding AI means
-classifying a sentence into a `ContextProfile` (or a sanitized custom vector) — it
-does not mean touching the scorer, the trip service, or the ledger.
+When the assistant plans a journey, the server returns the exact priced
+`JourneySearchResponse` to both the model and the client. The map and comparison
+drawer therefore update from deterministic planner output, not model-authored route
+data. Null and unavailable values stay null; the system prompt expressly prohibits
+inventing schedules, reliability, platforms, fares, or durations.
 
 Every response returns `weightsUsed` and a per-route `breakdown`, so any
 recommendation can be replayed and verified.
@@ -403,6 +415,19 @@ recommendation can be replayed and verified.
 | `GET`  | `/api/profile` | the caller's travel profile |
 | `PUT`  | `/api/profile` | edit the profile (never re-opens onboarding) |
 | `PUT`  | `/api/onboarding` | submit onboarding and mark it complete |
+| `GET`  | `/api/insights/history?range=7d|30d|3m|1y` | real trip-history chart series |
+| `GET`  | `/api/assistant/config` | assistant availability and personalized starters |
+| `POST` | `/api/assistant/ask` | one question plus browser-held conversation history |
+| `GET`  | `/api/journeys?from=&to=&profile=` | sourced, priced public-transit alternatives |
+| `GET`  | `/api/transit/coverage` | imported regions, agencies, service window, and live-data status |
+| `POST` | `/api/journeys/take` | compatibility purchase; records explicitly confirmed unpriced trips without charging |
+| `POST` | `/api/payments/intents` | create an idempotent, server-priced payment intent |
+| `POST` | `/api/payments/intents/{id}/confirm` | authorize, settle, create trip, and append charge |
+| `POST` | `/api/payments/intents/{id}/retry` | safely retry a failed authorization |
+| `POST` | `/api/payments/intents/{id}/refund` | append a refund and cancel the trip |
+| `GET`  | `/api/payments/intents` | paginated payment history |
+| `GET`  | `/api/payments/reconciliation` | verify payment, trip, and ledger agreement |
+| `GET`  | `/api/wallet` | weekly budget, payment methods, activity, and payments |
 | `GET`  | `/api/transit-routes?origin=&destination=` | raw catalog |
 | `GET`  | `/api/transit-routes/locations` | known origins/destinations |
 | `POST` | `/api/users` | create a user |
@@ -443,15 +468,17 @@ Deliberate Phase 1 scope, not oversights:
 - **No rate limiting** on `/api/auth/login` or `/api/auth/register`. Registration also
   reveals whether an email is already taken, which is unavoidable for a usable signup flow;
   rate limiting is the real mitigation.
-- **Mock transit data.** Three origin/destination pairs seeded by Flyway, not live feeds.
-  The provider abstraction exists; no live implementation does. See `docs/TRANSIT_DATA.md`.
-- **Live routes cannot yet be taken.** `trips.transit_route_id` is a foreign key into
-  `transit_routes`, so a route from a future live feed must be persisted as a cached
-  catalog row before a trip can reference it. Small addition, not yet built.
-- **No AI.** Route selection is entirely deterministic Java. Context profiles are chosen from a fixed list, not from natural language.
-- **No payments.** Fares are recorded in an internal ledger; no money moves. The Wallet page
-  is a read-only projection of that ledger — there is no stored balance, and the card and
-  stablecoin rails are declared but inert.
+- **GTFS coverage is opt-in and publisher-dependent.** Boston MBTA, Chicago CTA, and
+  Bay Area BART feeds are registered, but a region is only marked supported after a
+  successful import whose service window is current. The curated Philadelphia–New
+  York network remains the offline fallback. See `docs/TRANSIT_DATA.md`.
+- **AI is optional and not a source of truth.** Without a Gemini key the assistant
+  is unavailable; with one it can orchestrate FareFlow services, but route selection,
+  fares, budgets, projections, and history aggregation remain deterministic.
+- **Payments are simulated.** FareFlow Wallet and the simulated card rail exercise the
+  complete provider-neutral lifecycle, but no real money or card data moves yet. A
+  sandbox provider can implement the same boundary without changing trips, ledger,
+  budgets, or checkout.
 - **Insights projections are naive.** The monthly figure extrapolates from a single week and
   says so on the page. It becomes meaningful with several weeks of history.
 - **Single-entry ledger.** Signed amounts against one user, not double-entry accounting.
@@ -470,10 +497,10 @@ Deliberate Phase 1 scope, not oversights:
   ranking today; the ranking has no mode-affinity term to feed. Stored for when it does.
 - **The selected-route note can overlap the results drawer** on short viewports when many
   options are returned. Pre-existing Plan-overlay behaviour, not introduced by onboarding.
-- **Map geometry is schematic.** Real station coordinates, straight lines between them.
-  Labelled everywhere it appears; upgrading needs GTFS `shapes.txt`.
-- **No geocoding.** Origin/destination come from the seeded location list, not free-text
-  place search. TomTom Search would need the same key plus a broader route catalog.
+- **Map geometry is schematic.** Curated station or official GTFS stop coordinates are
+  connected by straight lines. Track-accurate geometry requires GTFS `shapes.txt`.
+- **Geocoding degrades to a finite gazetteer.** TomTom Search handles broad free-text
+  coverage when configured; the keyless fallback includes major supported-region places.
 - **No Docker, CI, metrics, or tracing.**
 
 ---

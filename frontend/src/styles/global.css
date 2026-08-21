@@ -61,16 +61,14 @@ svg { display: block; }
   height: var(--topbar-height); flex-shrink: 0;
   display: flex; align-items: center; gap: var(--space-6);
   padding: 0 var(--space-6);
-  background: var(--ff-navy-900);
+  /* Dark in both themes, but not the same dark: in dark mode the bar rises off
+     the canvas instead of dropping onto it. */
+  background: var(--ff-nav-surface);
   color: var(--ff-on-navy-secondary);
 }
-/* The one piece of brand on an app screen: a 2px spectrum under the bar. Enough
-   that the product is identifiable with the logo cropped out, small enough that
-   it never competes with a dollar figure. */
-.topbar::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-  background: var(--ff-gradient);
-}
+/* A hairline, not a spectrum. The logo carries the brand; the bar just has to
+   separate cleanly from the page. */
+.topbar { border-bottom: 1px solid var(--ff-navy-700); }
 .topbar-compact { position: relative; }
 
 .topbar-brand { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
@@ -98,7 +96,7 @@ svg { display: block; }
 .topbar-link::after {
   content: ''; position: absolute; left: var(--space-3); right: var(--space-3); bottom: 0;
   height: 2px; border-radius: 2px 2px 0 0;
-  background: var(--ff-gradient-cool);
+  background: var(--color-accent);
   transform: scaleX(0); transform-origin: center;
   transition: transform var(--dur) var(--ease);
 }
@@ -141,7 +139,7 @@ svg { display: block; }
   width: 28px; height: 28px; font-size: var(--text-2xs);
   /* The avatar is the only place the full spectrum appears at this size, which
      is what ties the account cluster back to the mark on the far left. */
-  background: var(--ff-gradient-compact); color: #fff;
+  background: var(--color-accent); color: #fff;
   display: grid; place-items: center; border-radius: 50%;
   font-weight: var(--weight-bold); letter-spacing: 0.02em;
 }
@@ -284,7 +282,7 @@ svg { display: block; }
 }
 .stat-accent::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--ff-gradient);
+  background: var(--color-accent);
 }
 
 /* Statistics are read, not clicked, so they lift only slightly — enough to feel
@@ -360,26 +358,19 @@ svg { display: block; }
  * opacity, because background-image cannot be transitioned. Both layers sit
  * behind the label, so the text never moves.
  */
+/*
+ * Solid purple. It used to carry the brand gradient and a coloured glow, which
+ * made every screen's primary action shout louder than the logo. A flat fill
+ * that darkens on hover is what a product ships.
+ */
 .btn-primary {
-  position: relative; isolation: isolate;
-  background: var(--ff-gradient-compact);
-  border-color: transparent; color: #fff;
-  box-shadow: 0 1px 2px rgba(20, 18, 31, 0.12);
-}
-.btn-primary::before {
-  content: ''; position: absolute; inset: 0; z-index: -1;
-  border-radius: inherit;
-  background: var(--ff-gradient);
-  opacity: 0;
-  transition: opacity var(--dur) var(--ease);
+  background: var(--color-accent);
+  border-color: var(--color-accent); color: #fff;
 }
 .btn-primary:hover:not(:disabled) {
-  border-color: transparent;
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-brand);
+  background: var(--color-accent-hover); border-color: var(--color-accent-hover);
 }
-.btn-primary:hover:not(:disabled)::before { opacity: 1; }
-.btn-primary:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-xs); }
+.btn-primary:active:not(:disabled) { transform: translateY(1px); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--color-text-secondary); }
 .btn-ghost:hover:not(:disabled) { background: var(--color-surface-sunken); border-color: transparent; color: var(--color-text); }
 .btn-danger { color: var(--color-negative); border-color: var(--color-negative-border); }
@@ -896,6 +887,56 @@ svg { display: block; }
   color: var(--color-accent); white-space: nowrap;
 }
 .ask-note { margin-top: var(--space-3); font-size: 10px; color: var(--color-text-muted); line-height: 1.5; }
+.ask-open .ask-trigger { color: var(--color-text); border-radius: 0; }
+.ask-status, .ask-unavailable, .ask-error {
+  padding: var(--space-3); border-radius: var(--radius); font-size: var(--text-xs); line-height: 1.5;
+}
+.ask-status { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
+.ask-unavailable { background: var(--color-amber-soft); color: var(--color-amber); }
+.ask-error { margin-top: var(--space-2); background: var(--color-negative-soft); color: var(--color-negative); }
+.ask-thread {
+  display: grid; gap: var(--space-3); max-height: 230px; overflow-y: auto;
+  padding: 2px 3px var(--space-3); scrollbar-width: thin;
+}
+.ask-turn { display: grid; gap: 3px; font-size: var(--text-xs); line-height: 1.5; }
+.ask-turn-user {
+  margin-left: var(--space-7); padding: 8px 10px;
+  background: var(--color-accent-faint); border-radius: var(--radius) var(--radius) 2px var(--radius);
+}
+.ask-turn-assistant { padding-right: var(--space-4); }
+.ask-turn-label {
+  font-size: 9px; font-weight: var(--weight-bold); letter-spacing: .07em;
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+.ask-turn-assistant .ask-turn-label { color: var(--color-accent); }
+.ask-thinking { color: var(--color-text-muted); }
+.ask-starters, .ask-followups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-3); }
+.ask-starters button, .ask-followups button {
+  text-align: left; padding: 7px 9px; border: 1px solid var(--color-border);
+  border-radius: 7px; background: var(--color-surface); color: var(--color-text-secondary);
+  font: inherit; font-size: 11px; line-height: 1.35; cursor: pointer;
+}
+.ask-starters button { width: 100%; }
+.ask-starters button:hover, .ask-followups button:hover {
+  border-color: var(--color-accent); color: var(--color-text);
+}
+.ask-followups button { color: var(--color-accent); background: var(--color-accent-faint); }
+.ask-composer {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px;
+  padding-top: var(--space-3); border-top: 1px solid var(--color-border);
+}
+.ask-composer input {
+  min-width: 0; padding: 9px 10px; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius); background: var(--color-surface); color: var(--color-text);
+  font: inherit; font-size: var(--text-xs); outline: none;
+}
+.ask-composer input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--color-accent-ring); }
+.ask-composer button {
+  border: 0; border-radius: var(--radius); padding: 0 var(--space-3);
+  background: var(--color-accent); color: #fff; font: inherit; font-size: var(--text-xs);
+  font-weight: var(--weight-semibold); cursor: pointer;
+}
+.ask-composer button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---- Selected-route note over the map ---- */
 /*
@@ -1006,9 +1047,12 @@ svg { display: block; }
   font-size: var(--text-2xs); font-weight: var(--weight-bold);
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-.flag-best_value { background: var(--ff-gradient-compact); color: #fff; }
+.route-flags { display: flex; flex-wrap: wrap; gap: 5px; min-height: 20px; }
+.flag-best_value { background: var(--color-accent); color: #fff; }
+.flag-best_for_you { background: var(--ff-navy-900); color: #fff; }
 .flag-cheapest { background: var(--color-positive-soft); color: var(--color-positive); }
 .flag-fastest { background: var(--color-accent-soft); color: var(--ff-indigo-700); }
+.flag-secondary { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
 
 /* The transit-line strip: modes as connected nodes, so a route reads as a shape
    before it reads as a sentence. */
@@ -1016,7 +1060,7 @@ svg { display: block; }
 .line-strip-item { display: flex; align-items: center; }
 .line-strip-link {
   width: 14px; height: 3px; border-radius: 2px;
-  background: var(--ff-gradient-compact);
+  background: var(--color-accent);
 }
 .line-strip-node {
   display: grid; place-items: center; width: 26px; height: 26px;
@@ -1046,6 +1090,16 @@ svg { display: block; }
   display: flex; align-items: center; gap: 5px;
   font-size: var(--text-xs); color: var(--color-text-secondary);
 }
+.route-tile-operators {
+  font-size: 10px; font-weight: var(--weight-semibold); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: .045em;
+}
+.route-impact {
+  display: grid; gap: 3px; padding: 7px 9px; border-left: 2px solid var(--color-positive);
+  background: var(--color-positive-soft); color: var(--color-positive);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 10px; font-weight: var(--weight-semibold);
+}
+.route-impact .impact-over { color: var(--color-negative); }
 .route-tile-why {
   font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.5;
   /* Two lines maximum: the full reasoning is on the map note, and a card that
@@ -1072,9 +1126,143 @@ svg { display: block; }
 .route-tile-choose:disabled { opacity: 0.5; cursor: not-allowed; }
 /* The selected card's action carries the brand, so the eye lands on the route
    the map is currently drawing. */
-.route-tile.selected .route-tile-choose { background: var(--ff-gradient-compact); }
+.route-tile.selected .route-tile-choose { background: var(--color-accent); }
+
+/* Route checkout — an intentional finance surface over the map, with no glow,
+   gradients, or card-number theatre. */
+.checkout-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--ff-navy-950) 58%, transparent);
+}
+
+.checkout-sheet {
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xl);
+  padding: var(--space-5);
+}
+
+.checkout-head,
+.checkout-route,
+.checkout-budget,
+.checkout-method {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.checkout-head { margin-bottom: var(--space-4); }
+.checkout-head h2 { margin: 2px 0 0; font-size: var(--text-xl); }
+.checkout-eyebrow {
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.checkout-route {
+  align-items: flex-start;
+  border-block: 1px solid var(--color-border-subtle);
+  padding: var(--space-4) 0;
+}
+.checkout-route > div:first-child { display: grid; gap: 4px; }
+.checkout-route > div:first-child span { color: var(--color-text-muted); font-size: var(--text-sm); }
+.checkout-fare { text-align: right; font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.checkout-fare span { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
+
+.checkout-budget {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-positive);
+  background: var(--color-surface-subtle);
+  font-size: var(--text-sm);
+}
+.checkout-budget.over { border-left-color: var(--color-negative); }
+
+.checkout-methods { margin: var(--space-5) 0 0; padding: 0; border: 0; }
+.checkout-methods legend { margin-bottom: var(--space-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.checkout-method {
+  justify-content: flex-start;
+  min-height: 64px;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.checkout-method:hover { border-color: var(--color-border-strong); }
+.checkout-method.selected { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.checkout-method input { position: absolute; opacity: 0; pointer-events: none; }
+.checkout-method > span:nth-of-type(2) { display: grid; flex: 1; gap: 2px; }
+.checkout-method small { color: var(--color-text-muted); }
+.checkout-method-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.checkout-assurance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.checkout-assurance span::before { content: '✓'; margin-right: 5px; color: var(--color-positive); }
+.checkout-error {
+  display: grid;
+  gap: 3px;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-negative);
+  background: var(--color-negative-soft);
+  font-size: var(--text-sm);
+}
+.checkout-submit { width: 100%; min-height: 46px; }
+.checkout-fineprint { margin: var(--space-3) 0 0; text-align: center; color: var(--color-text-muted); font-size: var(--text-xs); }
+
+.payment-state-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+.payment-state-dot.state-settled { background: var(--color-positive); }
+.payment-state-dot.state-failed { background: var(--color-negative); }
+.payment-state-dot.state-refunded { background: var(--color-accent); }
+.payment-state-dot.state-processing,
+.payment-state-dot.state-authorized { background: var(--color-amber); }
+
+@media (max-width: 640px) {
+  .checkout-backdrop { align-items: end; padding: 0; }
+  .checkout-sheet { width: 100%; max-height: 88dvh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  .checkout-route { align-items: flex-start; }
+}
 
 .route-tile-legs { border-top: 1px solid var(--color-border-subtle); padding-top: var(--space-3); }
+.itinerary-head { display: grid; gap: 2px; margin-bottom: var(--space-3); }
+.itinerary-head strong { font-size: var(--text-xs); }
+.itinerary-head span { font-size: 10px; color: var(--color-text-muted); line-height: 1.4; }
 
 .fare-unavailable {
   font-size: var(--text-sm); font-weight: var(--weight-medium);
@@ -1097,21 +1285,8 @@ svg { display: block; }
   padding: var(--space-8);
   display: flex; flex-direction: column;
 }
-/* Ambient light from two corners rather than a gradient wash: the headline has
-   to stay readable, and a full-panel gradient fights it. */
-.auth-brand::before {
-  content: ''; position: absolute; inset: 0; z-index: -1;
-  background:
-    radial-gradient(48% 42% at 8% 4%, rgba(34, 211, 238, 0.22), transparent 70%),
-    radial-gradient(46% 48% at 92% 96%, rgba(233, 53, 214, 0.20), transparent 70%),
-    radial-gradient(40% 40% at 62% 52%, rgba(139, 63, 240, 0.16), transparent 72%);
-}
-.auth-brand::after {
-  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
-  background: var(--ff-gradient);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
-}
+
+.auth-brand { border-right: 1px solid var(--ff-navy-700); }
 
 .auth-brand-copy { margin-top: auto; margin-bottom: var(--space-7); max-width: 30rem; }
 .auth-headline {
@@ -1129,7 +1304,7 @@ svg { display: block; }
 }
 .auth-point-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--ff-gradient); flex-shrink: 0;
+  background: var(--color-accent); flex-shrink: 0;
 }
 .auth-art { width: 100%; max-width: 520px; opacity: 0.95; }
 
@@ -1190,7 +1365,7 @@ svg { display: block; }
   background: rgba(255,255,255,0.12); border-radius: var(--radius-pill); overflow: hidden;
 }
 .balance-meter-fill {
-  height: 100%; background: var(--ff-gradient);
+  height: 100%; background: var(--color-accent);
   border-radius: var(--radius-pill);
   transition: width 420ms var(--ease);
 }
@@ -1246,7 +1421,7 @@ svg { display: block; }
    rainbow each look like a different measurement, when the only variable that
    means anything here is length. */
 .provider-bar-fill {
-  height: 100%; background: var(--ff-gradient-compact);
+  height: 100%; background: var(--color-accent);
   border-radius: var(--radius-pill); transition: width 300ms ease;
 }
 .provider-meta {
@@ -1432,6 +1607,16 @@ svg { display: block; }
 /* ============================ JOURNEY LEG TIMELINE ============================ */
 .legs { display: flex; flex-direction: column; margin-top: var(--space-2); }
 .leg { display: grid; grid-template-columns: 20px 1fr; gap: var(--space-3); }
+.leg:not(.leg-place) { display: block; }
+.leg-select {
+  width: 100%; display: grid; grid-template-columns: 20px 1fr; gap: var(--space-3);
+  padding: 0; border: 0; background: transparent; color: inherit; text-align: left;
+  font: inherit; cursor: pointer; border-radius: var(--radius-sm);
+}
+.leg-select:hover .leg-body, .leg.active .leg-body {
+  background: var(--color-accent-faint); box-shadow: 0 0 0 4px var(--color-accent-faint);
+}
+.leg.active .leg-node { background: var(--color-accent); border-color: var(--color-accent); }
 .leg-rail { display: flex; flex-direction: column; align-items: center; }
 .leg-node {
   width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
@@ -1443,6 +1628,8 @@ svg { display: block; }
   width: 8px; height: 8px; margin: 5px 0;
   background: var(--color-surface); border: 2px solid var(--color-border-strong);
 }
+.leg-node.place { width: 10px; height: 10px; margin: 4px 0; background: var(--color-surface); border-color: var(--color-accent); }
+.leg-node.place.end { border-radius: 2px; background: var(--color-accent); }
 .leg-line { width: 2px; flex: 1; min-height: 14px; background: var(--color-border-strong); }
 .leg-walk .leg-line {
   background: repeating-linear-gradient(
@@ -1450,9 +1637,24 @@ svg { display: block; }
 }
 .leg-body { padding-bottom: var(--space-3); min-width: 0; }
 .leg-title { display: block; font-size: var(--text-sm); font-weight: 600; }
+.leg-kicker {
+  display: block; margin-bottom: 2px; font-size: 9px; font-weight: var(--weight-bold);
+  letter-spacing: .07em; text-transform: uppercase; color: var(--color-text-muted);
+}
 .leg-walk .leg-title { font-weight: 500; color: var(--color-text-secondary); }
 .leg-detail { display: block; font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 1px; }
 .leg-wait { color: var(--color-amber); }
+.leg-wait-event {
+  display: block; padding: 3px 6px; margin: 0 0 var(--space-2); width: fit-content;
+  border-radius: var(--radius-sm); background: var(--color-amber-soft);
+  color: var(--color-amber); font-size: 10px; font-weight: var(--weight-semibold);
+}
+.leg-ride { display: block; margin-top: 4px; font-size: 10px; color: var(--color-text-secondary); }
+.leg-stops {
+  display: -webkit-box; margin-top: 3px; font-size: 9px; color: var(--color-text-muted);
+  line-height: 1.4; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.leg-arrive .leg-body { padding-bottom: 0; }
 
 /* ============================ FARE PROVENANCE ============================ */
 .fare-status {
@@ -1469,6 +1671,7 @@ svg { display: block; }
   color: var(--color-text-secondary);
 }
 .fare-breakdown summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.fare-events > strong { display: block; padding: 4px 0; font-size: var(--text-xs); }
 .fare-breakdown ul { margin-top: 4px; display: grid; gap: 2px; }
 .fare-breakdown li {
   display: flex; justify-content: space-between; gap: var(--space-3);
@@ -1529,12 +1732,6 @@ svg { display: block; }
   color: var(--color-text-secondary); white-space: nowrap;
 }
 .onboarding-track { display: flex; gap: 5px; }
-/*
- * The progress ticks share one gradient across the whole track rather than each
- * carrying its own. `background-attachment: fixed` would do it in one line and
- * break on scroll, so each tick paints a slice of a track-wide image instead:
- * the run of completed steps reads as a single sweep, which is the point.
- */
 .onboarding-tick {
   width: 26px; height: 4px; border-radius: var(--radius-pill);
   background: var(--color-border-strong);
@@ -1543,13 +1740,7 @@ svg { display: block; }
 /* A step that has not been reached is plain grey. Painting it in a faded brand
    colour made unvisited steps look partly complete, which is the one thing a
    progress indicator must never say. */
-.onboarding-tick.done {
-  background-color: transparent;
-  background-image: var(--ff-gradient);
-  background-size: 186px 4px;   /* 6 ticks + 5 gaps */
-  background-repeat: no-repeat;
-  background-position-x: calc(var(--tick-index, 0) * -31px);
-}
+.onboarding-tick.done { background-color: var(--color-accent); }
 .onboarding-tick.current { transform: scaleY(1.5); }
 
 .onboarding-main {
@@ -1624,7 +1815,7 @@ svg { display: block; }
 .choice-card { position: relative; overflow: hidden; }
 .choice-card::after {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--ff-gradient);
+  background: var(--color-accent);
   transform: scaleX(0); transform-origin: left;
   transition: transform var(--dur) var(--ease);
 }
@@ -1650,7 +1841,7 @@ svg { display: block; }
 }
 .choice-mark.square { border-radius: var(--radius-sm); }
 .choice-card[aria-pressed='true'] .choice-mark {
-  background: var(--ff-gradient-compact);
+  background: var(--color-accent);
   border-color: transparent;
 }
 
@@ -1671,9 +1862,9 @@ svg { display: block; }
 .budget-chip:active { transform: translateY(1px); }
 .budget-chip[aria-pressed='true'] {
   border-color: transparent;
-  background: var(--ff-gradient-compact);
+  background: var(--color-accent);
   color: #fff;
-  box-shadow: var(--shadow-brand);
+  box-shadow: var(--shadow-sm);
 }
 
 .budget-input { position: relative; }
@@ -1798,7 +1989,7 @@ svg { display: block; }
   display: grid; place-items: center;
   width: 30px; height: 30px; flex-shrink: 0;
   border-radius: var(--radius);
-  background: var(--ff-gradient-compact);
+  background: var(--color-accent);
   color: #fff;
 }
 .commute-shortcut-label {
@@ -1827,7 +2018,7 @@ svg { display: block; }
   font-size: var(--text-sm); font-weight: 600;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.personal-commute:hover { background: var(--ff-gradient-compact); color: #fff; }
+.personal-commute:hover { background: var(--color-accent); color: #fff; }
 
 .personal-notes { display: grid; gap: var(--space-2); }
 .personal-notes li {
@@ -1837,7 +2028,7 @@ svg { display: block; }
 }
 .personal-dot {
   width: 6px; height: 6px; margin-top: 8px; flex-shrink: 0;
-  border-radius: 50%; background: var(--ff-gradient);
+  border-radius: 50%; background: var(--color-accent);
 }
 
 .personal-figures {
@@ -1943,45 +2134,21 @@ a:hover > .ff-wordmark .ff-logo,
  * presence on an app screen: enough that the product is identifiable with the
  * logo cropped out, small enough that it never competes with a dollar figure.
  */
-.topbar { position: relative; }
 .topbar::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-  background: var(--ff-gradient);
+  background: var(--color-accent);
 }
 
-/*
- * The dark panels — auth, the wallet balance — get a single soft brand glow
- * rather than a gradient wash. A gradient across the whole panel would fight the
- * figures printed on it; one light source behind the content does not.
- */
-.auth-brand, .balance-card { position: relative; isolation: isolate; }
-.auth-brand::before, .balance-card::before {
-  content: ''; position: absolute; inset: 0; z-index: -1;
-  background:
-    radial-gradient(60% 55% at 12% 8%, rgba(34, 211, 238, 0.20), transparent 70%),
-    radial-gradient(55% 60% at 95% 100%, rgba(233, 53, 214, 0.20), transparent 70%);
-}
-
-/* The auth panel's ink and the canvas meet on a brand edge rather than a seam. */
 .auth-brand::after {
   content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
-  background: var(--ff-gradient);
+  background: var(--color-accent);
   /* Faded at both ends so it reads as an edge light rather than as a stripe
      ruled down the page. */
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
 }
 
-/* The onboarding footer is where the primary action lives, so it gets the same
-   hairline treatment as the navigation — top edge instead of bottom. */
-.onboarding-footer { position: relative; }
-.onboarding-footer::before {
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
-  background: var(--ff-gradient);
-  opacity: 0.32;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 25%, #000 75%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 25%, #000 75%, transparent);
-}
+
 
 /* ============================ WALLET ============================ */
 /*
@@ -1989,63 +2156,44 @@ a:hover > .ff-wordmark .ff-logo,
  * modules under it explain where that number came from. Nothing on the page is
  * the same size as anything else, which is the entire hierarchy.
  */
-.budget-hero {
-  display: grid; grid-template-columns: 1fr auto;
-  gap: var(--space-8);
-  padding: var(--space-7);
+/*
+ * The lead figure, set on the page. It was a navy card with a brand glow; the
+ * glow made the figure harder to read and the container made every page look
+ * like the same dashboard. Type carries the prominence now.
+ */
+.budget-lede { display: grid; gap: var(--space-5); }
+.lede-value-unset {
+  font-size: var(--text-2xl); letter-spacing: var(--tracking-title);
+  color: var(--color-text-secondary);
 }
-.budget-hero-main { min-width: 0; }
-.budget-hero-label {
-  display: block;
-  font-size: var(--text-xs); font-weight: var(--weight-semibold);
-  text-transform: uppercase; letter-spacing: var(--tracking-label);
-  color: var(--ff-cyan);
-}
-.budget-hero-figure {
-  display: flex; align-items: baseline; gap: var(--space-3);
-  margin-top: var(--space-3); flex-wrap: wrap;
-}
-.budget-hero-value {
-  color: #fff; font-size: var(--text-5xl); font-weight: var(--weight-bold);
-  letter-spacing: -0.045em; line-height: 1;
-}
-.budget-hero-value-unset { font-size: var(--text-2xl); letter-spacing: var(--tracking-title); }
-.budget-hero-unit {
-  color: var(--ff-on-navy-secondary); font-size: var(--text-md);
+.budget-lede-track { display: grid; gap: var(--space-3); max-width: 620px; }
+.budget-lede-warn {
+  font-size: var(--text-sm); color: var(--color-negative);
   font-weight: var(--weight-medium);
 }
-.budget-hero-sub {
-  display: block; margin-top: var(--space-2);
-  color: var(--ff-on-navy-secondary); font-size: var(--text-sm); line-height: 1.6;
-  max-width: 52ch;
-}
-.budget-hero-meter { margin-top: var(--space-5); max-width: 520px; }
-.budget-hero-cta { margin-top: var(--space-5); }
 
 .budget-verdict {
-  display: flex; align-items: center; gap: var(--space-3);
-  margin-top: var(--space-4); flex-wrap: wrap;
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
 }
 /* The verdict carries an icon as well as a colour, so "on track" is not a claim
    made in green alone. */
 .verdict {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px var(--space-3);
-  border-radius: var(--radius-pill);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
   font-size: var(--text-xs); font-weight: var(--weight-semibold);
 }
-.verdict-positive { background: rgba(34, 211, 238, 0.15); color: var(--ff-cyan); }
-.verdict-neutral { background: rgba(255, 255, 255, 0.1); color: var(--ff-on-navy-secondary); }
-.verdict-negative { background: rgba(233, 53, 214, 0.18); color: #ff9beb; }
-.budget-verdict-note { color: var(--ff-on-navy-muted); font-size: var(--text-xs); }
+.verdict-positive { background: var(--color-positive-soft); color: var(--color-positive); }
+.verdict-neutral { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
+.verdict-negative { background: var(--color-negative-soft); color: var(--color-negative); }
+.budget-verdict-note { color: var(--color-text-muted); font-size: var(--text-xs); }
 
-.budget-hero-side {
-  display: grid; gap: var(--space-5); align-content: start;
-  padding-left: var(--space-8);
-  border-left: 1px solid var(--ff-navy-700);
-  min-width: 210px;
+/* Wide tables scroll inside their own container; the page never does. */
+.table-wrap { overflow-x: auto; }
+.cell-share {
+  margin-left: var(--space-2); font-weight: var(--weight-regular);
+  color: var(--color-text-muted); font-size: var(--text-xs);
 }
-.budget-hero-empty { grid-template-columns: 1fr; }
 
 /* ---- Financial modules ---- */
 .module-grid {
@@ -2166,7 +2314,7 @@ a:hover > .ff-wordmark .ff-logo,
 }
 .trip-line-track {
   width: 28px; height: 3px; border-radius: 2px; flex-shrink: 0;
-  background: var(--ff-gradient-compact);
+  background: var(--color-accent);
 }
 .trip-line-name {
   font-size: var(--text-md); font-weight: var(--weight-medium);
@@ -2322,80 +2470,55 @@ a:hover > .ff-wordmark .ff-logo,
 .budget-hero-skeleton { padding: var(--space-7); }
 
 /* ============================ INSIGHTS ============================ */
-.headline {
-  display: grid; gap: var(--space-5);
-  padding: var(--space-7);
-  position: relative;
-}
-.headline-main { display: grid; gap: var(--space-2); }
-.headline-label {
-  font-size: var(--text-xs); font-weight: var(--weight-semibold);
-  text-transform: uppercase; letter-spacing: var(--tracking-label);
-  color: var(--ff-cyan);
-}
-.headline-value {
-  color: #fff; font-size: var(--text-5xl); font-weight: var(--weight-bold);
-  letter-spacing: -0.045em; line-height: 1;
-}
-.headline-sub {
-  color: var(--ff-on-navy-secondary); font-size: var(--text-sm);
-  line-height: 1.6; max-width: 56ch;
-}
+/*
+ * The headline is type on the page. It used to be a navy card with a brand glow
+ * and a bulleted list inside it, which made the same visual statement on every
+ * page and left the reader to work out which number mattered.
+ */
+.headline { display: grid; gap: var(--space-5); }
 .headline-notes {
   display: grid; gap: var(--space-2);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--ff-navy-700);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--color-accent);
+  max-width: 74ch;
 }
 .headline-notes li {
-  display: flex; align-items: flex-start; gap: var(--space-3);
-  color: var(--ff-on-navy-secondary); font-size: var(--text-sm); line-height: 1.55;
-}
-.headline-dot {
-  width: 5px; height: 5px; margin-top: 8px; flex-shrink: 0;
-  border-radius: 50%; background: var(--ff-cyan);
+  font-size: var(--text-sm); line-height: 1.6;
+  color: var(--color-text-secondary);
 }
 .headline-commute {
-  position: absolute; top: var(--space-6); right: var(--space-6);
-  padding: 5px var(--space-3); border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.1); color: #fff;
+  padding: 4px var(--space-3); border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
   font-size: var(--text-sm); font-weight: var(--weight-medium);
-  transition: background var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.headline-commute:hover { background: rgba(255, 255, 255, 0.18); }
+.headline-commute:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
 /* ---- Budget adherence ---- */
-.adherence { display: grid; gap: var(--space-6); }
-.adherence-figures {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-5);
-}
+.adherence { display: grid; gap: var(--space-6); max-width: 720px; }
 .adherence-meter { display: grid; gap: var(--space-2); }
 .adherence-scale {
   display: flex; justify-content: space-between;
   font-size: var(--text-xs); color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
 }
 .adherence-empty {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-5); flex-wrap: wrap;
 }
 
-/* ---- Operator verdicts ---- */
-.split-grid {
-  display: grid; grid-template-columns: 1.55fr 1fr; gap: var(--space-4);
-  align-items: start;
+/* ---- Operator verdicts: a sentence, not two more cards ---- */
+.verdicts {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm); color: var(--color-text-secondary);
 }
-.split-grid > * { min-width: 0; }
-.verdicts { display: grid; gap: var(--space-6); }
-.verdict-item { display: grid; gap: 4px; }
-.verdict-name {
-  font-size: var(--text-xl); font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-title);
-}
-.verdict-empty { display: grid; gap: var(--space-2); }
+.verdicts strong { color: var(--color-text); font-weight: var(--weight-semibold); }
+.verdict-sep { color: var(--color-border-strong); }
+.verdict-empty { margin-top: var(--space-4); max-width: 70ch; }
 
 /* ---- Pass recommendation ---- */
-.pass-card { display: grid; gap: var(--space-5); }
+.pass-card { display: grid; gap: var(--space-5); max-width: 820px; }
 .pass-verdict { display: flex; align-items: flex-start; gap: var(--space-4); }
 .pass-icon {
   display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0;

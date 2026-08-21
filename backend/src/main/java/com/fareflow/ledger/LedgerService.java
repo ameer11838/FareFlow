@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The only class permitted to write ledger entries.
@@ -44,6 +45,13 @@ public class LedgerService {
                 LedgerEntry.tripCharge(userId, tripId, fareCents, description, occurredAt));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public LedgerEntry recordTripCharge(long userId, long tripId, UUID paymentIntentId,
+                                        long fareCents, String description, Instant occurredAt) {
+        return ledgerRepository.save(LedgerEntry.tripCharge(
+                userId, tripId, paymentIntentId, fareCents, description, occurredAt));
+    }
+
     /**
      * Records a refund. The original charge is left untouched — both rows remain
      * visible with their own timestamps.
@@ -53,6 +61,13 @@ public class LedgerService {
                                     String description, Instant occurredAt) {
         return ledgerRepository.save(
                 LedgerEntry.refund(userId, tripId, amountCents, description, occurredAt));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public LedgerEntry recordRefund(long userId, long tripId, UUID paymentIntentId,
+                                    long amountCents, String description, Instant occurredAt) {
+        return ledgerRepository.save(LedgerEntry.refund(
+                userId, tripId, paymentIntentId, amountCents, description, occurredAt));
     }
 
     @Transactional
@@ -73,6 +88,10 @@ public class LedgerService {
 
     public List<LedgerEntry> findForTrip(long tripId) {
         return ledgerRepository.findByTripIdOrderByIdAsc(tripId);
+    }
+
+    public List<LedgerEntry> findForPayment(UUID paymentIntentId) {
+        return ledgerRepository.findByPaymentIntentIdOrderByIdAsc(paymentIntentId);
     }
 
     public long countForUser(long userId) {

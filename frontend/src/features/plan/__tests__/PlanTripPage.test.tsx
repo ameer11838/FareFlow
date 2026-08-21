@@ -10,7 +10,8 @@ import {
   demoConfig,
   emptyJourneySearch,
   journeySearch,
-  journeyTrip,
+  createdPayment,
+  settledPayment,
   profiles,
   rushJourneySearch,
   emptyTravelProfile,
@@ -41,6 +42,10 @@ function stubApis() {
   // Origin and destination are no longer hardcoded: they are pre-filled from the
   // signed-in rider's saved commute, which is Newark to Manhattan here.
   vi.spyOn(api.profileApi, 'get').mockResolvedValue(travelProfile)
+  vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
+  vi.spyOn(api.paymentsApi, 'confirm').mockResolvedValue(settledPayment)
+  vi.spyOn(api.paymentsApi, 'retry').mockResolvedValue(settledPayment)
+  vi.spyOn(api.journeysApi, 'take').mockResolvedValue(settledPayment.trip!)
 }
 
 async function search() {
@@ -137,6 +142,32 @@ describe('PlanTripPage — journey search', () => {
     expect(screen.getByTestId(`journey-card-${amtrakJourney.journeyId}`))
       .toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('route-detail')).toHaveTextContent('Amtrak')
+  })
+
+  it('lets Ask FareFlow update the same map and route comparison results', async () => {
+    vi.spyOn(api.assistantApi, 'config').mockResolvedValue({
+      available: true,
+      unavailableReason: null,
+      starters: ['Find my cheapest commute'],
+    })
+    const ask = vi.spyOn(api.assistantApi, 'ask').mockResolvedValue({
+      reply: 'The SEPTA and NJ Transit option is the best fit for this request.',
+      toolsUsed: ['get_travel_profile', 'plan_journey'],
+      routes: journeySearch,
+      followUps: ['Why did you recommend that one?'],
+    })
+    renderWithProviders(<PlanTripPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /ask fareflow/i }))
+    const input = await screen.findByLabelText('Ask FareFlow')
+    await userEvent.type(input, "What's the cheapest way to class?")
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(ask).toHaveBeenCalledWith(
+      "What's the cheapest way to class?", []))
+    expect(await screen.findByText(/best fit for this request/i)).toBeInTheDocument()
+    expect(screen.getByTestId(`journey-card-${septaNjtJourney.journeyId}`)).toBeInTheDocument()
+    expect(screen.getByTestId('route-drawer')).toHaveTextContent('Philadelphia, PA → Manhattan, NY')
   })
 })
 
@@ -295,32 +326,37 @@ describe('PlanTripPage — states and map', () => {
 describe('PlanTripPage — taking a journey', () => {
   beforeEach(() => { navigate.mockReset(); mapAvailable = false; stubApis() })
 
-  it('sends only the journey id, never a fare', async () => {
+  it('creates and settles a server-priced payment without sending a fare', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const take = vi.spyOn(api.journeysApi, 'take').mockResolvedValue(journeyTrip)
+    const create = vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
+    const confirmPayment = vi.spyOn(api.paymentsApi, 'confirm').mockResolvedValue(settledPayment)
 
     renderWithProviders(<PlanTripPage />)
     await search()
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pay \$27\.60/i }))
 
-    await waitFor(() => expect(take).toHaveBeenCalled())
-    const [body] = take.mock.calls[0]
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    const [body] = create.mock.calls[0]
     expect(body).toEqual({
       from: 'Philadelphia, PA',
       to: 'Manhattan, NY',
       journeyId: septaNjtJourney.journeyId,
+      profile: 'BALANCED',
       confirmUnknownFare: false,
+      paymentMethod: 'FAREFLOW_WALLET',
     })
     // The amount is the server's business; the client must not be able to state one.
     expect(JSON.stringify(body)).not.toContain('2760')
-    expect(navigate).toHaveBeenCalledWith('/trips')
+    expect(confirmPayment).toHaveBeenCalledWith(createdPayment.id)
+    expect(navigate).toHaveBeenCalledWith(`/trips?payment=${settledPayment.id}`)
   })
 
   it('sends an idempotency key so a double click cannot charge twice', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const take = vi.spyOn(api.journeysApi, 'take').mockResolvedValue(journeyTrip)
+    const create = vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
 
     renderWithProviders(<PlanTripPage />)
     await search()
@@ -328,25 +364,22 @@ describe('PlanTripPage — taking a journey', () => {
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     const choose = within(card).getByRole('button', { name: /choose/i })
     await userEvent.click(choose)
-    await waitFor(() => expect(take).toHaveBeenCalledTimes(1))
+    const pay = await screen.findByRole('button', { name: /pay \$27\.60/i })
+    await userEvent.click(pay)
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
 
-    await userEvent.click(choose)
-    await waitFor(() => expect(take).toHaveBeenCalledTimes(2))
+    await userEvent.click(pay)
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2))
 
     // The same journey reuses its key, so the server dedupes the retry.
-    expect(take.mock.calls[0][1]).toBe(take.mock.calls[1][1])
-    expect(take.mock.calls[0][1]).toBeTruthy()
+    expect(create.mock.calls[0][1]).toBe(create.mock.calls[1][1])
+    expect(create.mock.calls[0][1]).toBeTruthy()
   })
 
   it('asks before recording a journey with no computable fare', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const take = vi.spyOn(api.journeysApi, 'take')
-      .mockRejectedValueOnce(new ApiError(409, {
-        title: 'Fare confirmation required',
-        detail: 'This journey has no published fare FareFlow can compute.',
-        code: 'FARE_CONFIRMATION_REQUIRED',
-      }))
-      .mockResolvedValueOnce(journeyTrip)
+    const take = vi.spyOn(api.journeysApi, 'take').mockResolvedValue(settledPayment.trip!)
+    const create = vi.spyOn(api.paymentsApi, 'create')
 
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
@@ -355,21 +388,18 @@ describe('PlanTripPage — taking a journey', () => {
 
     const card = await screen.findByTestId(`journey-card-${amtrakJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /record trip without charge/i }))
 
     await waitFor(() => expect(confirm).toHaveBeenCalled())
-    await waitFor(() => expect(take).toHaveBeenCalledTimes(2))
-    // The retry carries the explicit acceptance.
-    expect(take.mock.calls[1][0].confirmUnknownFare).toBe(true)
+    await waitFor(() => expect(take).toHaveBeenCalledTimes(1))
+    expect(take.mock.calls[0][0].confirmUnknownFare).toBe(true)
+    expect(create).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledWith('/trips')
   })
 
   it('records nothing when the rider declines an unknown fare', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const take = vi.spyOn(api.journeysApi, 'take')
-      .mockRejectedValue(new ApiError(409, {
-        title: 'Fare confirmation required',
-        detail: 'No published fare.',
-        code: 'FARE_CONFIRMATION_REQUIRED',
-      }))
+    const create = vi.spyOn(api.paymentsApi, 'create')
     vi.spyOn(window, 'confirm').mockReturnValue(false)
 
     renderWithProviders(<PlanTripPage />)
@@ -378,13 +408,13 @@ describe('PlanTripPage — taking a journey', () => {
     const card = await screen.findByTestId(`journey-card-${amtrakJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
 
-    await waitFor(() => expect(take).toHaveBeenCalledTimes(1))
+    expect(create).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 
   it('surfaces a server error rather than navigating away', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    vi.spyOn(api.journeysApi, 'take').mockRejectedValue(
+    vi.spyOn(api.paymentsApi, 'create').mockRejectedValue(
       new ApiError(404, { title: 'Resource not found', detail: 'That journey is no longer available.' }))
 
     renderWithProviders(<PlanTripPage />)
@@ -392,6 +422,7 @@ describe('PlanTripPage — taking a journey', () => {
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pay \$27\.60/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/no longer available/)
     expect(navigate).not.toHaveBeenCalled()

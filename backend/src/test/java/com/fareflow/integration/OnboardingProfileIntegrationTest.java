@@ -353,7 +353,7 @@ class OnboardingProfileIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.commuteFrequencies", hasSize(4)))
                 .andExpect(jsonPath("$.commuteKinds", hasSize(4)))
                 .andExpect(jsonPath("$.passPreferences", hasSize(4)))
-                .andExpect(jsonPath("$.travelModes", hasSize(5)))
+                .andExpect(jsonPath("$.travelModes", hasSize(4)))
                 .andExpect(jsonPath("$.travelModes[*].id", hasItem("FERRY")))
                 // The weights still come from the server, never from the client.
                 .andExpect(jsonPath("$.contextProfiles[?(@.id == 'SAVE_MONEY')].costPriority",

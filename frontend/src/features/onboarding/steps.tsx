@@ -10,9 +10,7 @@ import type {
 } from '../../api/types'
 import { formatCents } from '../../lib/format'
 import { ChoiceCard } from './OnboardingLayout'
-import {
-  BusIcon, FerryIcon, RailIcon, SubwayIcon, WalkIcon,
-} from '../../components/Icons'
+import { BusIcon, FerryIcon, RailIcon, SubwayIcon } from '../../components/Icons'
 
 /* ------------------------------------------------------------------ *
  * Step 1 — how often do you commute?
@@ -265,7 +263,6 @@ const MODE_ICONS: Record<string, React.ReactNode> = {
   SUBWAY: <SubwayIcon size={17} />,
   BUS: <BusIcon size={17} />,
   FERRY: <FerryIcon size={17} />,
-  WALKING: <WalkIcon size={17} />,
 }
 
 export function HabitsStep({

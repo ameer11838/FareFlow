@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { insightsApi, passesApi, usersApi } from '../../api'
-import type { Insights, InsightsPersonalization, PassRecommendation } from '../../api/types'
-import { BarChart, ComparisonBars } from '../../components/charts'
+import type {
+  HistoryRange, Insights, InsightsPersonalization, PassRecommendation, SpendingHistory,
+} from '../../api/types'
+import { BarChart, ComparisonBars, seriesColor, TimeSeriesChart } from '../../components/charts'
 import { RouteIcon, SparkleIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
-import { Card, Metric, Meter, Section, Skeleton } from '../../components/Surface'
+import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
@@ -50,85 +52,254 @@ export function InsightsPage() {
       />
 
       {noTrips ? (
-        <Section>
+        <>
           <Card>
             <EmptyState
-              icon={<RouteIcon size={22} />}
+              icon={<RouteIcon size={26} />}
               title="Your insights are getting ready"
               description="Complete a few trips and FareFlow will start identifying spending patterns, the operators you rely on, and opportunities to save. Nothing here is simulated — it fills in from real trips."
               action={<Link className="btn btn-primary btn-lg" to="/plan">Plan a trip</Link>}
             />
           </Card>
-        </Section>
+        </>
       ) : (
         <>
-          <Section>
-            <HeadlineCard data={data} />
-          </Section>
+          <Headline data={data} />
 
-          <Section title="Budget adherence" caption="Where this week sits against the budget you set.">
+          <HistoryModule />
+
+          <section className="band">
+            <div className="band-head">
+              <h2 className="band-title">This week</h2>
+              <span className="band-note">Derived from completed trips and ledger entries</span>
+            </div>
+            <div className="figures-row">
+              <Metric label="Spent" value={formatCents(data.spentCents)}
+                      caption={`${data.tripCount} completed trip${data.tripCount === 1 ? '' : 's'}`} />
+              <Metric label="Budget"
+                      value={formatOptionalCents(data.weeklyBudgetCents)}
+                      tone={data.weeklyBudgetCents === null ? 'muted' : 'default'}
+                      caption={data.budgetUtilization === null
+                        ? 'Not set' : `${formatPercent(data.budgetUtilization)} used`} />
+              <Metric label="Average fare"
+                      value={formatOptionalCents(data.averageFareCents, '—')}
+                      tone={data.averageFareCents === null ? 'muted' : 'default'}
+                      caption="Per trip" />
+              <Metric label="Average trip"
+                      value={data.averageDurationMinutes === null
+                        ? '—' : formatMinutes(data.averageDurationMinutes)}
+                      tone={data.averageDurationMinutes === null ? 'muted' : 'default'}
+                      caption="Door to door" />
+            </div>
+          </section>
+
+          <section className="band">
+            <div className="band-head">
+              <h2 className="band-title">Budget</h2>
+              <span className="band-note">
+                {data.weeklyBudgetCents === null
+                  ? 'No weekly budget set'
+                  : 'Spend and projection against the budget you set'}
+              </span>
+            </div>
             <BudgetAdherence data={data} />
-          </Section>
+          </section>
 
-          <Section title="Where your money goes" caption="Completed trips this week, by operator.">
-            <div className="split-grid">
-              <Card className="card-body">
-                <BarChart
-                  data={data.spendingByProvider.map((row) => ({
-                    id: row.provider,
-                    label: row.providerName,
-                    value: row.totalFareCents,
-                    display: formatCents(row.totalFareCents),
-                    meta: `${row.tripCount} trip${row.tripCount === 1 ? '' : 's'} · ${formatCents(row.averageFareCents)} avg · ${formatMinutes(row.averageDurationMinutes)} avg`,
-                  }))}
-                  total={data.spentCents}
-                />
-              </Card>
-
-              <Card className="card-body">
-                <ProviderVerdicts data={data} />
-              </Card>
+          <section className="band">
+            <div className="band-head">
+              <h2 className="band-title">Operators</h2>
+              <span className="band-note">Where this week's fares went</span>
             </div>
-          </Section>
+            <OperatorTable data={data} />
+          </section>
 
-          <Section title="How you travel" caption="Averages across this week's completed trips.">
-            <div className="module-grid">
-              <Card className="card-body">
-                <Metric label="Average fare"
-                        value={formatOptionalCents(data.averageFareCents, '—')}
-                        tone={data.averageFareCents === null ? 'muted' : 'default'}
-                        caption="Per completed trip" />
-              </Card>
-              <Card className="card-body">
-                <Metric label="Average trip"
-                        value={data.averageDurationMinutes === null ? '—' : formatMinutes(data.averageDurationMinutes)}
-                        tone={data.averageDurationMinutes === null ? 'muted' : 'default'}
-                        caption="Door to door" />
-              </Card>
-              <Card className="card-body">
-                <Metric label="Time traded for savings"
-                        value={data.minutesTradedForSavings === null ? '—' : formatMinutes(data.minutesTradedForSavings)}
-                        tone={data.minutesTradedForSavings === null ? 'muted' : 'default'}
-                        caption={data.minutesTradedForSavings === null
-                          ? 'No comparable trips yet'
-                          : 'Extra travel time versus the fastest routes'} />
-              </Card>
-              <Card className="card-body">
-                <Metric label="Projected monthly"
-                        value={formatOptionalCents(data.projectedMonthlyCents, '—')}
-                        tone={data.projectedMonthlyCents === null ? 'muted' : 'default'}
-                        caption={data.projectedMonthlyCents === null
-                          ? 'Needs a week with spending'
-                          : 'Straight-line from this week alone'} />
-              </Card>
+          <section className="band">
+            <div className="band-head">
+              <h2 className="band-title">Trade-offs</h2>
+              <span className="band-note">What choosing value instead of speed cost and saved</span>
             </div>
-          </Section>
+            <div className="figures-open">
+              <Metric
+                label="Saved vs the fastest route"
+                value={formatOptionalCents(data.savedVersusFastestCents, '—')}
+                tone={data.savedVersusFastestCents !== null && data.savedVersusFastestCents > 0
+                  ? 'positive' : 'muted'}
+                caption={data.savedVersusFastestCents === null
+                  ? 'Needs a comparable alternative route'
+                  : 'Across this week\u2019s completed trips'}
+              />
+              <Metric
+                label="Extra time spent"
+                value={data.minutesTradedForSavings === null
+                  ? '—' : formatMinutes(data.minutesTradedForSavings)}
+                tone={data.minutesTradedForSavings === null ? 'muted' : 'default'}
+                caption="The time cost of those savings"
+              />
+              <Metric
+                label="Projected monthly"
+                value={formatOptionalCents(data.projectedMonthlyCents, '—')}
+                tone={data.projectedMonthlyCents === null ? 'muted' : 'default'}
+                caption={data.projectedMonthlyCents === null
+                  ? 'Needs a week with spending'
+                  : 'Straight-line from this week alone'}
+              />
+            </div>
+          </section>
 
           {passes.data && <PassModule recommendation={passes.data} />}
         </>
       )}
     </div>
   )
+}
+
+type HistoryMetric = 'spend' | 'trips' | 'fare' | 'duration' | 'savings'
+
+const RANGE_NAMES: Record<HistoryRange, string> = {
+  '7d': '7 days', '30d': '30 days', '3m': '3 months', '1y': '1 year',
+}
+
+const METRIC_NAMES: Record<HistoryMetric, string> = {
+  spend: 'Spending', trips: 'Trips', fare: 'Average fare',
+  duration: 'Average commute', savings: 'Savings',
+}
+
+function HistoryModule() {
+  const [range, setRange] = useState<HistoryRange>('30d')
+  const [metric, setMetric] = useState<HistoryMetric>('spend')
+  const history = useAsync<SpendingHistory>(() => insightsApi.history(range), [range])
+
+  if (history.loading && !history.data) {
+    return <section className="band"><Skeleton height={250} /></section>
+  }
+  if (history.error) {
+    return (
+      <section className="band">
+        <ErrorState error={history.error} onRetry={history.refetch} />
+      </section>
+    )
+  }
+  const data = history.data
+  if (!data || (!data.hasData && data.rangesWithData.length === 0)) return null
+
+  const periods = data.rangesWithData
+  const series = data.buckets.map((bucket) => {
+    const value = metricValue(metric, bucket)
+    return {
+      id: bucket.date,
+      label: bucket.label,
+      value,
+      display: metricDisplay(metric, value),
+      details: [
+        `${bucket.tripCount} trip${bucket.tripCount === 1 ? '' : 's'}`,
+        bucket.averageFareCents === null ? 'No average fare' : `${formatCents(bucket.averageFareCents)} average fare`,
+        bucket.averageDurationMinutes === null ? 'No average duration' : `${formatMinutes(bucket.averageDurationMinutes)} average trip`,
+      ],
+    }
+  })
+
+  return (
+    <section className="band history-module" data-testid="history-module">
+      <div className="band-head history-head">
+        <div>
+          <h2 className="band-title">Travel over time</h2>
+          <span className="band-note">Completed trips only · {data.startDate} to {data.endDate}</span>
+        </div>
+        <div className="range-tabs" aria-label="History period">
+          {periods.map((period) => (
+            <button key={period} type="button" aria-pressed={range === period}
+                    onClick={() => setRange(period)}>{RANGE_NAMES[period]}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="history-metric-tabs" aria-label="Chart metric">
+        {(Object.keys(METRIC_NAMES) as HistoryMetric[]).map((key) => (
+          <button key={key} type="button" aria-pressed={metric === key}
+                  onClick={() => setMetric(key)}>{METRIC_NAMES[key]}</button>
+        ))}
+      </div>
+
+      {data.hasData ? (
+        <>
+          <TimeSeriesChart data={series} ariaLabel={`${METRIC_NAMES[metric]} over ${data.rangeName}`} />
+          <HistoryDecision data={data} />
+
+          <div className="history-breakdowns">
+            <div>
+              <h3>Spending by operator</h3>
+              <BarChart data={data.byOperator.map((operator) => ({
+                id: operator.provider,
+                label: operator.providerName,
+                value: operator.spentCents,
+                display: formatCents(operator.spentCents),
+                meta: `${operator.tripCount} trip${operator.tripCount === 1 ? '' : 's'}`,
+              }))} total={data.totals.spentCents} />
+            </div>
+            <div>
+              <h3>Spending by mode</h3>
+              <BarChart data={data.byMode.map((mode) => ({
+                id: mode.mode,
+                label: mode.modeName,
+                value: mode.spentCents,
+                display: formatCents(mode.spentCents),
+                meta: `${mode.tripCount} trip${mode.tripCount === 1 ? '' : 's'}`,
+              }))} total={data.totals.spentCents} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="chart-empty">There are no completed trips in this period.</p>
+      )}
+    </section>
+  )
+}
+
+function metricValue(metric: HistoryMetric, bucket: SpendingHistory['buckets'][number]): number | null {
+  switch (metric) {
+    case 'spend': return bucket.spentCents
+    case 'trips': return bucket.tripCount
+    case 'fare': return bucket.averageFareCents
+    case 'duration': return bucket.averageDurationMinutes
+    case 'savings': return bucket.savedCents
+  }
+}
+
+function metricDisplay(metric: HistoryMetric, value: number | null): string {
+  if (value === null) return 'No data'
+  if (metric === 'spend' || metric === 'fare' || metric === 'savings') return formatCents(value)
+  if (metric === 'duration') return formatMinutes(value)
+  return String(value)
+}
+
+function HistoryDecision({ data }: { data: SpendingHistory }) {
+  const comparison = data.comparison
+  const topOperator = data.byOperator[0]
+  return (
+    <div className="history-decision">
+      <div>
+        <span>What changed</span>
+        <strong>{comparison ? changeSentence(comparison) : 'There is not enough earlier history for a fair comparison.'}</strong>
+      </div>
+      <div>
+        <span>Why it matters</span>
+        <strong>{topOperator
+          ? `${topOperator.providerName} accounts for ${Math.round(topOperator.shareOfSpend * 100)}% of spending in this period.`
+          : 'No operator accounts for recorded spending in this period.'}</strong>
+      </div>
+      <div>
+        <span>What you can do</span>
+        <strong><Link to="/plan?profile=SAVE_MONEY">Compare a cheaper route for your next trip →</Link></strong>
+      </div>
+    </div>
+  )
+}
+
+function changeSentence(comparison: NonNullable<SpendingHistory['comparison']>): string {
+  const change = comparison.spentChangeCents
+  const direction = change === 0 ? 'unchanged' : change > 0 ? 'up' : 'down'
+  const amount = change === 0 ? '' : ` ${formatCents(Math.abs(change))}`
+  return `Spending is ${direction}${amount}; the previous period had ${comparison.tripCount} trip${comparison.tripCount === 1 ? '' : 's'}.`
 }
 
 /**
@@ -138,20 +309,23 @@ export function InsightsPage() {
  * FareFlow worth using". When it cannot be computed the card says so and leads
  * with spend instead, rather than printing a confident $0.00.
  */
-function HeadlineCard({ data }: { data: Insights }) {
+function Headline({ data }: { data: Insights }) {
   const saved = data.savedVersusFastestCents
   const personal = data.personalization
 
   return (
-    <Card tone="navy" className="headline">
-      <div className="headline-main">
-        <span className="headline-label">
+    <section className="headline">
+      <div className="lede">
+        <span className="lede-eyebrow">
           {saved !== null && saved > 0 ? 'Saved this week' : 'Spent this week'}
         </span>
-        <span className="headline-value numeric">
-          {saved !== null && saved > 0 ? formatCents(saved) : formatCents(data.spentCents)}
-        </span>
-        <span className="headline-sub">
+        <div className="lede-figure">
+          <span className="lede-value">
+            {saved !== null && saved > 0 ? formatCents(saved) : formatCents(data.spentCents)}
+          </span>
+          {personal && <CommuteChip personal={personal} />}
+        </div>
+        <span className="lede-sub">
           {saved !== null && saved > 0
             ? `By not always taking the fastest route, across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}.`
             : saved === null
@@ -163,13 +337,11 @@ function HeadlineCard({ data }: { data: Insights }) {
       {personal && personal.notes.length > 0 && (
         <ul className="headline-notes">
           {personal.notes.slice(0, 3).map((note) => (
-            <li key={note}><span className="headline-dot" aria-hidden="true" />{note}</li>
+            <li key={note}>{note}</li>
           ))}
         </ul>
       )}
-
-      {personal && <CommuteChip personal={personal} />}
-    </Card>
+    </section>
   )
 }
 
@@ -189,16 +361,13 @@ function CommuteChip({ personal }: { personal: InsightsPersonalization }) {
 function BudgetAdherence({ data }: { data: Insights }) {
   if (data.weeklyBudgetCents === null) {
     return (
-      <Card className="card-body adherence-empty">
-        <div>
-          <h3 className="section-title">No weekly budget set</h3>
-          <p className="section-sub">
-            Set one and FareFlow will track this week against it, and lean toward cheaper
-            routes as you approach it.
-          </p>
-        </div>
+      <div className="adherence-empty">
+        <p className="lede-sub">
+          Set a weekly budget and FareFlow will track this week against it, and lean
+          toward cheaper routes as you approach it.
+        </p>
         <Link className="btn btn-primary" to="/settings">Set a budget</Link>
-      </Card>
+      </div>
     )
   }
 
@@ -207,24 +376,18 @@ function BudgetAdherence({ data }: { data: Insights }) {
   const projected = data.personalization?.projectedWeeklySpendCents ?? null
 
   return (
-    <Card className="card-body adherence">
-      <div className="adherence-figures">
-        <Metric label="Spent" value={formatCents(data.spentCents)} emphasis="hero" />
-        <Metric label="Budget" value={formatCents(budget)} />
-        <Metric label="Remaining"
-                value={formatOptionalCents(data.remainingCents)}
-                tone={over ? 'negative' : 'positive'} />
-      </div>
-
+    <div className="adherence">
       <div className="adherence-meter">
         <Meter value={data.spentCents} max={budget} over={over}
                label={`${formatCents(data.spentCents)} of ${formatCents(budget)} spent`} />
         <div className="adherence-scale">
           <span>{data.budgetUtilization === null ? '0%' : formatPercent(data.budgetUtilization)} used</span>
-          <span>{formatCents(budget)}</span>
+          <span className="numeric">{formatCents(budget)}</span>
         </div>
       </div>
 
+      {/* Three bars on one baseline: spend, projection, and budget are only
+          meaningful against each other, and a shared scale is the whole point. */}
       {projected !== null && (
         <ComparisonBars rows={[
           { id: 'spent', label: 'Spent so far', value: data.spentCents,
@@ -235,7 +398,7 @@ function BudgetAdherence({ data }: { data: Insights }) {
             display: formatCents(budget), tone: 'muted' },
         ]} />
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -246,34 +409,79 @@ function BudgetAdherence({ data }: { data: Insights }) {
  * "cheapest of one" is not a comparison. The card says that instead of naming the
  * only operator available and implying a choice was made.
  */
+function OperatorTable({ data }: { data: Insights }) {
+  const rows = data.spendingByProvider
+  const max = Math.max(...rows.map((row) => row.totalFareCents), 1)
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Operator</th>
+              <th className="col-num">Trips</th>
+              <th className="col-num">Avg fare</th>
+              <th className="col-num">Avg time</th>
+              <th style={{ width: '22%' }}>Share</th>
+              <th className="col-total">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={row.provider} data-testid={`operator-${row.provider}`}>
+                <td className="col-name">
+                  <span className="table-swatch" style={{ background: seriesColor(index) }}
+                        aria-hidden="true" />
+                  {row.providerName}
+                </td>
+                <td className="col-num">{row.tripCount}</td>
+                <td className="col-num">{formatCents(row.averageFareCents)}</td>
+                <td className="col-num">{formatMinutes(row.averageDurationMinutes)}</td>
+                <td>
+                  <span className="cell-bar">
+                    <span style={{
+                      width: `${(row.totalFareCents / max) * 100}%`,
+                      background: seriesColor(index),
+                    }} />
+                  </span>
+                </td>
+                <td className="col-total">
+                  {formatCents(row.totalFareCents)}
+                  <span className="cell-share">
+                    {data.spentCents > 0
+                      ? ` ${Math.round((row.totalFareCents / data.spentCents) * 100)}%`
+                      : ''}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ProviderVerdicts data={data} />
+    </>
+  )
+}
+
 function ProviderVerdicts({ data }: { data: Insights }) {
   const comparable = data.cheapestProviderName !== null || data.fastestProviderName !== null
 
   if (!comparable) {
     return (
-      <div className="verdict-empty">
-        <span className="stat-label">Operator comparison</span>
-        <p className="section-sub">
-          FareFlow compares operators once you have travelled on at least two of them.
-          Ranking a single operator against itself would not tell you anything.
-        </p>
-      </div>
+      <p className="band-note verdict-empty">
+        FareFlow compares operators once you have travelled on at least two of them.
+        Ranking a single operator against itself would not tell you anything.
+      </p>
     )
   }
 
   return (
-    <div className="verdicts">
-      <div className="verdict-item">
-        <span className="stat-label">Cheapest you used</span>
-        <span className="verdict-name">{data.cheapestProviderName ?? '—'}</span>
-        <span className="stat-caption">Lowest fare among the operators you travelled with</span>
-      </div>
-      <div className="verdict-item">
-        <span className="stat-label">Fastest you used</span>
-        <span className="verdict-name">{data.fastestProviderName ?? '—'}</span>
-        <span className="stat-caption">Shortest trip among the operators you travelled with</span>
-      </div>
-    </div>
+    <p className="verdicts">
+      <span>Cheapest you used <strong>{data.cheapestProviderName}</strong></span>
+      <span className="verdict-sep" aria-hidden="true">·</span>
+      <span>Fastest you used <strong>{data.fastestProviderName}</strong></span>
+    </p>
   )
 }
 
@@ -287,22 +495,30 @@ function ProviderVerdicts({ data }: { data: Insights }) {
 function PassModule({ recommendation }: { recommendation: PassRecommendation }) {
   if (!recommendation.hasEnoughHistory) {
     return (
-      <Section title="Pass recommendation">
-        <Card className="card-body">
-          <p className="section-sub">
-            FareFlow needs at least a full week of trips before comparing passes against
-            paying per ride. Averaging less than that would be noise, not a pattern.
-          </p>
-        </Card>
-      </Section>
+      <section className="band">
+        <div className="band-head">
+          <h2 className="band-title">Pass recommendation</h2>
+        </div>
+        <p className="band-note" style={{ maxWidth: '72ch' }}>
+          FareFlow needs at least a full week of trips before comparing passes against
+          paying per ride. Averaging less than that would be noise, not a pattern.
+        </p>
+      </section>
     )
   }
 
   const worthwhile = recommendation.recommendedPassCode !== null
 
   return (
-    <Section title="Pass recommendation" caption={`Based on ${recommendation.weeksOfHistory} week${recommendation.weeksOfHistory === 1 ? '' : 's'} of travel.`}>
-      <Card className="card-body pass-card">
+    <section className="band">
+      <div className="band-head">
+        <h2 className="band-title">Pass recommendation</h2>
+        <span className="band-note">
+          Based on {recommendation.weeksOfHistory} week
+          {recommendation.weeksOfHistory === 1 ? '' : 's'} of travel
+        </span>
+      </div>
+      <div className="pass-card">
         <div className="pass-verdict">
           <span className={`pass-icon${worthwhile ? ' pass-icon-good' : ''}`} aria-hidden="true">
             <SparkleIcon size={18} />
@@ -332,8 +548,8 @@ function PassModule({ recommendation }: { recommendation: PassRecommendation }) 
             ))}
           </ul>
         )}
-      </Card>
-    </Section>
+      </div>
+    </section>
   )
 }
 
@@ -394,12 +610,8 @@ function InsightsSkeleton() {
         <Skeleton width={80} height={12} />
         <div style={{ marginTop: 12 }}><Skeleton width={300} height={30} /></div>
       </div>
-      <Card tone="navy" className="headline-skeleton"><Skeleton width="55%" height={110} /></Card>
-      <div className="module-grid" style={{ marginTop: 'var(--space-7)' }}>
-        {[0, 1, 2, 3].map((index) => (
-          <Card key={index} className="card-body"><Skeleton height={62} /></Card>
-        ))}
-      </div>
+      <Skeleton width="38%" height={56} />
+      <div style={{ marginTop: 'var(--space-7)' }}><Skeleton height={92} /></div>
     </div>
   )
 }

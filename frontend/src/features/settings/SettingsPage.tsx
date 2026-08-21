@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
+import { ThemeToggle } from '../../components/ThemeToggle'
 import { ChoiceCard } from '../onboarding/OnboardingLayout'
 import { BudgetStep, CommuteStep, FrequencyStep, HabitsStep, PriorityStep } from '../onboarding/steps'
 
@@ -91,6 +92,15 @@ export function SettingsPage() {
         title="Your travel profile"
         subtitle="FareFlow uses these to rank routes and track your spending. Change anything, any time."
       />
+
+      <section className="section">
+        <SettingsBlock
+          title="Appearance"
+          caption="Follows your system by default. A choice here is remembered on this device."
+        >
+          <ThemeToggle />
+        </SettingsBlock>
+      </section>
 
       <section className="section">
         <SettingsBlock

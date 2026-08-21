@@ -41,3 +41,4 @@ yarn-error.log*
 # ---------- macOS / OS ----------
 .DS_Store
 Thumbs.db
+.env.example

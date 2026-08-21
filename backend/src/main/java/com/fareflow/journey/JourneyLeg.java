@@ -1,5 +1,6 @@
 package com.fareflow.journey;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -24,7 +25,11 @@ public record JourneyLeg(
         int durationMinutes,
         int waitMinutes,
         double distanceMetres,
-        List<Waypoint> waypoints
+        List<Waypoint> waypoints,
+        Instant departureTime,
+        Instant arrivalTime,
+        boolean realtime,
+        Integer stopCount
 ) {
 
     public JourneyLeg {
@@ -38,6 +43,16 @@ public record JourneyLeg(
             throw new IllegalArgumentException("waitMinutes must not be negative");
         }
         waypoints = waypoints == null ? List.of() : List.copyOf(waypoints);
+    }
+
+    /** Compatibility constructor for providers that only have typical durations. */
+    public JourneyLeg(TransitMode mode, String agency, String lineCode, String lineName,
+                      String fromStopCode, String fromStopName, String toStopCode,
+                      String toStopName, int durationMinutes, int waitMinutes,
+                      double distanceMetres, List<Waypoint> waypoints) {
+        this(mode, agency, lineCode, lineName, fromStopCode, fromStopName, toStopCode,
+                toStopName, durationMinutes, waitMinutes, distanceMetres, waypoints,
+                null, null, false, null);
     }
 
     /** In-vehicle time plus the wait before boarding. */

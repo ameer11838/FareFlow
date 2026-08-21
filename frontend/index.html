@@ -3,7 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>FareFlow</title>
+    <meta name="description"
+          content="FareFlow finds transportation options based on your time, budget, and travel preferences." />
+
+    <!--
+      Icons. The SVG is the primary: it stays sharp at any density and is what
+      Chrome, Edge and Firefox prefer. The PNGs cover Safari and the platforms
+      that still will not take a vector. All of them are rendered from the same
+      source file, so they cannot drift apart.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- The browser chrome follows the theme, so the address bar on mobile does
+         not sit as a white band above a dark app. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5fa" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0918" />
+
+    <script>
+      /*
+       * Applied before first paint, deliberately inline and render-blocking.
+       * Waiting for React would show one frame of the light theme to every dark
+       * mode user — the white flash every themed app is judged on.
+       *
+       * Kept in sync with hooks/useTheme.tsx: same storage key, same three
+       * states, and the same rule that "system" writes no attribute so the
+       * stylesheet's media query takes over.
+       */
+      (function () {
+        try {
+          var stored = localStorage.getItem('fareflow.theme')
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored)
+            document.documentElement.style.colorScheme = stored
+          } else {
+            var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+            document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+          }
+        } catch (error) {
+          /* Private browsing can throw on storage; the media query still applies. */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

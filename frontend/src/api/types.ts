@@ -28,7 +28,13 @@ export interface JourneyLeg {
   toName: string
   durationMinutes: number
   waitMinutes: number
+  distanceMetres?: number
   waypoints: Waypoint[]
+  /** Present only when a provider supplied an actual scheduled/live time. */
+  departureTime?: string | null
+  arrivalTime?: string | null
+  realtime?: boolean
+  stopCount?: number | null
 }
 
 export interface JourneyOption {
@@ -55,11 +61,45 @@ export interface JourneySearchResponse {
   destination: LocationCandidate
   profile: ContextProfileOption
   weightsUsed: WeightsUsed
+  budgetContext?: {
+    weeklyBudgetCents: number
+    spentThisWeekCents: number
+  } | null
   summary: string
   contextNote: string | null
   options: JourneyOption[]
   /** Stated limitations — shown, not buried. */
   notices: string[]
+}
+
+export interface AssistantTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AssistantConfig {
+  available: boolean
+  unavailableReason: string | null
+  starters: string[]
+}
+
+export interface AssistantResponse {
+  reply: string
+  toolsUsed: string[]
+  routes: JourneySearchResponse | null
+  trips: Trip[]
+  followUps: string[]
+}
+
+export interface AssistantPageContext {
+  pagePath: string
+  pageName: string
+  activeRouteSearch: {
+    origin: string
+    destination: string
+    profile: string
+    selectedJourneyId: string | null
+  } | null
 }
 
 export interface PersistedJourneyLeg {
@@ -134,6 +174,7 @@ export interface Wallet {
   budgetUtilization: number | null
   paymentMethods: PaymentMethod[]
   recentActivity: LedgerEntry[]
+  recentPayments: PaymentIntent[]
 }
 
 export interface PaymentMethod {
@@ -194,6 +235,64 @@ export interface ProviderBreakdown {
   averageDurationMinutes: number
 }
 
+export type HistoryRange = '7d' | '30d' | '3m' | '1y'
+
+export interface SpendingHistoryBucket {
+  date: string
+  label: string
+  spentCents: number
+  tripCount: number
+  averageFareCents: number | null
+  averageDurationMinutes: number | null
+  savedCents: number | null
+  cumulativeSpentCents: number
+}
+
+export interface SpendingHistory {
+  range: HistoryRange
+  rangeName: string
+  granularity: 'DAY' | 'WEEK' | 'MONTH'
+  startDate: string
+  endDate: string
+  hasData: boolean
+  firstTripDate: string | null
+  rangesWithData: HistoryRange[]
+  weeklyBudgetCents: number | null
+  totals: {
+    spentCents: number
+    tripCount: number
+    averageFareCents: number | null
+    averageDurationMinutes: number | null
+    savedCents: number | null
+    totalMinutes: number
+  }
+  comparison: {
+    startDate: string
+    endDate: string
+    spentCents: number
+    tripCount: number
+    averageFareCents: number | null
+    spentChangeCents: number
+    spentChangePercent: number | null
+  } | null
+  buckets: SpendingHistoryBucket[]
+  byOperator: Array<{
+    provider: string
+    providerName: string
+    tripCount: number
+    spentCents: number
+    averageFareCents: number
+    shareOfSpend: number
+  }>
+  byMode: Array<{
+    mode: string
+    modeName: string
+    tripCount: number
+    spentCents: number
+    shareOfSpend: number
+  }>
+}
+
 export interface ApiUser {
   id: number
   name: string
@@ -217,7 +316,7 @@ export type CommuteFrequencyId =
   | 'ONE_TO_TWO_DAYS' | 'THREE_TO_FOUR_DAYS' | 'FIVE_PLUS_DAYS' | 'VARIES'
 export type CommuteKindId = 'WORK' | 'SCHOOL' | 'BOTH' | 'NONE'
 export type PassPreferenceId = 'PAY_PER_RIDE' | 'WEEKLY_PASS' | 'MONTHLY_PASS' | 'NOT_SURE'
-export type TravelModeId = 'TRAIN' | 'SUBWAY' | 'BUS' | 'FERRY' | 'WALKING'
+export type TravelModeId = 'TRAIN' | 'SUBWAY' | 'BUS' | 'FERRY'
 
 export interface ModeOption {
   id: TravelModeId
@@ -399,12 +498,63 @@ export interface LedgerEntry {
   id: number
   userId: number
   tripId: number | null
+  paymentIntentId: string | null
   type: LedgerEntryType
   /** Signed: negative is money out, positive is money in. */
   amountCents: number
   description: string
   occurredAt: string
   createdAt: string
+}
+
+export type PaymentStatus =
+  | 'CREATED'
+  | 'AUTHORIZED'
+  | 'PROCESSING'
+  | 'SETTLED'
+  | 'FAILED'
+  | 'REFUNDED'
+
+export type PaymentRail = 'FAREFLOW_WALLET' | 'SIMULATED_CARD'
+
+export interface PaymentEvent {
+  id: number
+  fromStatus: PaymentStatus | null
+  toStatus: PaymentStatus
+  reason: string
+  occurredAt: string
+}
+
+export interface PaymentIntent {
+  id: string
+  status: PaymentStatus
+  paymentMethod: PaymentRail
+  amountCents: number
+  currency: 'USD'
+  journeySummary: string
+  origin: string
+  destination: string
+  attemptCount: number
+  providerReference: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  trip: Trip | null
+  authorizedAt: string | null
+  processingAt: string | null
+  settledAt: string | null
+  failedAt: string | null
+  refundedAt: string | null
+  createdAt: string
+  updatedAt: string
+  events: PaymentEvent[]
+}
+
+export interface PaymentReconciliation {
+  checkedAt: string
+  countsByStatus: Record<PaymentStatus, number>
+  settledCents: number
+  issueCount: number
+  issues: Array<{ paymentIntentId: string; status: PaymentStatus; detail: string }>
 }
 
 export interface Dashboard {

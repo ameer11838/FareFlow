@@ -5,6 +5,7 @@ import {
   DashboardIcon, LedgerIcon, RouteIcon, SettingsIcon, TripsIcon, WalletIcon,
 } from './Icons'
 import { Logo } from './Logo'
+import { ThemeButton } from './ThemeToggle'
 
 export const NAV_ITEMS = [
   { to: '/plan', label: 'Plan', Icon: RouteIcon },
@@ -40,7 +41,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   return (
     <header className={`topbar${compact ? ' topbar-compact' : ''}`}>
       <NavLink to="/plan" className="topbar-brand" aria-label="FareFlow home">
-        <Logo size={32} />
+        <Logo size={34} />
         <span className="topbar-name">FareFlow</span>
       </NavLink>
 
@@ -64,6 +65,8 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
       </nav>
 
       <div className="topbar-right">
+        <ThemeButton />
+
         {demoMode && (
           <span className="demo-chip" title={`Demo identity: ${config?.demoUserName ?? 'demo user'}`}>
             Demo mode

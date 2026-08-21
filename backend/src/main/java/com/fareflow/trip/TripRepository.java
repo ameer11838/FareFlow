@@ -130,6 +130,33 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     @org.springframework.transaction.annotation.Transactional
     void backdateForTesting(@Param("tripId") long tripId, @Param("takenAt") Instant takenAt);
 
+    /**
+     * Every completed trip in a window, oldest first.
+     *
+     * <p>Feeds the history endpoints, which bucket by day, week, or month in Java
+     * rather than in SQL. Date truncation is timezone-dependent and the rider's
+     * zone lives on the user row, not in the database session — bucketing in the
+     * service keeps one timezone rule instead of two.
+     */
+    @Query("""
+            SELECT t FROM Trip t
+            WHERE t.userId = :userId
+              AND t.status = com.fareflow.trip.TripStatus.COMPLETED
+              AND t.takenAt >= :start AND t.takenAt < :end
+            ORDER BY t.takenAt ASC, t.id ASC
+            """)
+    List<Trip> findCompletedBetween(@Param("userId") long userId,
+                                    @Param("start") Instant start,
+                                    @Param("end") Instant end);
+
+    /** Business time of the rider's very first completed trip, or null if none. */
+    @Query("""
+            SELECT MIN(t.takenAt) FROM Trip t
+            WHERE t.userId = :userId
+              AND t.status = com.fareflow.trip.TripStatus.COMPLETED
+            """)
+    Instant findFirstCompletedTripAt(@Param("userId") long userId);
+
     /** Used to return the original result for a repeated idempotency key. */
     java.util.Optional<Trip> findByUserIdAndIdempotencyKey(long userId, String idempotencyKey);
 

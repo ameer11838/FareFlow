@@ -24,6 +24,17 @@ public record Journey(
             throw new IllegalArgumentException("A journey needs at least one leg");
         }
         legs = List.copyOf(legs);
+        if (legs.stream().noneMatch(leg -> leg.mode().isTransit())) {
+            throw new IllegalArgumentException(
+                    "FareFlow journeys must contain public transit; walking-only routing is out of scope");
+        }
+        for (int index = 1; index < legs.size(); index++) {
+            if (legs.get(index - 1).mode() == TransitMode.WALK
+                    && legs.get(index).mode() == TransitMode.WALK) {
+                throw new IllegalArgumentException(
+                        "Walking legs must only connect a rider to public transit");
+            }
+        }
     }
 
     /** Door to door, including waits. */
@@ -64,9 +75,6 @@ public record Journey(
     /** A short human summary: "SEPTA → NJ Transit → PATH". */
     public String summary() {
         List<JourneyLeg> transit = transitLegs();
-        if (transit.isEmpty()) {
-            return "Walk";
-        }
         return String.join(" → ", transit.stream().map(JourneyLeg::lineName).toList());
     }
 
@@ -75,7 +83,11 @@ public record Journey(
         public static final String CURATED_NETWORK = "CURATED_NETWORK";
         /** From the legacy seeded transit_routes table, kept for fixtures and demos. */
         public static final String SEEDED_FIXTURE = "SEEDED_FIXTURE";
-        /** Reserved: a real agency feed (GTFS) or a transit routing API. */
+        /** A route computed from imported, published GTFS Schedule data. */
+        public static final String GTFS_SCHEDULE = "GTFS_SCHEDULE";
+        /** A scheduled GTFS route with at least one fresh GTFS-Realtime fact applied. */
+        public static final String GTFS_REALTIME = "GTFS_REALTIME";
+        /** Reserved: a provider API that supplies its own complete itinerary. */
         public static final String LIVE_FEED = "LIVE_FEED";
 
         private DataSource() {

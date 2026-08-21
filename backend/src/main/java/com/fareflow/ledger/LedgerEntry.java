@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * One immutable row in the financial ledger.
@@ -52,11 +53,15 @@ public class LedgerEntry {
     @Column(name = "idempotency_key", updatable = false)
     private String idempotencyKey;
 
+    @Column(name = "payment_intent_id", updatable = false)
+    private UUID paymentIntentId;
+
     protected LedgerEntry() {
         // required by JPA
     }
 
-    private LedgerEntry(Long userId, Long tripId, LedgerEntryType type, long amountCents,
+    private LedgerEntry(Long userId, Long tripId, UUID paymentIntentId,
+                        LedgerEntryType type, long amountCents,
                         String description, Instant occurredAt) {
         if (userId == null) {
             throw new IllegalArgumentException("userId is required");
@@ -71,6 +76,7 @@ public class LedgerEntry {
 
         this.userId = userId;
         this.tripId = tripId;
+        this.paymentIntentId = paymentIntentId;
         this.type = type;
         this.amountCents = amountCents;
         this.description = description;
@@ -83,8 +89,21 @@ public class LedgerEntry {
         if (fareCents <= 0) {
             throw new IllegalArgumentException("A trip charge requires a positive fare");
         }
-        return new LedgerEntry(userId, tripId, LedgerEntryType.TRIP_CHARGE, -fareCents,
+        return new LedgerEntry(userId, tripId, null, LedgerEntryType.TRIP_CHARGE, -fareCents,
                 description, occurredAt);
+    }
+
+    /** Payment-backed charge, linked for reconciliation. */
+    public static LedgerEntry tripCharge(long userId, long tripId, UUID paymentIntentId,
+                                         long fareCents, String description, Instant occurredAt) {
+        if (paymentIntentId == null) {
+            throw new IllegalArgumentException("paymentIntentId is required");
+        }
+        if (fareCents <= 0) {
+            throw new IllegalArgumentException("A trip charge requires a positive fare");
+        }
+        return new LedgerEntry(userId, tripId, paymentIntentId,
+                LedgerEntryType.TRIP_CHARGE, -fareCents, description, occurredAt);
     }
 
     /** A refund for a cancelled trip. Pass the positive amount to return. */
@@ -93,8 +112,21 @@ public class LedgerEntry {
         if (amountCents <= 0) {
             throw new IllegalArgumentException("A refund requires a positive amount");
         }
-        return new LedgerEntry(userId, tripId, LedgerEntryType.REFUND, amountCents,
+        return new LedgerEntry(userId, tripId, null, LedgerEntryType.REFUND, amountCents,
                 description, occurredAt);
+    }
+
+    /** Payment-backed refund, linked to the same intent as the original charge. */
+    public static LedgerEntry refund(long userId, long tripId, UUID paymentIntentId,
+                                     long amountCents, String description, Instant occurredAt) {
+        if (paymentIntentId == null) {
+            throw new IllegalArgumentException("paymentIntentId is required");
+        }
+        if (amountCents <= 0) {
+            throw new IllegalArgumentException("A refund requires a positive amount");
+        }
+        return new LedgerEntry(userId, tripId, paymentIntentId,
+                LedgerEntryType.REFUND, amountCents, description, occurredAt);
     }
 
     /** A correction. Signed: negative charges more, positive gives money back. */
@@ -103,7 +135,7 @@ public class LedgerEntry {
         if (signedAmountCents == 0) {
             throw new IllegalArgumentException("A fare adjustment must be non-zero");
         }
-        return new LedgerEntry(userId, tripId, LedgerEntryType.FARE_ADJUSTMENT, signedAmountCents,
+        return new LedgerEntry(userId, tripId, null, LedgerEntryType.FARE_ADJUSTMENT, signedAmountCents,
                 description, occurredAt);
     }
 
@@ -161,5 +193,9 @@ public class LedgerEntry {
 
     public String getIdempotencyKey() {
         return idempotencyKey;
+    }
+
+    public UUID getPaymentIntentId() {
+        return paymentIntentId;
     }
 }

@@ -73,6 +73,7 @@ public class JourneyRecommendationService {
 
         if (priced.isEmpty()) {
             return new JourneySearchResponse(origin, destination, profile, weightsDto,
+                    budgetContext(context),
                     "FareFlow does not have transit coverage between these places yet.",
                     null, List.of(),
                     List.of("No journeys found. FareFlow's network currently covers the "
@@ -99,6 +100,7 @@ public class JourneyRecommendationService {
                 .toList();
 
         return new JourneySearchResponse(origin, destination, profile, weightsDto,
+                budgetContext(context),
                 summary, contextNote, options, notices(priced));
     }
 
@@ -137,9 +139,8 @@ public class JourneyRecommendationService {
 
         boolean anyUnknown = priced.stream().anyMatch(entry -> !entry.fare().isPriced());
         if (anyUnknown) {
-            notices.add("Some options have no published fare FareFlow can compute "
-                    + "(for example Amtrak, which is priced dynamically). Those are shown "
-                    + "without a fare rather than with a guess.");
+            notices.add("Some options have no authoritative published fare FareFlow can compute. "
+                    + "Those are shown without a fare rather than with a guess.");
         }
 
         boolean anyEstimated = priced.stream()
@@ -149,7 +150,21 @@ public class JourneyRecommendationService {
                     + "than a full zone tariff.");
         }
 
-        notices.add("Journey times are typical scheduled durations, not live departures.");
+        boolean gtfsRealtime = priced.stream().anyMatch(entry ->
+                Journey.DataSource.GTFS_REALTIME.equals(entry.journey().dataSource()));
+        boolean gtfsSchedule = priced.stream().anyMatch(entry ->
+                Journey.DataSource.GTFS_SCHEDULE.equals(entry.journey().dataSource()));
+        boolean curated = priced.stream().anyMatch(entry ->
+                Journey.DataSource.CURATED_NETWORK.equals(entry.journey().dataSource()));
+        if (gtfsRealtime) {
+            notices.add("Fresh GTFS-Realtime updates are applied only to the trips that agencies reported; "
+                    + "an unreported trip is not assumed to be on time.");
+        } else if (gtfsSchedule) {
+            notices.add("Times come from the agency's published GTFS schedule. No fresh real-time update "
+                    + "is being claimed.");
+        } else if (curated) {
+            notices.add("Journey times are typical scheduled durations, not live departures.");
+        }
         return notices;
     }
 
@@ -208,9 +223,23 @@ public class JourneyRecommendationService {
                 leg.toStopName(),
                 leg.durationMinutes(),
                 leg.waitMinutes(),
+                leg.distanceMetres(),
                 leg.waypoints().stream()
                         .map(point -> new JourneyOptionDto.WaypointDto(
                                 point.name(), point.latitude(), point.longitude()))
-                        .toList());
+                        .toList(),
+                leg.departureTime(),
+                leg.arrivalTime(),
+                leg.realtime(),
+                leg.stopCount());
+    }
+
+    private static JourneySearchResponse.BudgetContextDto budgetContext(PreferenceContext context) {
+        if (context.weeklyBudgetCents() == null) {
+            return null;
+        }
+        return new JourneySearchResponse.BudgetContextDto(
+                context.weeklyBudgetCents(),
+                context.spentCentsThisWeek() == null ? 0 : context.spentCentsThisWeek());
     }
 }

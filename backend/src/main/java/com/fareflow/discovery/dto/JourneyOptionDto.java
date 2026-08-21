@@ -1,5 +1,6 @@
 package com.fareflow.discovery.dto;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -36,7 +37,12 @@ public record JourneyOptionDto(
             String toName,
             int durationMinutes,
             int waitMinutes,
-            List<WaypointDto> waypoints
+            double distanceMetres,
+            List<WaypointDto> waypoints,
+            Instant departureTime,
+            Instant arrivalTime,
+            boolean realtime,
+            Integer stopCount
     ) {
     }
 

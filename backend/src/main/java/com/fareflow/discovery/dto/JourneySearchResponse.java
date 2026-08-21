@@ -17,9 +17,13 @@ public record JourneySearchResponse(
         LocationCandidate destination,
         ProfileDto profile,
         WeightsDto weightsUsed,
+        BudgetContextDto budgetContext,
         String summary,
         String contextNote,
         List<JourneyOptionDto> options,
         List<String> notices
 ) {
+    /** Null for anonymous riders or riders who have not set a weekly budget. */
+    public record BudgetContextDto(long weeklyBudgetCents, long spentThisWeekCents) {
+    }
 }

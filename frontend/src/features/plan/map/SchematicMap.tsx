@@ -13,11 +13,16 @@ import { AlertIcon } from '../../../components/Icons'
  * Rendering it honestly matters: it is clearly labelled as a schematic so nobody
  * mistakes it for a real map.
  */
-export function SchematicMap({ journeys, selectedJourneyId, highlightedJourneyId, onSelectJourney, reason }: {
+export function SchematicMap({
+  journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
+  onSelectJourney, onSelectLeg, reason,
+}: {
   journeys: JourneyOption[]
   selectedJourneyId: string | null
   highlightedJourneyId?: string | null
   onSelectJourney: (journeyId: string) => void
+  activeLegIndex?: number | null
+  onSelectLeg?: (journeyId: string, legIndex: number) => void
   reason: string
 }) {
   const drawable = journeys
@@ -25,6 +30,7 @@ export function SchematicMap({ journeys, selectedJourneyId, highlightedJourneyId
       id: option.journeyId,
       name: option.summary,
       waypoints: option.legs.flatMap((leg) => leg.waypoints),
+      legs: option.legs,
     }))
     .filter((entry) => entry.waypoints.length > 1)
 
@@ -101,6 +107,40 @@ export function SchematicMap({ journeys, selectedJourneyId, highlightedJourneyId
                       strokeWidth={2.5}
                     />
                   ))}
+                  {isSelected && route.legs.map((leg, legIndex) => {
+                    if (leg.waypoints.length < 2) return null
+                    const legPoints = leg.waypoints.map((point) => projection.project(point))
+                    const legPath = legPoints.map((point, index) =>
+                      `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ')
+                    const active = activeLegIndex === legIndex
+                    return (
+                      <g key={`leg-${legIndex}`}>
+                        <path
+                          d={legPath}
+                          fill="none"
+                          stroke={active ? 'var(--color-accent)' : 'var(--ff-navy-900)'}
+                          strokeWidth={active ? 8 : 5}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray={leg.mode === 'WALK' ? '3 7' : undefined}
+                          opacity={activeLegIndex === null || active ? 1 : .45}
+                        />
+                        <path
+                          d={legPath}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth={24}
+                          style={{ cursor: 'pointer' }}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onSelectLeg?.(route.id, legIndex)
+                          }}
+                        >
+                          <title>{leg.mode === 'WALK' ? `Walk to ${leg.toName}` : leg.lineName}</title>
+                        </path>
+                      </g>
+                    )
+                  })}
                 </g>
               )
             })}

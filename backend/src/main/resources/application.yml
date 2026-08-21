@@ -56,6 +56,28 @@ fareflow:
     # gazetteer serves location search and the app still routes.
     api-key: ${TOMTOM_API_KEY:}
 
+  assistant:
+    # Optional. The rest of FareFlow boots normally without a model key and the
+    # client presents a clear configuration notice in place of the composer.
+    enabled: ${FAREFLOW_ASSISTANT_ENABLED:true}
+    api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
+    model: ${FAREFLOW_ASSISTANT_MODEL:gemini-3.7-flash}
+    max-tokens: ${FAREFLOW_ASSISTANT_MAX_TOKENS:4096}
+    max-tool-iterations: ${FAREFLOW_ASSISTANT_MAX_TOOL_ITERATIONS:6}
+    max-history-turns: ${FAREFLOW_ASSISTANT_MAX_HISTORY_TURNS:12}
+
+  gtfs:
+    # Network ingestion is intentionally opt-in. A configured publisher is only
+    # advertised as supported after its archive imports successfully.
+    schedule-enabled: ${FAREFLOW_GTFS_SCHEDULE_ENABLED:false}
+    realtime-enabled: ${FAREFLOW_GTFS_REALTIME_ENABLED:false}
+    import-on-startup: ${FAREFLOW_GTFS_IMPORT_ON_STARTUP:false}
+    static-initial-delay-millis: ${FAREFLOW_GTFS_STATIC_INITIAL_DELAY_MILLIS:60000}
+    static-refresh-millis: ${FAREFLOW_GTFS_STATIC_REFRESH_MILLIS:86400000}
+    realtime-initial-delay-millis: ${FAREFLOW_GTFS_REALTIME_INITIAL_DELAY_MILLIS:15000}
+    realtime-refresh-millis: ${FAREFLOW_GTFS_REALTIME_REFRESH_MILLIS:30000}
+    realtime-freshness-seconds: ${FAREFLOW_GTFS_REALTIME_FRESHNESS_SECONDS:120}
+
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 

@@ -16,8 +16,7 @@ public enum PreferredTravelMode {
     TRAIN("Train"),
     SUBWAY("Subway"),
     BUS("Bus"),
-    FERRY("Ferry"),
-    WALKING("Walking");
+    FERRY("Ferry");
 
     private final String displayName;
 

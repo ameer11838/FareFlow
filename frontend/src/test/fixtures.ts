@@ -17,6 +17,8 @@ import type {
   RecommendationResponse,
   RecommendedRoute,
   Trip,
+  SpendingHistory,
+  PaymentIntent,
 } from '../api/types'
 
 /**
@@ -179,12 +181,12 @@ export const dashboard: Dashboard = {
 
 export const ledgerEntries: LedgerEntry[] = [
   {
-    id: 2, userId: 1, tripId: 1, type: 'REFUND', amountCents: 300,
+    id: 2, userId: 1, tripId: 1, paymentIntentId: null, type: 'REFUND', amountCents: 300,
     description: 'Refund: cancelled PATH trip',
     occurredAt: '2026-08-19T14:00:00Z', createdAt: '2026-08-19T14:00:00Z',
   },
   {
-    id: 1, userId: 1, tripId: 1, type: 'TRIP_CHARGE', amountCents: -300,
+    id: 1, userId: 1, tripId: 1, paymentIntentId: null, type: 'TRIP_CHARGE', amountCents: -300,
     description: 'PATH — Newark to Manhattan',
     occurredAt: '2026-08-19T12:32:00Z', createdAt: '2026-08-19T12:32:00Z',
   },
@@ -277,7 +279,6 @@ export const profileOptions: ProfileOptions = {
     { id: 'SUBWAY', displayName: 'Subway' },
     { id: 'BUS', displayName: 'Bus' },
     { id: 'FERRY', displayName: 'Ferry' },
-    { id: 'WALKING', displayName: 'Walking' },
   ],
 }
 
@@ -300,19 +301,88 @@ export const wallet: Wallet = {
       status: 'AVAILABLE',
     },
     {
-      id: 'CARD',
-      name: 'Debit or credit card',
-      description: 'Card payments arrive in a later phase',
-      status: 'COMING_SOON',
-    },
-    {
-      id: 'STABLECOIN',
-      name: 'Stablecoin',
-      description: 'Testnet stablecoin settlement arrives in a later phase',
-      status: 'COMING_SOON',
+      id: 'SIMULATED_CARD',
+      name: 'Simulated card',
+      description: 'Exercises authorization and settlement without moving real money',
+      status: 'AVAILABLE',
     },
   ],
   recentActivity: ledgerEntries,
+  recentPayments: [],
+}
+
+export const emptySpendingHistory: SpendingHistory = {
+  range: '30d',
+  rangeName: '30 days',
+  granularity: 'DAY',
+  startDate: '2026-07-22',
+  endDate: '2026-08-20',
+  hasData: false,
+  firstTripDate: null,
+  rangesWithData: [],
+  weeklyBudgetCents: 5000,
+  totals: {
+    spentCents: 0,
+    tripCount: 0,
+    averageFareCents: null,
+    averageDurationMinutes: null,
+    savedCents: null,
+    totalMinutes: 0,
+  },
+  comparison: null,
+  buckets: [],
+  byOperator: [],
+  byMode: [],
+}
+
+export const spendingHistory: SpendingHistory = {
+  ...emptySpendingHistory,
+  hasData: true,
+  firstTripDate: '2026-08-01',
+  rangesWithData: ['7d', '30d'],
+  totals: {
+    spentCents: 1565,
+    tripCount: 5,
+    averageFareCents: 313,
+    averageDurationMinutes: 38,
+    savedCents: 420,
+    totalMinutes: 190,
+  },
+  comparison: {
+    startDate: '2026-06-22',
+    endDate: '2026-07-21',
+    spentCents: 1280,
+    tripCount: 4,
+    averageFareCents: 320,
+    spentChangeCents: 285,
+    spentChangePercent: .2227,
+  },
+  buckets: [
+    {
+      date: '2026-08-19', label: 'Aug 19', spentCents: 600, tripCount: 2,
+      averageFareCents: 300, averageDurationMinutes: 35, savedCents: 180,
+      cumulativeSpentCents: 600,
+    },
+    {
+      date: '2026-08-20', label: 'Aug 20', spentCents: 965, tripCount: 3,
+      averageFareCents: 322, averageDurationMinutes: 40, savedCents: 240,
+      cumulativeSpentCents: 1565,
+    },
+  ],
+  byOperator: [
+    {
+      provider: 'PATH', providerName: 'PATH', tripCount: 4, spentCents: 1200,
+      averageFareCents: 300, shareOfSpend: .7668,
+    },
+    {
+      provider: 'NYC_BUS', providerName: 'NYC Bus', tripCount: 1, spentCents: 365,
+      averageFareCents: 365, shareOfSpend: .2332,
+    },
+  ],
+  byMode: [
+    { mode: 'RAIL', modeName: 'Rail', tripCount: 4, spentCents: 1200, shareOfSpend: .7668 },
+    { mode: 'BUS', modeName: 'Bus', tripCount: 1, spentCents: 365, shareOfSpend: .2332 },
+  ],
 }
 
 export const insights: Insights = {
@@ -539,6 +609,52 @@ export const journeyTrip: Trip = {
   selectedLabel: 'MANUAL',
   baselineFareCents: 4000, savedVersusFastestCents: 1240,
   status: 'COMPLETED', takenAt: '2026-08-20T12:32:00Z',
+}
+
+export const createdPayment: PaymentIntent = {
+  id: '9d624735-9f97-4d8c-b0a1-c6451b7a6e73',
+  status: 'CREATED',
+  paymentMethod: 'FAREFLOW_WALLET',
+  amountCents: 2760,
+  currency: 'USD',
+  journeySummary: 'SEPTA Trenton Line → NJ Transit Northeast Corridor',
+  origin: 'Philadelphia, PA',
+  destination: 'Manhattan, NY',
+  attemptCount: 0,
+  providerReference: null,
+  failureCode: null,
+  failureMessage: null,
+  trip: null,
+  authorizedAt: null,
+  processingAt: null,
+  settledAt: null,
+  failedAt: null,
+  refundedAt: null,
+  createdAt: '2026-08-20T12:31:59Z',
+  updatedAt: '2026-08-20T12:31:59Z',
+  events: [{
+    id: 1, fromStatus: null, toStatus: 'CREATED',
+    reason: 'Authoritative fare calculated and payment intent created',
+    occurredAt: '2026-08-20T12:31:59Z',
+  }],
+}
+
+export const settledPayment: PaymentIntent = {
+  ...createdPayment,
+  status: 'SETTLED',
+  attemptCount: 1,
+  providerReference: 'fareflow_wallet_test_1',
+  trip: journeyTrip,
+  authorizedAt: '2026-08-20T12:32:00Z',
+  processingAt: '2026-08-20T12:32:00Z',
+  settledAt: '2026-08-20T12:32:00Z',
+  updatedAt: '2026-08-20T12:32:00Z',
+  events: [
+    ...createdPayment.events,
+    { id: 2, fromStatus: 'CREATED', toStatus: 'AUTHORIZED', reason: 'Payment authorized', occurredAt: '2026-08-20T12:32:00Z' },
+    { id: 3, fromStatus: 'AUTHORIZED', toStatus: 'PROCESSING', reason: 'Settlement started', occurredAt: '2026-08-20T12:32:00Z' },
+    { id: 4, fromStatus: 'PROCESSING', toStatus: 'SETTLED', reason: 'Payment settled', occurredAt: '2026-08-20T12:32:00Z' },
+  ],
 }
 
 export const journeyDetail: PersistedJourneyDetail = {

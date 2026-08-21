@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    The FareFlow mark, icon only. Kept as SVG so the tab icon stays sharp on any
+    display density; the PNG siblings exist for the browsers and platforms that
+    still will not take an SVG.
+  -->
+  <defs>
+    <linearGradient id="g" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="38%" stop-color="#4f6bf6"/>
+      <stop offset="72%" stop-color="#8b3ff0"/>
+      <stop offset="100%" stop-color="#e935d6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#g)"/>
+  <path d="M49.5 13.5H32.2c-5.6 0-9.4 3.1-11 9.2L13 52.5c3.6-.4 6.2-2.5 7.3-6.6l6.1-23.2c.7-2.7 2.2-3.9 4.9-3.9h10.3c3.6 0 5.9-1.9 7.9-5.3z" fill="#fff"/>
+  <path d="M44.6 29.6H24.9c-.8 3 .4 4.6 3.3 4.6h9.8c2.9 0 5.2-1.5 6.6-4.6z" fill="#fff"/>
+  <path d="M23.2 44.6c-1.1-7.9 3.4-14.6 11.4-15.4 3.3-.3 6.6-.1 9.9-.1-3 1.9-6.3 2.6-9.7 3.1-5.5.8-8.9 4.9-8.6 10.4.1 1.9.5 3.7 1.2 5.6-2.1-.9-3.6-2-4.2-3.6z" fill="#fff" opacity=".92"/>
+  <path d="M34.9 36.4h9.6c2.9 0 4.6 1.7 5 4.5l1.3 8.3c.3 2.3-1 3.7-3.3 3.7H33.6c-2.3 0-3.8-1.4-3.7-3.7l.6-8.3c.2-2.8 1.7-4.5 4.4-4.5z" fill="#fff"/>
+  <rect x="34.1" y="39.6" width="11.4" height="6.5" rx="1.9" fill="url(#g)"/>
+  <circle cx="34.9" cy="49.4" r="1.5" fill="url(#g)"/>
+  <circle cx="44.7" cy="49.4" r="1.5" fill="url(#g)"/>
+</svg>

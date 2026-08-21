@@ -5,15 +5,19 @@
  * runs cyan → electric blue → violet → magenta on deep navy. Everything below is
  * that mark decomposed into a system.
  *
- * Two rules govern the spectrum, and they are what keep this from looking like a
- * generated landing page:
+ * Two rules govern it, and they are what keep this from looking like a generated
+ * SaaS template:
  *
- *   1. The gradient marks *intent*, never surface. It appears on the app mark,
- *      the primary action, and thin accents that indicate progress or selection.
- *      Cards, pages, and panels are never filled with it.
+ *   1. **The gradient belongs to the logo.** The mark is the most expressive
+ *      element in the product and it earns that by being the only place the full
+ *      spectrum appears. Buttons, navigation, meters, and charts use *solid
+ *      purple*. A gradient on every accent makes the logo ordinary.
  *   2. Anything that must be *read* — text, icons, borders, data marks — uses a
- *      flat colour with a known contrast ratio. A gradient has a different ratio
- *      at each end, so it cannot be reasoned about for accessibility.
+ *      flat colour with a known contrast ratio anyway. A gradient has a different
+ *      ratio at each end, so it cannot be reasoned about for accessibility.
+ *
+ * Cyan is a secondary accent used sparingly — an eyebrow, a single active
+ * indicator — never as a second brand colour competing with the purple.
  *
  * Semantic colour (money in, money out, budget pressure) is reserved for meaning
  * and never used decoratively, which is why a refund is green on a page whose
@@ -36,10 +40,14 @@
 
   /* One definition each, so an angle or stop cannot drift between the logo, a
      button, a progress bar, and a chart. */
+  /*
+   * Reserved for the logo, and for the rare brand moment that is deliberately
+   * about the brand rather than about the data (the auth artwork). If you are
+   * reaching for this on a button, a chart, or a progress bar, reach for
+   * --color-accent instead.
+   */
   --ff-gradient: linear-gradient(135deg,
     var(--ff-cyan) 0%, var(--ff-blue) 38%, var(--ff-violet) 72%, var(--ff-magenta) 100%);
-  --ff-gradient-compact: linear-gradient(135deg, var(--ff-blue) 0%, var(--ff-violet) 100%);
-  --ff-gradient-cool: linear-gradient(135deg, var(--ff-cyan) 0%, var(--ff-blue) 100%);
 
   /* ==========================================================================
      INDIGO — the solid colour the spectrum resolves to
@@ -207,10 +215,12 @@
   /* ==========================================================================
      RADII — larger surfaces take larger radii, so nothing looks scaled
      ========================================================================== */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* Tighter than before. Large radii read as consumer-app friendliness; a
+     product that shows people their money reads better slightly squarer. */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
 
   /* ==========================================================================
@@ -219,12 +229,16 @@
      what stops a stack of white cards from looking cut out of another design.
      Four levels, each with a job: rest, hover, floating, modal.
      ========================================================================== */
-  --shadow-xs: 0 1px 2px rgba(20, 18, 31, 0.05);
-  --shadow-sm: 0 1px 3px rgba(20, 18, 31, 0.08), 0 1px 2px rgba(20, 18, 31, 0.04);
-  --shadow-md: 0 4px 14px rgba(20, 18, 31, 0.09);
-  --shadow-lg: 0 12px 32px rgba(20, 18, 31, 0.13);
-  --shadow-xl: 0 24px 56px rgba(20, 18, 31, 0.18);
-  --shadow-brand: 0 6px 20px rgba(91, 60, 232, 0.28);
+  /*
+   * Structure comes from 1px borders; shadow is reserved for things that are
+   * genuinely floating above the page — the planner over the map, a drawer, a
+   * menu. A resting card gets a border and no shadow at all.
+   */
+  --shadow-xs: none;
+  --shadow-sm: 0 1px 2px rgba(20, 18, 31, 0.06);
+  --shadow-md: 0 2px 8px rgba(20, 18, 31, 0.08);
+  --shadow-lg: 0 8px 24px rgba(20, 18, 31, 0.10);
+  --shadow-xl: 0 20px 48px rgba(20, 18, 31, 0.14);
   /* Inside a navy panel a black shadow is invisible; depth has to come from a
      light edge instead. */
   --shadow-inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -247,4 +261,144 @@
   --content-max: 1240px;
   --content-narrow: 940px;
   --sidebar-width: 248px;
+}
+
+/* ==========================================================================
+   DARK MODE
+   ==========================================================================
+   Selected, not inverted. Dark mode re-steps every role against a navy ground:
+   surfaces get *lighter* as they rise (the opposite of light mode, where they
+   get darker), accents move up the ramp because a mid indigo disappears on
+   navy, and the semantic colours are re-picked for contrast rather than reused.
+   Flipping the light values would give grey-on-grey cards and a violet nobody
+   could read.
+
+   Declared under three scopes on purpose:
+     :root[data-theme="dark"]                     the explicit choice
+     @media (prefers-color-scheme: dark) + guard  the system setting
+   The :not([data-theme="light"]) guard lets an explicit light choice beat a
+   dark OS, so the toggle wins in both directions.
+   ========================================================================== */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces rise toward the light. */
+  --color-canvas: #0a0918;
+  --color-surface: #15132a;
+  --color-surface-sunken: #100e21;
+  --color-surface-raised: #1c1935;
+  --color-border: #262340;
+  --color-border-strong: #383357;
+  --color-border-subtle: #1e1b36;
+
+  --color-text: #f3f2fb;
+  --color-text-secondary: #aeaac9;   /* 7.2:1 on --color-surface */
+  --color-text-muted: #837f9e;       /* 4.6:1 — captions only */
+  --color-text-inverse: #14121f;
+
+  /* A mid indigo vanishes on navy, so the accent moves two steps up the ramp. */
+  --color-accent: #8b7cff;
+  --color-accent-hover: #a294ff;
+  --color-accent-strong: #a294ff;
+  --color-accent-soft: #272148;
+  --color-accent-faint: #1c1836;
+  --color-accent-ring: rgba(139, 124, 255, 0.4);
+
+  /* Semantic colours re-picked for a dark ground, not lightened mechanically. */
+  --color-positive: #3ddc9a;
+  --color-positive-strong: #6ee7b6;
+  --color-positive-soft: #10301f;
+  --color-positive-border: #1d5a3c;
+  --color-negative: #ff8a80;
+  --color-negative-soft: #35161a;
+  --color-negative-border: #5f2b2b;
+  --color-amber: #f0b866;
+  --color-amber-soft: #33260f;
+  --color-amber-border: #5c441c;
+
+  /* Validated against the #141227 dark surface: lightness band, chroma floor,
+     CVD separation (worst adjacent ΔE 10.4 deutan / 9.0 tritan), normal vision
+     (ΔE 27.1), and contrast all PASS. */
+  --viz-1: #6480f5;
+  --viz-2: #d9713a;
+  --viz-3: #9265ea;
+  --viz-4: #25a077;
+  --viz-5: #dd54c6;
+  --viz-6: #b5872a;
+  --viz-track: #241f3d;
+  --viz-grid: #262340;
+
+  /* On a dark ground a black shadow does nothing; depth comes from a light top
+     edge and a deeper ambient shadow. */
+  --shadow-xs: none;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 52px rgba(0, 0, 0, 0.55);
+
+  /* Navigation and the navy panels are already dark; in dark mode they separate
+     from the canvas by rising rather than by dropping. */
+  --ff-nav-surface: #131126;
+  --ff-panel-surface: #1a1733;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-canvas: #0a0918;
+    --color-surface: #15132a;
+    --color-surface-sunken: #100e21;
+    --color-surface-raised: #1c1935;
+    --color-border: #262340;
+    --color-border-strong: #383357;
+    --color-border-subtle: #1e1b36;
+
+    --color-text: #f3f2fb;
+    --color-text-secondary: #aeaac9;
+    --color-text-muted: #837f9e;
+    --color-text-inverse: #14121f;
+
+    --color-accent: #8b7cff;
+    --color-accent-hover: #a294ff;
+    --color-accent-strong: #a294ff;
+    --color-accent-soft: #272148;
+    --color-accent-faint: #1c1836;
+    --color-accent-ring: rgba(139, 124, 255, 0.4);
+
+    --color-positive: #3ddc9a;
+    --color-positive-strong: #6ee7b6;
+    --color-positive-soft: #10301f;
+    --color-positive-border: #1d5a3c;
+    --color-negative: #ff8a80;
+    --color-negative-soft: #35161a;
+    --color-negative-border: #5f2b2b;
+    --color-amber: #f0b866;
+    --color-amber-soft: #33260f;
+    --color-amber-border: #5c441c;
+
+    --viz-1: #6480f5;
+    --viz-2: #d9713a;
+    --viz-3: #9265ea;
+    --viz-4: #25a077;
+    --viz-5: #dd54c6;
+    --viz-6: #b5872a;
+    --viz-track: #241f3d;
+    --viz-grid: #262340;
+
+    --shadow-xs: none;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 52px rgba(0, 0, 0, 0.55);
+
+    --ff-nav-surface: #131126;
+    --ff-panel-surface: #1a1733;
+  }
+}
+
+/* Light mode's own values for the two surfaces dark mode overrides. */
+:root {
+  --ff-nav-surface: var(--ff-navy-900);
+  --ff-panel-surface: var(--ff-navy-900);
 }

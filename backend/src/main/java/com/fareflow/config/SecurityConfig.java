@@ -83,7 +83,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/health").permitAll()
                         // The transit catalog and route scoring carry no personal
                         // data, so they stay open. Nothing here reads a user's money.
-                        .requestMatchers("/api/transit-routes/**", "/api/recommendations/**").permitAll()
+                        .requestMatchers("/api/transit-routes/**", "/api/transit/coverage",
+                                "/api/recommendations/**").permitAll()
                         // The onboarding vocabulary is a static catalogue with no
                         // personal data in it, exactly like the profile catalogue
                         // above. The profile itself, one path segment up, is not.

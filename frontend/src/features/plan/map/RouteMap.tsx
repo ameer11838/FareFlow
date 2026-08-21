@@ -14,13 +14,16 @@ import { SchematicMap } from './SchematicMap'
  * page remains fully usable.
  */
 export function RouteMap({
-  journeys, selectedJourneyId, highlightedJourneyId, onSelectJourney, focus,
+  journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
+  onSelectJourney, onSelectLeg, focus,
 }: {
   journeys: JourneyOption[]
   selectedJourneyId: string | null
   /** Hovered in the drawer; emphasised without changing the selection. */
   highlightedJourneyId?: string | null
+  activeLegIndex?: number | null
   onSelectJourney: (journeyId: string) => void
+  onSelectLeg?: (journeyId: string, legIndex: number) => void
   /**
    * Where to look before any search has run — the rider's saved commute.
    *
@@ -34,6 +37,8 @@ export function RouteMap({
   const mapRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const renderedLayersRef = useRef<string[]>([])
+  const renderedSourcesRef = useRef<string[]>([])
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
 
@@ -129,14 +134,16 @@ export function RouteMap({
     const map = mapRef.current
     if (!ready || !map) return
 
-    // Remove previous layers and sources before redrawing.
-    for (const route of drawable) {
-      const lineId = `route-line-${route.id}`
-      const hitId = `route-hit-${route.id}`
-      if (map.getLayer(hitId)) map.removeLayer(hitId)
-      if (map.getLayer(lineId)) map.removeLayer(lineId)
-      if (map.getSource(lineId)) map.removeSource(lineId)
+    // Remove every id from the previous render. Candidate ids can change between
+    // searches, so deriving cleanup ids from the new result would leak old layers.
+    for (const id of [...renderedLayersRef.current].reverse()) {
+      if (map.getLayer(id)) map.removeLayer(id)
     }
+    for (const id of renderedSourcesRef.current) {
+      if (map.getSource(id)) map.removeSource(id)
+    }
+    renderedLayersRef.current = []
+    renderedSourcesRef.current = []
     markersRef.current.forEach((marker) => marker.remove())
     markersRef.current = []
 
@@ -164,6 +171,7 @@ export function RouteMap({
             geometry: { type: 'LineString', coordinates },
           },
         })
+        renderedSourcesRef.current.push(lineId)
 
         map.addLayer({
           id: lineId,
@@ -178,6 +186,7 @@ export function RouteMap({
             'line-dasharray': isSelected ? [1, 0] : [2, 1.6],
           },
         })
+        renderedLayersRef.current.push(lineId)
 
         // A wide invisible line makes the route easy to click without thickening it.
         map.addLayer({
@@ -186,10 +195,58 @@ export function RouteMap({
           source: lineId,
           paint: { 'line-color': '#000', 'line-width': 22, 'line-opacity': 0 },
         })
+        renderedLayersRef.current.push(hitId)
         map.on('click', hitId, () => onSelectJourney(route.id))
         map.on('mouseenter', hitId, () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', hitId, () => { map.getCanvas().style.cursor = '' })
       }
+
+      // Draw the selected journey leg-by-leg over the route corridor. Walking is
+      // dashed; transit is solid. Each segment has its own generous hit target so
+      // a map click can select the matching direction step.
+      const selected = journeys.find((journey) => journey.journeyId === selectedJourneyId)
+      selected?.legs.forEach((leg, legIndex) => {
+        if (leg.waypoints.length < 2) return
+        const sourceId = `route-leg-source-${selected.journeyId}-${legIndex}`
+        const layerId = `route-leg-${selected.journeyId}-${legIndex}`
+        const hitId = `route-leg-hit-${selected.journeyId}-${legIndex}`
+        const active = activeLegIndex === legIndex
+        map.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: { journeyId: selected.journeyId, legIndex },
+            geometry: {
+              type: 'LineString',
+              coordinates: leg.waypoints.map((point) => [point.longitude, point.latitude]),
+            },
+          },
+        })
+        renderedSourcesRef.current.push(sourceId)
+        map.addLayer({
+          id: layerId,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': active ? ROUTE_COLORS.selected : '#18202b',
+            'line-width': active ? 8 : 5,
+            'line-opacity': activeLegIndex === null || active ? 1 : .42,
+            'line-dasharray': leg.mode === 'WALK' ? [1, 1.8] : [1, 0],
+          },
+        })
+        renderedLayersRef.current.push(layerId)
+        map.addLayer({
+          id: hitId,
+          type: 'line',
+          source: sourceId,
+          paint: { 'line-color': '#000', 'line-width': 24, 'line-opacity': 0 },
+        })
+        renderedLayersRef.current.push(hitId)
+        map.on('click', hitId, () => onSelectLeg?.(selected.journeyId, legIndex))
+        map.on('mouseenter', hitId, () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', hitId, () => { map.getCanvas().style.cursor = '' })
+      })
 
       // Origin and destination markers come from the selected route's endpoints.
       const anchor = drawable.find((route) => route.id === selectedJourneyId) ?? drawable[0]
@@ -215,7 +272,22 @@ export function RouteMap({
         )
       }
     })
-  }, [ready, journeys, selectedJourneyId, highlightedJourneyId, onSelectJourney])
+  }, [ready, journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex, onSelectJourney, onSelectLeg])
+
+  // An itinerary-step click moves smoothly to just that leg without disabling the
+  // rider's normal pan/zoom controls. Clearing the step leaves the current camera.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || activeLegIndex == null || !selectedJourneyId) return
+    const journey = journeys.find((option) => option.journeyId === selectedJourneyId)
+    const leg = journey?.legs[activeLegIndex]
+    if (!leg || leg.waypoints.length < 2) return
+    const bounds = boundsOf(leg.waypoints.map((point) => ({
+      lng: point.longitude,
+      lat: point.latitude,
+    })))
+    if (bounds) map.fitBounds(bounds, { padding: 140, maxZoom: 15, duration: 550 })
+  }, [ready, journeys, selectedJourneyId, activeLegIndex])
 
   // ---- Frame the saved commute before anything has been searched ----
   useEffect(() => {
@@ -277,7 +349,9 @@ export function RouteMap({
       journeys={journeys}
       selectedJourneyId={selectedJourneyId}
       highlightedJourneyId={highlightedJourneyId}
+      activeLegIndex={activeLegIndex}
       onSelectJourney={onSelectJourney}
+      onSelectLeg={onSelectLeg}
       reason={failed ?? 'missing-key'}
     />
   }

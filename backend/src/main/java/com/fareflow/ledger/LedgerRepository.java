@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
 
@@ -41,6 +42,8 @@ public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
                                           @Param("end") Instant end);
 
     List<LedgerEntry> findByTripIdOrderByIdAsc(long tripId);
+
+    List<LedgerEntry> findByPaymentIntentIdOrderByIdAsc(UUID paymentIntentId);
 
     long countByUserId(long userId);
 }

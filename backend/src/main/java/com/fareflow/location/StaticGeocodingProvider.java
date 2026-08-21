@@ -47,7 +47,23 @@ public final class StaticGeocodingProvider implements GeocodingProvider {
             new Entry("Journal Square", "Jersey City", "NJ", 40.732900, -74.063500, "journal sq"),
             new Entry("Secaucus Junction", "Secaucus", "NJ", 40.761600, -74.075700, "secaucus"),
             new Entry("Port Authority Bus Terminal", "New York", "NY", 40.757000, -73.990300,
-                    "port authority", "pabt")
+                    "port authority", "pabt"),
+            new Entry("Boston", "Boston", "MA", 42.360100, -71.058900, "boston ma"),
+            new Entry("South Station", "Boston", "MA", 42.352300, -71.055200,
+                    "boston south station"),
+            new Entry("Harvard Square", "Cambridge", "MA", 42.373400, -71.118900,
+                    "harvard", "harvard station"),
+            new Entry("Chicago", "Chicago", "IL", 41.878100, -87.629800, "chicago il"),
+            new Entry("Chicago Union Station", "Chicago", "IL", 41.878600, -87.640500,
+                    "union station chicago"),
+            new Entry("O'Hare International Airport", "Chicago", "IL", 41.974200, -87.907300,
+                    "ohare", "ord", "chicago airport"),
+            new Entry("San Francisco", "San Francisco", "CA", 37.774900, -122.419400,
+                    "san francisco ca", "sf"),
+            new Entry("Embarcadero Station", "San Francisco", "CA", 37.792900, -122.397100,
+                    "embarcadero"),
+            new Entry("Downtown Oakland", "Oakland", "CA", 37.804400, -122.271200,
+                    "oakland", "oakland ca")
     );
 
     @Override

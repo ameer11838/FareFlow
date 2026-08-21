@@ -12,14 +12,19 @@ decomposed into a system.
 
 Everything else follows from these.
 
-**1. The gradient marks intent, never surface.** It appears on the app mark, the
-primary action, and thin accents that indicate progress or selection — a 2px
-hairline under the navigation, a 3px edge on a selected card, a progress tick, a
-meter fill. Cards, pages, and panels are never filled with it.
+**1. The gradient belongs to the logo.** The mark is the most expressive element
+in the product, and it earns that by being the only place the full spectrum
+appears. Buttons, navigation, meters, selection states, and charts all use **solid
+purple** — `--color-accent`, which is the brand colour throughout.
 
-A page-sized gradient behind a dollar figure makes the figure harder to read and
-dates the product in about a year. Used sparingly, the gradient does real work:
-the primary action is unmistakable on every screen without having to be large.
+This is a correction of an earlier version that put the gradient on the primary
+button, the nav indicator, the progress ticks, the meters and the avatars. Each
+one looked fine alone; together they made the logo ordinary and the product look
+generated. One gradient, in one place, is what makes it read as a brand.
+
+Cyan is a secondary accent used sparingly — an eyebrow, one indicator — never as a
+second brand colour competing with the purple. Green, red and amber are reserved
+for financial and status meaning and never used decoratively.
 
 **2. Anything that must be read uses a flat colour.** Text, icons, borders, and
 data marks have a known contrast ratio; a gradient has a different ratio at each
@@ -49,7 +54,8 @@ a spacing value.
 | **Spacing** | 4px scale, `--space-1…10`. |
 | **Type** | 11px→54px, with tracking that tightens as size grows. |
 | **Radii** | 6/10/14/20/pill. Larger surfaces take larger radii so nothing looks scaled. |
-| **Elevation** | Five levels plus a brand glow and an inset hairline. Tinted with the brand hue rather than neutral black, which is what stops a stack of white cards from looking cut out of another design. |
+| **Elevation** | Structure comes from **1px borders**; shadow is reserved for things genuinely floating above the page — the planner over the map, a drawer. A resting card has a border and no shadow. There is no coloured glow anywhere. |
+| **Radii** | Deliberately tight (4/6/8/12). Large radii read as consumer-app friendliness; a product that shows people their money reads better slightly squarer. |
 | **Motion** | One curve, three durations. Nothing slower than 320ms in an app people open to catch a train. |
 
 ---
@@ -92,6 +98,80 @@ surface gap so two adjacent shares never read as one; values and labels wear tex
 ink, never the series colour; and there is **no trend line anywhere**, because the
 API returns a single week and a trend drawn from one point is a decoration
 pretending to be data.
+
+---
+
+## Light and dark
+
+Three states, because "System" is a real choice rather than the absence of one: a
+rider whose laptop switches at sunset should follow it unless they have said
+otherwise. `useTheme` persists the preference, writes `data-theme` on `<html>` for
+an explicit choice, and writes **no attribute** for "system" so the stylesheet's
+`prefers-color-scheme` query takes over. The `:not([data-theme="light"])` guard on
+that query lets an explicit light choice beat a dark OS, so the toggle wins in both
+directions.
+
+The theme is applied by a small inline script in `index.html`, before first paint.
+Waiting for React would show one frame of the light theme to every dark-mode user —
+the white flash every themed app gets judged on. That script is kept in sync with
+the hook: same storage key, same three states, same rule about the attribute.
+
+**Dark mode is selected, not inverted.** Every role is re-stepped against a navy
+ground:
+
+- Surfaces get **lighter** as they rise. In light mode they get darker — flipping
+  the values would give grey-on-grey cards.
+- The accent moves two steps up the ramp (`#5b3ce8` → `#8b7cff`), because a mid
+  indigo disappears on navy.
+- Semantic colours are re-picked, not lightened: `#0f7a4f` → `#3ddc9a` for
+  positive, so a refund still reads as money returned at the same glance value.
+- Shadows change job. A black shadow does nothing on a dark ground, so depth comes
+  from a light top edge plus a deeper ambient shadow.
+- The chart palette has its own validated dark steps — same six hues, re-stepped
+  for the `#141227` surface: worst adjacent ΔE **10.4** deutan / **9.0** tritan,
+  normal vision **27.1**, all ≥ 3:1 contrast.
+
+The navigation and the hero panels stay dark in both themes, but not the *same*
+dark: `--ff-nav-surface` and `--ff-panel-surface` drop onto the canvas in light
+mode and rise off it in dark.
+
+The control lives in Settings as a three-way segmented control, and in the navbar
+as a compact button that cycles light → dark → system.
+
+---
+
+## Icons
+
+`public/favicon.svg` is the primary tab icon — the mark, no text — so it stays
+sharp at any density. The PNG siblings (16, 32, 180 apple-touch, 192, 512) are
+rendered from that same SVG, so they cannot drift from the vector, and cover Safari
+and the platforms that will not take one. `site.webmanifest` completes the
+installable-app metadata, and paired `theme-color` meta tags keep mobile browser
+chrome from sitting as a white band above a dark app.
+
+---
+
+## Not everything is a card
+
+Putting every piece of information inside a rounded box is the single clearest
+tell of a template. Most of a page is built from three patterns that are not
+cards:
+
+- **`.band`** — an open section: a hairline above it, an uppercase label, generous
+  space, and the content sitting directly on the page.
+- **`.figures-row`** — a row of figures divided by rules. The numbers share one
+  baseline and are directly comparable, which four separate tiles never are.
+- **`.data-table`** — a real financial table: tabular numerals, right-aligned
+  money, a quiet header, an inline share bar in a cell. On Insights and Wallet
+  this replaced a bar chart, because a table gives share *and* trip count *and*
+  average fare where the chart gave one of them and needed a legend.
+
+And **`.lede`** — the figure a page exists to show, set at 56px on the page rather
+than inside a panel. Prominence comes from typography, not from a container.
+
+Whitespace is generous *between* sections and tight *within* them: `--space-7`
+above a band, `--space-3` between rows inside it. Even spacing everywhere is what
+makes a dashboard feel airless.
 
 ---
 

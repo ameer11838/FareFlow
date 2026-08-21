@@ -9,6 +9,7 @@ import {
   authConfig,
   demoConfig,
   emptyInsights,
+  emptySpendingHistory,
   emptyTravelProfile,
   newUser,
   passRecommendation,
@@ -23,6 +24,7 @@ import {
 function stubAppData() {
   vi.spyOn(api.recommendationsApi, 'profiles').mockResolvedValue(profiles)
   vi.spyOn(api.insightsApi, 'get').mockResolvedValue(emptyInsights)
+  vi.spyOn(api.insightsApi, 'history').mockResolvedValue(emptySpendingHistory)
   vi.spyOn(api.locationsApi, 'search').mockResolvedValue([])
   vi.spyOn(api.profileApi, 'options').mockResolvedValue(profileOptions)
   vi.spyOn(api.profileApi, 'get').mockResolvedValue(travelProfile)

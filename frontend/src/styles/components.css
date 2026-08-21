@@ -21,7 +21,6 @@
 .surface-plain {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-xs);
 }
 /* Recedes: supporting material that should not compete with the card beside it. */
 .surface-quiet {
@@ -33,33 +32,25 @@
  * light inner edge rather than a shadow — inside a navy surface a black shadow
  * is invisible.
  */
+/*
+ * A flat navy panel. It used to carry two radial brand glows; they made every
+ * figure printed on it harder to read and made the panel the loudest thing on
+ * the page, which is a job the logo should have.
+ */
 .surface-navy {
-  position: relative; isolation: isolate;
-  background: var(--ff-navy-900);
+  position: relative;
+  background: var(--ff-panel-surface);
   color: var(--ff-on-navy-secondary);
   border: 1px solid var(--ff-navy-700);
-  box-shadow: var(--shadow-inset-hairline), var(--shadow-md);
   overflow: hidden;
-}
-/*
- * Ambient brand light: two soft sources in opposite corners, not a gradient wash.
- * A gradient across the whole panel fights the figures printed on it; light
- * behind the content does not.
- */
-.surface-navy::before {
-  content: ''; position: absolute; inset: 0; z-index: -1;
-  background:
-    radial-gradient(52% 60% at 6% 0%, rgba(34, 211, 238, 0.17), transparent 72%),
-    radial-gradient(48% 65% at 100% 100%, rgba(233, 53, 214, 0.15), transparent 72%);
 }
 
 .surface-interactive { cursor: pointer; }
-.surface-interactive:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-.surface-interactive:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
+/* Hover darkens the border rather than lifting the card. A page of cards that
+   all rise on hover reads as a template; a border that answers reads as a
+   product. */
+.surface-interactive:hover { border-color: var(--color-accent); }
+.surface-interactive:active { background: var(--color-surface-sunken); }
 .surface-interactive:focus-visible {
   outline: none;
   border-color: var(--color-accent);
@@ -90,21 +81,25 @@
    ============================================================================ */
 .metric { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .metric-head { display: flex; align-items: center; gap: var(--space-2); }
-.metric-icon {
-  display: grid; place-items: center; width: 22px; height: 22px;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent-soft); color: var(--ff-indigo-700);
-}
+.metric-icon { display: grid; place-items: center; color: var(--color-accent); }
 .metric-label {
   font-size: var(--text-xs); font-weight: var(--weight-semibold);
   text-transform: uppercase; letter-spacing: var(--tracking-label);
   color: var(--color-text-muted);
 }
+/*
+ * Prominence comes from type, not from a container. A hero figure is large and
+ * tightly tracked; a supporting figure is set at reading size. Neither needs a
+ * box around it to be understood as important.
+ */
 .metric-value {
-  font-size: var(--text-2xl); font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-display); line-height: 1.05;
+  font-size: var(--text-xl); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title); line-height: 1.1;
 }
-.metric-hero .metric-value { font-size: var(--text-4xl); }
+.metric-hero .metric-value {
+  font-size: var(--text-4xl); font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+}
 .metric-caption {
   font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.5;
 }
@@ -136,12 +131,12 @@
    METERS
    ============================================================================ */
 .meter {
-  height: 8px; border-radius: var(--radius-pill);
+  height: 6px; border-radius: var(--radius-pill);
   background: var(--viz-track); overflow: hidden;
 }
 .meter-fill {
   height: 100%; border-radius: var(--radius-pill);
-  background: var(--ff-gradient);
+  background: var(--color-accent);
   transition: width var(--dur-slow) var(--ease);
 }
 .meter-positive .meter-fill { background: var(--color-positive); }
@@ -183,7 +178,7 @@
   transition: width var(--dur-slow) var(--ease), filter var(--dur-fast) var(--ease);
 }
 .chart-bar-row.hovered .chart-fill { filter: brightness(1.08); }
-.fill-brand { background: var(--ff-gradient-compact); }
+.fill-brand { background: var(--color-accent); }
 .fill-muted { background: var(--color-border-strong); }
 .fill-positive { background: var(--color-positive); }
 
@@ -231,6 +226,56 @@
 .compare-label { font-size: var(--text-sm); color: var(--color-text-secondary); }
 .compare-value { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 
+/* ---- Interactive history ---- */
+.history-module { display: grid; gap: var(--space-5); }
+.history-head { align-items: flex-end; }
+.range-tabs, .history-metric-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+.range-tabs button, .history-metric-tabs button {
+  padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-text-secondary); font: inherit;
+  font-size: var(--text-xs); font-weight: var(--weight-medium); cursor: pointer;
+}
+.range-tabs button:hover, .history-metric-tabs button:hover { border-color: var(--color-border-strong); }
+.range-tabs button[aria-pressed='true'] {
+  background: var(--ff-navy-900); border-color: var(--ff-navy-900); color: #fff;
+}
+.history-metric-tabs button[aria-pressed='true'] {
+  background: var(--color-accent-faint); border-color: var(--color-accent); color: var(--color-accent);
+}
+.time-chart {
+  position: relative; min-width: 0; border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-3);
+}
+.time-chart svg { display: block; width: 100%; height: 230px; overflow: visible; }
+.time-chart-grid { stroke: var(--color-border-subtle); stroke-width: 1; }
+.time-chart-bar { fill: var(--color-accent); opacity: .78; transition: opacity var(--dur-fast) var(--ease); }
+.time-chart-bar.active { opacity: 1; }
+.time-chart-label { fill: var(--color-text-muted); font-size: 10px; }
+.time-chart g:focus { outline: none; }
+.time-chart g:focus .time-chart-bar { stroke: var(--color-text); stroke-width: 2; }
+.time-chart-tooltip {
+  min-height: 36px; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  margin-top: var(--space-2); padding: 7px 10px; border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted); font-size: var(--text-xs);
+}
+.time-chart-tooltip strong { color: var(--color-text); }
+.time-chart-tooltip.visible span { padding-left: var(--space-3); border-left: 1px solid var(--color-border); }
+.history-decision {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border);
+}
+.history-decision > div { display: grid; gap: 5px; padding: var(--space-4); }
+.history-decision > div + div { border-left: 1px solid var(--color-border); }
+.history-decision span {
+  font-size: 10px; font-weight: var(--weight-bold); letter-spacing: .07em;
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+.history-decision strong { font-size: var(--text-sm); line-height: 1.5; font-weight: var(--weight-medium); }
+.history-decision a { color: var(--color-accent); }
+.history-breakdowns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); }
+.history-breakdowns > div { min-width: 0; }
+.history-breakdowns h3 { margin-bottom: var(--space-4); font-size: var(--text-sm); }
+
 /* ============================================================================
    STATES
    ============================================================================ */
@@ -252,11 +297,8 @@
 }
 .empty-art {
   display: grid; place-items: center;
-  width: 56px; height: 56px; margin-bottom: var(--space-1);
-  border-radius: var(--radius-lg);
-  background: var(--color-accent-faint);
-  border: 1px solid var(--color-accent-soft);
-  color: var(--ff-indigo-600);
+  margin-bottom: var(--space-2);
+  color: var(--color-accent);
 }
 .empty-title {
   font-size: var(--text-lg); font-weight: var(--weight-semibold);
@@ -282,4 +324,184 @@
   .section-head { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
   .compare-row { grid-template-columns: 1fr; gap: var(--space-2); }
   .compare-value { justify-self: end; margin-top: -28px; }
+  .history-decision, .history-breakdowns { grid-template-columns: 1fr; }
+  .history-decision > div + div { border-left: 0; border-top: 1px solid var(--color-border); }
+  .history-head { align-items: flex-start; }
+}
+
+/* ============================================================================
+   THEME CONTROLS
+   ============================================================================ */
+.theme-toggle {
+  /* Sizes to its three options rather than stretching to the block that holds
+     it: a segmented control as wide as a page reads as three buttons, not as
+     one choice. */
+  justify-self: start;
+  display: inline-grid; grid-auto-flow: column; gap: 2px;
+  padding: 3px;
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.theme-option {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px var(--space-4);
+  border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-text-secondary);
+  font-size: var(--text-sm); font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.theme-option:hover { color: var(--color-text); }
+.theme-option[aria-checked='true'] {
+  background: var(--color-accent); color: #fff;
+  box-shadow: var(--shadow-xs);
+}
+.theme-option:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+/* The compact navbar version. Lives on the dark bar in both themes, so its
+   colours come from the navy inks rather than from the surface tokens. */
+.theme-button {
+  display: grid; place-items: center;
+  width: 32px; height: 32px;
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: transparent; color: var(--ff-on-navy-muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.theme-button:hover {
+  background: rgba(255, 255, 255, 0.08); color: var(--ff-cyan);
+  border-color: var(--ff-navy-600);
+}
+.theme-button:focus-visible {
+  outline: none; border-color: var(--ff-cyan);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.25);
+}
+
+/* ============================================================================
+   LAYOUT PATTERNS THAT ARE NOT CARDS
+   ============================================================================
+   Putting every piece of information in a rounded box is what makes an
+   interface read as a template. These are the other options: an open band, a
+   divided row of figures, and a real table.
+   ============================================================================ */
+
+/*
+ * An open section. No border, no background — just a hairline above it and
+ * generous space. Most of a page should be built from these, with cards
+ * reserved for content that genuinely needs to be picked up off the page.
+ */
+.band { padding-top: var(--space-7); border-top: 1px solid var(--color-border); }
+.band-flush { padding-top: 0; border-top: none; }
+.band-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-4); flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+.band-title {
+  font-size: var(--text-md); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-flat);
+  text-transform: uppercase; letter-spacing: var(--tracking-label);
+  color: var(--color-text-secondary);
+}
+.band-note { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/*
+ * A row of figures separated by rules rather than by gaps between boxes. This
+ * is the fintech pattern: the numbers sit on one baseline, they are directly
+ * comparable, and nothing is wrapped in a container competing for attention.
+ */
+.figures-row {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.figures-row > * {
+  padding: var(--space-4) var(--space-5);
+  border-left: 1px solid var(--color-border);
+  min-width: 0;
+}
+.figures-row > *:first-child { border-left: none; }
+
+/* The same idea with no container at all, for the top of a page. */
+.figures-open {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: var(--space-7);
+}
+.figures-open > * { min-width: 0; }
+
+/*
+ * A financial table. Tabular numerals, right-aligned money, a quiet header, and
+ * rules between rows instead of around each one.
+ */
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.data-table thead th {
+  text-align: left; padding: 0 var(--space-4) var(--space-2);
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold);
+  text-transform: uppercase; letter-spacing: var(--tracking-label);
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.data-table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover td { background: var(--color-surface-sunken); }
+.data-table .col-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.data-table .col-name { color: var(--color-text); font-weight: var(--weight-medium); }
+.data-table .col-total {
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--color-text); font-weight: var(--weight-semibold); white-space: nowrap;
+}
+/* An inline share bar inside a table cell: the comparison without a second chart. */
+.cell-bar {
+  display: block; height: 4px; width: 100%;
+  border-radius: var(--radius-pill); background: var(--viz-track);
+  overflow: hidden;
+}
+.cell-bar span { display: block; height: 100%; border-radius: var(--radius-pill); }
+.table-swatch {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: var(--space-2); vertical-align: baseline;
+}
+
+/*
+ * A page-leading figure, set on the page rather than in a box. The eyebrow, the
+ * number, and the sentence beneath it carry the whole hierarchy.
+ */
+.lede { display: grid; gap: var(--space-2); }
+.lede-eyebrow {
+  font-size: var(--text-xs); font-weight: var(--weight-semibold);
+  text-transform: uppercase; letter-spacing: var(--tracking-label);
+  color: var(--color-accent);
+}
+.lede-figure { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.lede-value {
+  font-size: 56px; font-weight: var(--weight-bold);
+  letter-spacing: -0.045em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.lede-unit {
+  font-size: var(--text-md); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.lede-sub {
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+  line-height: 1.6; max-width: 60ch;
+}
+
+@media (max-width: 860px) {
+  .figures-row, .figures-open { grid-auto-flow: row; grid-auto-columns: auto; }
+  .figures-row > * { border-left: none; border-top: 1px solid var(--color-border); }
+  .figures-row > *:first-child { border-top: none; }
+  .figures-open { gap: var(--space-5); }
+  .lede-value { font-size: var(--text-4xl); }
 }
