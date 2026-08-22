@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { JourneyOption } from '../../../api/types'
+import type { JourneyOption, LocationCandidate, TransitStop } from '../../../api/types'
 import { boundsOf, isMapAvailable, loadTomTom, ROUTE_COLORS, type LngLat } from './tomtom'
 import { SchematicMap } from './SchematicMap'
 
@@ -15,7 +15,7 @@ import { SchematicMap } from './SchematicMap'
  */
 export function RouteMap({
   journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
-  onSelectJourney, onSelectLeg, focus,
+  onSelectJourney, onSelectLeg, focus, focusLocations = [], nearbyStops = [],
 }: {
   journeys: JourneyOption[]
   selectedJourneyId: string | null
@@ -32,20 +32,27 @@ export function RouteMap({
    * back. Centring a map is cheap; planning a trip nobody asked for is not.
    */
   focus?: LngLat[] | null
+  /** Places explicitly chosen in autocomplete, before a route is searched. */
+  focusLocations?: LocationCandidate[]
+  /** Real markers from imported GTFS feeds near the chosen places. */
+  nearbyStops?: TransitStop[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
+  const contextMarkersRef = useRef<any[]>([])
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const renderedLayersRef = useRef<string[]>([])
   const renderedSourcesRef = useRef<string[]>([])
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
+  const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
 
   // One polyline per journey, built by concatenating its legs' waypoints.
   const drawable = journeys
     .map((option) => ({
       id: option.journeyId,
+      hasProviderGeometry: option.dataSource === 'GOOGLE_ROUTES',
       waypoints: option.legs.flatMap((leg) => leg.waypoints),
     }))
     .filter((entry) => entry.waypoints.length > 1)
@@ -182,8 +189,9 @@ export function RouteMap({
             'line-color': isSelected || isHighlighted ? ROUTE_COLORS.selected : ROUTE_COLORS.muted,
             'line-width': isSelected ? 6 : isHighlighted ? 5 : 3.5,
             'line-opacity': isSelected ? 1 : isHighlighted ? 0.85 : 0.45,
-            // A dashed line signals "schematic corridor", not surveyed geometry.
-            'line-dasharray': isSelected ? [1, 0] : [2, 1.6],
+            // Google provides actual route polylines. Local stop-to-stop fallback
+            // geometry remains dashed so it is never presented as surveyed track.
+            'line-dasharray': route.hasProviderGeometry || isSelected ? [1, 0] : [2, 1.6],
           },
         })
         renderedLayersRef.current.push(lineId)
@@ -263,8 +271,15 @@ export function RouteMap({
           .addTo(map),
       )
 
-      // Intermediate stops of the selected route only, to avoid clutter.
-      for (const point of points.slice(1, -1)) {
+      // Intermediate provider-named stops only. Google shape points deliberately
+      // have blank names and must not turn into hundreds of fictional stop markers.
+      const namedStops = points.slice(1, -1)
+        .filter((point) => point.name.trim().length > 0)
+        .filter((point, index, all) => index === all.findIndex((candidate) =>
+          candidate.name === point.name
+          && candidate.latitude === point.latitude
+          && candidate.longitude === point.longitude))
+      for (const point of namedStops) {
         markersRef.current.push(
           new tt.Marker({ element: stopMarker(point.name) })
             .setLngLat([point.longitude, point.latitude])
@@ -273,6 +288,43 @@ export function RouteMap({
       }
     })
   }, [ready, journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex, onSelectJourney, onSelectLeg])
+
+  // Before planning, make a chosen station/place immediately tangible on the map
+  // and surround it with stops from imported GTFS. These are not generic POI dots:
+  // every transit marker is backed by a normalized feed record.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    contextMarkersRef.current.forEach((marker) => marker.remove())
+    contextMarkersRef.current = []
+    setSelectedStop(null)
+    if (drawable.length > 0) return
+
+    void loadTomTom().then((tt) => {
+      if (!mapRef.current || drawable.length > 0) return
+      for (const stop of nearbyStops) {
+        const element = transitStopMarker(stop)
+        element.addEventListener('click', (event) => {
+          event.stopPropagation()
+          setSelectedStop(stop)
+          map.easeTo({ center: [stop.longitude, stop.latitude], duration: 350 })
+        })
+        contextMarkersRef.current.push(
+          new tt.Marker({ element })
+            .setLngLat([stop.longitude, stop.latitude])
+            .addTo(map),
+        )
+      }
+      for (const place of focusLocations) {
+        contextMarkersRef.current.push(
+          new tt.Marker({ element: placeMarker(place.displayName) })
+            .setLngLat([place.longitude, place.latitude])
+            .addTo(map),
+        )
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, journeys.length, focusKey(focus), transitStopsKey(nearbyStops)])
 
   // An itinerary-step click moves smoothly to just that leg without disabling the
   // rider's normal pan/zoom controls. Clearing the step leaves the current camera.
@@ -353,6 +405,8 @@ export function RouteMap({
       onSelectJourney={onSelectJourney}
       onSelectLeg={onSelectLeg}
       reason={failed ?? 'missing-key'}
+      focusLocations={focusLocations}
+      nearbyStops={nearbyStops}
     />
   }
 
@@ -368,6 +422,25 @@ export function RouteMap({
           <div className="skeleton" style={{ width: 120, height: 12 }} />
           <span className="muted" style={{ fontSize: 13 }}>Loading map…</span>
         </div>
+      )}
+      {selectedStop && (
+        <aside className="map-stop-card" aria-label={`${selectedStop.name} station details`}>
+          <button
+            type="button"
+            className="map-stop-card-close"
+            aria-label="Close station details"
+            onClick={() => setSelectedStop(null)}
+          >×</button>
+          <span className="map-stop-card-kicker">{selectedStop.modes.map(modeLabel).join(' · ')}</span>
+          <strong>{selectedStop.name}</strong>
+          <span>{selectedStop.operators.join(', ') || selectedStop.publisherName}</span>
+          {selectedStop.lines.length > 0 && (
+            <span className="map-stop-card-lines">Lines {selectedStop.lines.slice(0, 8).join(', ')}</span>
+          )}
+          <span className="map-stop-card-source">
+            Imported GTFS schedule{selectedStop.realtimeAvailable ? ' · Realtime available' : ''}
+          </span>
+        </aside>
       )}
     </div>
   )
@@ -390,7 +463,36 @@ function stopMarker(label: string): HTMLElement {
   return element
 }
 
+function placeMarker(label: string): HTMLElement {
+  const element = document.createElement('div')
+  element.className = 'map-place-pin'
+  element.title = label
+  element.setAttribute('aria-label', label)
+  return element
+}
+
+function transitStopMarker(stop: TransitStop): HTMLElement {
+  const element = document.createElement('button')
+  element.type = 'button'
+  const isStation = stop.modes.some((mode) =>
+    mode === 'RAIL' || mode === 'SUBWAY' || mode === 'LIGHT_RAIL')
+  element.className = `map-transit-stop${isStation ? ' is-station' : ''}`
+  element.title = `${stop.name} · ${stop.modes.map(modeLabel).join(', ')}`
+  element.setAttribute('aria-label', element.title)
+  return element
+}
+
+function modeLabel(mode: TransitStop['modes'][number]): string {
+  if (mode === 'RAIL') return 'Train'
+  if (mode === 'LIGHT_RAIL') return 'Light rail'
+  return mode.charAt(0) + mode.slice(1).toLowerCase()
+}
+
 /** Stable dependency for a set of focus points, so the effect is not re-run per render. */
 function focusKey(points: LngLat[] | null | undefined): string {
   return (points ?? []).map((point) => `${point.lng},${point.lat}`).join('|')
+}
+
+function transitStopsKey(stops: TransitStop[]): string {
+  return stops.map((stop) => stop.id).join('|')
 }

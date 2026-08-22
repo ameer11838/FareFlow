@@ -39,7 +39,8 @@ public record SpendingHistoryResponse(
         Comparison comparison,
         List<Bucket> buckets,
         List<OperatorSlice> byOperator,
-        List<ModeSlice> byMode
+        List<ModeSlice> byMode,
+        List<RouteSlice> mostUsedRoutes
 ) {
 
     /**
@@ -70,7 +71,10 @@ public record SpendingHistoryResponse(
             Long averageFareCents,
             Long averageDurationMinutes,
             Long savedCents,
-            long totalMinutes
+            long totalMinutes,
+            Long totalDistanceMetres,
+            Long costPerMileCents,
+            long usagePricedTripCount
     ) {
     }
 
@@ -107,6 +111,16 @@ public record SpendingHistoryResponse(
             long tripCount,
             long spentCents,
             double shareOfSpend
+    ) {
+    }
+
+    public record RouteSlice(
+            String origin,
+            String destination,
+            String provider,
+            long tripCount,
+            long totalFareCents,
+            long averageFareCents
     ) {
     }
 }

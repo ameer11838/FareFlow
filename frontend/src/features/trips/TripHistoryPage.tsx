@@ -173,11 +173,20 @@ function TripCard({ trip, onCancel, cancelling, disabled, initiallyOpen }: {
               {trip.transfers === 0 ? 'Direct' : `${trip.transfers} transfer${trip.transfers > 1 ? 's' : ''}`}
             </span>
             <span className="trip-fact trip-fact-muted">{formatDateTime(trip.takenAt)}</span>
+            {trip.stopsTravelled !== null && trip.stopsTravelled !== undefined && (
+              <span className="trip-fact">{trip.stopsTravelled} stop{trip.stopsTravelled === 1 ? '' : 's'}</span>
+            )}
+            {trip.distanceMetres !== null && trip.distanceMetres !== undefined && (
+              <span className="trip-fact numeric">{(trip.distanceMetres / 1609.344).toFixed(1)} mi</span>
+            )}
           </div>
         </div>
 
         <div className="trip-side">
           <span className="trip-fare numeric">{formatCents(trip.fareCents)}</span>
+          {trip.fareModel === 'FAREFLOW_USAGE_V1' && (
+            <span className="trip-fare-model">Simulated usage fare</span>
+          )}
           <TripStatus trip={trip} cancelled={cancelled} />
         </div>
       </div>

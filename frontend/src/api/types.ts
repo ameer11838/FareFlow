@@ -14,8 +14,25 @@ export interface LocationCandidate {
   latitude: number
   longitude: number
   type: string
-  /** TOMTOM or STATIC — shown so the source of a place is never a mystery. */
+  /** TOMTOM, STATIC, or GTFS — shown so the source of a place is traceable. */
   source: string
+}
+
+/** A map marker backed by a stop in a successfully imported GTFS feed. */
+export interface TransitStop {
+  id: string
+  name: string
+  regionCode: string
+  regionName: string
+  publisherName: string
+  latitude: number
+  longitude: number
+  modes: Array<'RAIL' | 'SUBWAY' | 'LIGHT_RAIL' | 'BUS' | 'FERRY'>
+  operators: string[]
+  lines: string[]
+  distanceMetres: number
+  realtimeAvailable: boolean
+  source: 'GTFS'
 }
 
 export type FareStatus = 'EXACT' | 'ESTIMATED' | 'UNKNOWN'
@@ -53,7 +70,76 @@ export interface JourneyOption {
   score: number
   explanation: string
   dataSource: string
+  /** FareFlow's proposed usage model, separate from any published agency fare. */
+  usageFareMinCents: number
+  usageFareMaxCents: number
+  usagePricingVersion: string
   legs: JourneyLeg[]
+}
+
+export type TransitSessionStatus =
+  | 'STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'NO_CHARGE' | 'PAID'
+
+export interface TransitSessionLeg extends JourneyLeg {
+  sequence: number
+}
+
+export interface StopFareProgress {
+  /** Zero is the boarding point; positive values are completed-stop boundaries. */
+  sequence: number
+  /** Null only when the transit provider omitted an intermediate stop name. */
+  stopName: string | null
+  lineName: string
+  mode: JourneyLeg['mode']
+  state: 'CURRENT' | 'COMPLETED' | 'NEXT' | 'UPCOMING'
+  fareIncrementCents: number
+  cumulativeFareCents: number
+}
+
+export interface TransitSession {
+  id: string
+  status: TransitSessionStatus
+  journeyId: number
+  origin: string
+  destination: string
+  summary: string
+  dataSource: string
+  scheduledDeparture: string | null
+  scheduledArrival: string | null
+  hasRealtimeData: boolean
+  startedAt: string
+  endedAt: string | null
+  elapsedSeconds: number
+  activeLegIndex: number
+  currentLine: string
+  currentAgency: string | null
+  currentMode: JourneyLeg['mode']
+  currentStop: string | null
+  nextStop: string | null
+  nextStopFareIncreaseCents: number
+  transferToLine: string | null
+  progressUnitsCompleted: number
+  progressUnitsTotal: number
+  completedStops: number
+  plannedStops: number
+  distanceTravelledMetres: number
+  plannedDistanceMetres: number
+  progressSource: 'RIDER_CONFIRMED' | 'LOCATION_VERIFIED' | 'AGENCY_VERIFIED'
+  estimatedFareMinCents: number
+  estimatedFareMaxCents: number
+  /** Exact server-owned fare at the latest completed stop. */
+  currentFareCents: number
+  /** Compatibility alias retained for older clients. */
+  currentEstimatedFareCents: number
+  finalFareCents: number | null
+  fareBreakdown: string[]
+  stopFareProgress: StopFareProgress[]
+  pricingVersion: string
+  canAdvance: boolean
+  canEnd: boolean
+  canPay: boolean
+  simulationNotice: string
+  legs: TransitSessionLeg[]
 }
 
 export interface JourneySearchResponse {
@@ -175,6 +261,7 @@ export interface Wallet {
   paymentMethods: PaymentMethod[]
   recentActivity: LedgerEntry[]
   recentPayments: PaymentIntent[]
+  openTransitSession?: TransitSession | null
 }
 
 export interface PaymentMethod {
@@ -265,6 +352,9 @@ export interface SpendingHistory {
     averageDurationMinutes: number | null
     savedCents: number | null
     totalMinutes: number
+    totalDistanceMetres: number | null
+    costPerMileCents: number | null
+    usagePricedTripCount: number
   }
   comparison: {
     startDate: string
@@ -290,6 +380,14 @@ export interface SpendingHistory {
     tripCount: number
     spentCents: number
     shareOfSpend: number
+  }>
+  mostUsedRoutes: Array<{
+    origin: string
+    destination: string
+    provider: string
+    tripCount: number
+    totalFareCents: number
+    averageFareCents: number
   }>
 }
 
@@ -436,9 +534,9 @@ export interface Waypoint {
  * A route's shape, for map rendering only.
  *
  * `source` matters: SCHEMATIC means straight segments between real published
- * station coordinates, not surveyed track geometry. TomTom's Routing API has no
- * public-transit mode, so this comes from FareFlow's own transit data layer and
- * the UI labels it honestly rather than implying GPS precision.
+ * station coordinates, not surveyed track geometry. Detailed transit journeys can
+ * now carry Google Routes step polylines; this legacy catalog shape remains honest
+ * about whether its own points are schematic or surveyed.
  */
 export interface RouteGeometry {
   source: 'SCHEMATIC' | 'SURVEYED' | 'NONE'
@@ -476,6 +574,7 @@ export interface Trip {
   routeId: number | null
   /** Null for trips taken from a seeded route. */
   journeyId: number | null
+  transitSessionId?: string | null
   origin: string
   destination: string
   provider: string
@@ -484,6 +583,9 @@ export interface Trip {
   fareCents: number
   durationMinutes: number
   transfers: number
+  distanceMetres?: number | null
+  stopsTravelled?: number | null
+  fareModel?: 'FIXED' | 'FAREFLOW_USAGE_V1'
   selectedLabel: string
   baselineFareCents: number | null
   /** Null means "not computable", which is different from a computed zero. */
@@ -527,6 +629,7 @@ export interface PaymentEvent {
 
 export interface PaymentIntent {
   id: string
+  transitSessionId?: string | null
   status: PaymentStatus
   paymentMethod: PaymentRail
   amountCents: number

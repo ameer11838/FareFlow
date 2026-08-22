@@ -48,15 +48,11 @@ public final class TomTomGeocodingProvider implements GeocodingProvider {
                             .path("/search/2/search/{query}.json")
                             .queryParam("key", apiKey)
                             .queryParam("limit", Math.clamp(limit, 1, 10))
-                            // Biased to the corridor FareFlow actually covers, so
-                            // "Penn Station" resolves locally rather than to a
-                            // same-named place on another continent.
+                            // FareFlow's current product scope is U.S. public transit,
+                            // but search is nationwide rather than pinned to one
+                            // corridor. Imported GTFS candidates disambiguate actual
+                            // stops before this general place-search result is used.
                             .queryParam("countrySet", "US")
-                            // Centred on the corridor and deliberately tight: a wide
-                            // radius let "Brooklyn" resolve to Brooklyn, Maryland.
-                            .queryParam("lat", 40.30)
-                            .queryParam("lon", -74.40)
-                            .queryParam("radius", 180_000)
                             // Ask for places and addresses ahead of businesses.
                             .queryParam("idxSet", "Geo,PAD,Str,Xstr,POI")
                             .build(query.trim()))

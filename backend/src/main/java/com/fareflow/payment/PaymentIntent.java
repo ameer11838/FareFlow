@@ -41,6 +41,9 @@ public class PaymentIntent {
     @Column(name = "trip_id")
     private Long tripId;
 
+    @Column(name = "transit_session_id", updatable = false)
+    private UUID transitSessionId;
+
     @Column(name = "amount_cents", nullable = false, updatable = false)
     private long amountCents;
 
@@ -133,6 +136,25 @@ public class PaymentIntent {
         return intent;
     }
 
+    /** Creates an intent from a completed session's server-calculated fare. */
+    public static PaymentIntent createForSession(long userId,
+                                                 PersistedJourney journey,
+                                                 UUID transitSessionId,
+                                                 long authoritativeAmountCents,
+                                                 PaymentMethod paymentMethod,
+                                                 String idempotencyKey,
+                                                 String requestFingerprint,
+                                                 Instant now) {
+        if (transitSessionId == null) {
+            throw new IllegalArgumentException("transitSessionId is required");
+        }
+        PaymentIntent intent = create(userId, journey, authoritativeAmountCents,
+                paymentMethod, idempotencyKey, requestFingerprint, null,
+                SelectedLabel.MANUAL, now);
+        intent.transitSessionId = transitSessionId;
+        return intent;
+    }
+
     public PaymentStatus authorize(String reference, Instant now) {
         requireState(PaymentStatus.CREATED, PaymentStatus.FAILED);
         PaymentStatus previous = status;
@@ -202,6 +224,7 @@ public class PaymentIntent {
     public Long getUserId() { return userId; }
     public PersistedJourney getJourney() { return journey; }
     public Long getTripId() { return tripId; }
+    public UUID getTransitSessionId() { return transitSessionId; }
     public long getAmountCents() { return amountCents; }
     public String getCurrency() { return currency; }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }

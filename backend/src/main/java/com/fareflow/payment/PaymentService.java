@@ -23,6 +23,9 @@ import com.fareflow.trip.SelectedLabel;
 import com.fareflow.trip.Trip;
 import com.fareflow.trip.TripRepository;
 import com.fareflow.user.User;
+import com.fareflow.session.TransitSession;
+import com.fareflow.session.TransitSessionRepository;
+import com.fareflow.session.TransitSessionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -63,6 +66,7 @@ public class PaymentService {
     private final LedgerService ledgerService;
     private final BudgetService budgetService;
     private final SimulatedCardGateway cardGateway;
+    private final TransitSessionRepository sessionRepository;
     private final Clock clock;
 
     public PaymentService(LocationService locationService,
@@ -74,6 +78,7 @@ public class PaymentService {
                           LedgerService ledgerService,
                           BudgetService budgetService,
                           SimulatedCardGateway cardGateway,
+                          TransitSessionRepository sessionRepository,
                           Clock clock) {
         this.locationService = locationService;
         this.planningService = planningService;
@@ -84,7 +89,50 @@ public class PaymentService {
         this.ledgerService = ledgerService;
         this.budgetService = budgetService;
         this.cardGateway = cardGateway;
+        this.sessionRepository = sessionRepository;
         this.clock = clock;
+    }
+
+    /**
+     * Pays a completed usage session with the fare already calculated by the
+     * server. The request selects a rail but never states an amount.
+     */
+    @Transactional
+    public PaymentIntentResponse payTransitSession(User user,
+                                                   TransitSession session,
+                                                   PaymentMethod paymentMethod,
+                                                   String idempotencyKey,
+                                                   String simulatedCardToken) {
+        String key = requireIdempotencyKey(idempotencyKey);
+        if (!session.getUserId().equals(user.getId())) {
+            throw new ResourceNotFoundException(
+                    "Transit session %s was not found".formatted(session.getId()));
+        }
+        String fingerprint = fingerprint(session, paymentMethod);
+        Optional<PaymentIntent> replay = paymentRepository
+                .findByUserIdAndIdempotencyKey(user.getId(), key);
+        if (replay.isPresent()) {
+            verifyReplay(replay.get(), fingerprint);
+            process(replay.get(), simulatedCardToken, true);
+            return response(replay.get());
+        }
+        if (paymentRepository.findByTransitSessionId(session.getId()).isPresent()) {
+            throw new InvalidStateException("This transit session already has a payment");
+        }
+        if (session.getStatus() != TransitSessionStatus.COMPLETED
+                || session.getFinalFareCents() == null || session.getFinalFareCents() <= 0) {
+            throw new InvalidStateException(
+                    "End a transit session with recorded travel before paying");
+        }
+
+        PaymentIntent intent = PaymentIntent.createForSession(
+                user.getId(), session.getJourney(), session.getId(),
+                session.getFinalFareCents(), paymentMethod, key, fingerprint, clock.instant());
+        intent = paymentRepository.save(intent);
+        eventRepository.save(new PaymentEvent(intent.getId(), null, PaymentStatus.CREATED,
+                "Usage fare calculated and payment intent created", clock.instant()));
+        process(intent, simulatedCardToken, true);
+        return response(intent);
     }
 
     /** Creates but does not charge an intent. */
@@ -336,15 +384,32 @@ public class PaymentService {
         previous = intent.startProcessing(now);
         event(intent, previous, PaymentStatus.PROCESSING, "Settlement started", now);
 
-        Trip trip = tripRepository.save(new Trip(
-                intent.getUserId(), intent.getJourney(), intent.getAmountCents(),
-                intent.getSelectedLabel(), intent.getBaselineFareCents(), now,
-                "payment:%s".formatted(intent.getId())));
+        TransitSession session = null;
+        Trip trip;
+        if (intent.getTransitSessionId() != null) {
+            session = sessionRepository.findById(intent.getTransitSessionId())
+                    .orElseThrow(() -> new InvalidStateException(
+                            "Payment %s references a missing transit session"
+                                    .formatted(intent.getId())));
+            if (session.getStatus() != TransitSessionStatus.COMPLETED) {
+                throw new InvalidStateException(
+                        "Only a completed transit session can be settled");
+            }
+            trip = tripRepository.save(new Trip(
+                    intent.getUserId(), session, intent.getAmountCents(), now,
+                    "payment:%s".formatted(intent.getId())));
+        } else {
+            trip = tripRepository.save(new Trip(
+                    intent.getUserId(), intent.getJourney(), intent.getAmountCents(),
+                    intent.getSelectedLabel(), intent.getBaselineFareCents(), now,
+                    "payment:%s".formatted(intent.getId())));
+        }
 
         if (intent.getAmountCents() > 0) {
             ledgerService.recordTripCharge(
                     intent.getUserId(), trip.getId(), intent.getId(), intent.getAmountCents(),
-                    "%s — %s to %s".formatted(intent.getJourney().summary(),
+                    "%s%s — %s to %s".formatted(
+                            session == null ? "" : "FareFlow usage · ", intent.getJourney().summary(),
                             intent.getJourney().getOriginDisplayName(),
                             intent.getJourney().getDestinationDisplayName()), now);
         }
@@ -352,6 +417,9 @@ public class PaymentService {
         previous = intent.settle(trip.getId(), now);
         event(intent, previous, PaymentStatus.SETTLED,
                 "Payment settled; trip and ledger committed", now);
+        if (session != null) {
+            session.markPaid(now);
+        }
         return trip;
     }
 
@@ -472,6 +540,17 @@ public class PaymentService {
                 request.profile() == null ? "" : request.profile().trim(),
                 Boolean.toString(request.confirmUnknownFare()),
                 request.paymentMethodOrWallet().name());
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
+    private static String fingerprint(TransitSession session, PaymentMethod paymentMethod) {
+        String canonical = "session|%s|%s|%d".formatted(
+                session.getId(), paymentMethod.name(), session.getFinalFareCents());
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8)));

@@ -28,6 +28,8 @@ import type {
   PaymentIntent,
   PaymentRail,
   PaymentReconciliation,
+  TransitSession,
+  TransitStop,
 } from './types'
 
 export const authApi = {
@@ -92,6 +94,18 @@ export const locationsApi = {
       `/api/locations?q=${encodeURIComponent(query)}&limit=${limit}`),
 }
 
+export const transitApi = {
+  nearbyStops: (latitude: number, longitude: number, radiusMetres = 1600, limit = 40) => {
+    const params = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+      radiusMetres: String(radiusMetres),
+      limit: String(limit),
+    })
+    return api.get<TransitStop[]>(`/api/transit/stops/nearby?${params}`)
+  },
+}
+
 export const journeysApi = {
   /** Arbitrary origin to destination — neither has to be a seeded pair. */
   search: (from: string, to: string, profile?: string) => {
@@ -147,6 +161,30 @@ export const paymentsApi = {
       `/api/payments/intents?page=${page}&size=${size}`),
   reconcile: () =>
     api.get<PaymentReconciliation>('/api/payments/reconciliation'),
+}
+
+export const transitSessionsApi = {
+  start: (
+    body: { from: string; to: string; journeyId: string; profile?: string },
+    idempotencyKey: string,
+  ) => api.post<TransitSession>(
+    '/api/transit-sessions', body, { 'Idempotency-Key': idempotencyKey }),
+  active: () => api.get<TransitSession | null>('/api/transit-sessions/active'),
+  get: (id: string) => api.get<TransitSession>(`/api/transit-sessions/${id}`),
+  advance: (id: string) =>
+    api.post<TransitSession>(`/api/transit-sessions/${id}/advance`),
+  end: (id: string) =>
+    api.post<TransitSession>(`/api/transit-sessions/${id}/end`),
+  pay: (
+    id: string,
+    paymentMethod: PaymentRail,
+    idempotencyKey: string,
+    simulatedCardToken?: string,
+  ) => api.post<PaymentIntent>(
+    `/api/transit-sessions/${id}/pay`,
+    { paymentMethod, simulatedCardToken },
+    { 'Idempotency-Key': idempotencyKey },
+  ),
 }
 
 export const passesApi = {

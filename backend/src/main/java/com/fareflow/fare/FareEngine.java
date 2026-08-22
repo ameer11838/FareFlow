@@ -49,6 +49,24 @@ public final class FareEngine {
                                  UserFareContext context,
                                  Map<String, String> policyByLineCode) {
 
+        // A complete provider quote is useful for route comparison, but it is not
+        // FareFlow's usage-based charge. Transit sessions are always priced later
+        // by UsageFareEngine from confirmed stop progress.
+        if (journey.providerFare() != null) {
+            Journey.ProviderFare providerFare = journey.providerFare();
+            return new FareCalculation(
+                    providerFare.amountCents(),
+                    providerFare.amountCents(),
+                    0,
+                    0,
+                    0,
+                    FareStatus.ESTIMATED,
+                    FareSource.PROVIDER,
+                    List.of(FareLine.providerFare(
+                            providerFare.providerName() + " estimated transit fare",
+                            providerFare.amountCents())));
+        }
+
         List<FareLine> lines = new ArrayList<>();
         long baseTotal = 0;
         long transferTotal = 0;

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { insightsApi, walletApi } from '../../api'
 import type { Insights, LedgerEntry, PaymentIntent, PaymentMethod, Wallet } from '../../api/types'
 import { seriesColor } from '../../components/charts'
-import { CheckIcon, PaymentHistoryIcon, WalletIcon } from '../../components/Icons'
+import { CheckIcon, ModeIcon, PaymentHistoryIcon, WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
@@ -58,6 +58,7 @@ export function WalletPage() {
         subtitle="See what is available for transit this week, where it went, and what your current pace means for the days ahead."
         actions={(
           <div className="page-actions">
+            <Link className="btn" to="/settings">Add weekly funds</Link>
             <Link className="btn" to="/payments">Payment history</Link>
             <Link className="btn btn-primary" to="/plan">Plan a trip</Link>
           </div>
@@ -72,6 +73,28 @@ export function WalletPage() {
       {hasBudget
         ? <BudgetLede wallet={data} projectedCents={projected} pastUsualPace={pastUsualPace} />
         : <NoBudgetLede />}
+
+      {data.openTransitSession && (
+        <section className="band wallet-pending" data-testid="pending-transit-session">
+          <div className="band-head">
+            <h2 className="band-title">Pending trip</h2>
+            <span className="band-note">Not included in spending until payment settles</span>
+          </div>
+          <Link className="wallet-pending-row" to="/plan">
+            <span className="activity-icon"><ModeIcon mode={data.openTransitSession.currentMode} /></span>
+            <span>
+              <strong>{data.openTransitSession.origin} → {data.openTransitSession.destination}</strong>
+              <small>{data.openTransitSession.summary} · {data.openTransitSession.completedStops}
+                {' '}of {data.openTransitSession.plannedStops} stops recorded</small>
+            </span>
+            <span className="wallet-pending-amount numeric">
+              {data.openTransitSession.finalFareCents === null
+                ? `${formatCents(data.openTransitSession.currentEstimatedFareCents)} est.`
+                : `${formatCents(data.openTransitSession.finalFareCents)} due`}
+            </span>
+          </Link>
+        </section>
+      )}
 
       <section className="band">
         <div className="band-head">

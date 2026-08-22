@@ -223,6 +223,19 @@ function HistoryModule() {
       {data.hasData ? (
         <>
           <TimeSeriesChart data={series} ariaLabel={`${METRIC_NAMES[metric]} over ${data.rangeName}`} />
+          <div className="figures-row history-unit-metrics">
+            <Metric label="Cost per trip" value={formatOptionalCents(data.totals.averageFareCents, '—')}
+                    caption={`${data.totals.tripCount} completed trip${data.totals.tripCount === 1 ? '' : 's'}`} />
+            <Metric label="Cost per mile" value={formatOptionalCents(data.totals.costPerMileCents, '—')}
+                    caption={data.totals.costPerMileCents === null
+                      ? 'Available after a usage-priced trip'
+                      : `Across ${data.totals.usagePricedTripCount} tracked trip${data.totals.usagePricedTripCount === 1 ? '' : 's'}`} />
+            <Metric label="Average trip" value={data.totals.averageDurationMinutes === null
+                      ? '—' : formatMinutes(data.totals.averageDurationMinutes)}
+                    caption="Completed travel time" />
+            <Metric label="Savings" value={formatOptionalCents(data.totals.savedCents, '—')}
+                    caption="Where a comparison existed" />
+          </div>
           <HistoryDecision data={data} />
 
           <div className="history-breakdowns">
@@ -247,6 +260,25 @@ function HistoryModule() {
               }))} total={data.totals.spentCents} />
             </div>
           </div>
+
+          {data.mostUsedRoutes.length > 0 && (
+            <div className="history-routes">
+              <h3>Most-used routes</h3>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Route</th><th>Operator</th><th className="col-num">Trips</th><th className="col-total">Average fare</th></tr></thead>
+                  <tbody>{data.mostUsedRoutes.map((route) => (
+                    <tr key={`${route.origin}|${route.destination}|${route.provider}`}>
+                      <td className="col-name">{route.origin} → {route.destination}</td>
+                      <td>{route.provider}</td>
+                      <td className="col-num">{route.tripCount}</td>
+                      <td className="col-total">{formatCents(route.averageFareCents)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <p className="chart-empty">There are no completed trips in this period.</p>

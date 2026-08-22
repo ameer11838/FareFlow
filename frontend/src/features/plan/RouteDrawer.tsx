@@ -59,7 +59,7 @@ export function RouteDrawer({
         <div>
           <p className="drawer-message-title">No journeys found</p>
           <p className="drawer-message-body">
-            {result.notices[0] ?? 'FareFlow has no transit coverage between these places yet.'}
+            {result.notices[0] ?? 'No public-transit route was returned between these places.'}
           </p>
         </div>
       </div>
@@ -233,7 +233,7 @@ function JourneyTile({
           onClick={(event) => { event.stopPropagation(); onChoose() }}
           disabled={disabled}
         >
-          {choosing ? 'Starting…' : 'Choose route'}
+          {choosing ? 'Starting…' : 'Choose transit'}
         </button>
       </div>
 
@@ -241,7 +241,7 @@ function JourneyTile({
         <div className="route-tile-legs" onClick={(event) => event.stopPropagation()}>
           <div className="itinerary-head">
             <strong>Step-by-step directions</strong>
-            <span>Scheduled clock times are not available from this route source.</span>
+            <span>{itinerarySourceNote(option)}</span>
           </div>
           <JourneyLegs
             legs={option.legs}
@@ -260,6 +260,21 @@ function JourneyTile({
       )}
     </div>
   )
+}
+
+function itinerarySourceNote(option: JourneyOption): string {
+  const hasScheduledTimes = option.legs.some((leg) => leg.departureTime || leg.arrivalTime)
+  if (option.dataSource === 'GOOGLE_ROUTES') {
+    return hasScheduledTimes
+      ? 'Google-provided transit times and geometry · not claimed as live unless explicitly marked'
+      : 'Google returned this route without scheduled clock times.'
+  }
+  if (hasScheduledTimes) {
+    return option.legs.some((leg) => leg.realtime)
+      ? 'Agency schedule with reported real-time updates where marked'
+      : 'Agency-published schedule'
+  }
+  return 'Scheduled clock times are not available from this route source.'
 }
 
 function labelsFor(option: JourneyOption, all: JourneyOption[]): Array<{ text: string; className: string }> {
@@ -299,18 +314,25 @@ function fareComparison(option: JourneyOption, all: JourneyOption[]): string | n
  * carrying fare status through from the engine.
  */
 function Fare({ option }: { option: JourneyOption }) {
-  if (option.fareCents === null) {
-    return (
-      <span className="fare-unavailable" title="No published fare FareFlow can compute">
-        Fare varies
-      </span>
-    )
-  }
   return (
-    <span className="route-tile-fare numeric">
-      {formatCents(option.fareCents)}
-      {option.fareStatus === 'ESTIMATED' && (
-        <span className="fare-status fare-estimated" style={{ marginLeft: 6 }}>est</span>
+    <span className="route-tile-fare-block">
+      <span className="route-tile-fare numeric">
+        {option.usageFareMinCents === option.usageFareMaxCents
+          ? formatCents(option.usageFareMaxCents)
+          : `${formatCents(option.usageFareMinCents)}–${formatCents(option.usageFareMaxCents)}`}
+      </span>
+      <span className="route-tile-fare-caption">FareFlow usage estimate</span>
+      {option.fareCents === null ? (
+        <span className="fare-unavailable" title="No published fare FareFlow can compute">
+          Published fare varies
+        </span>
+      ) : (
+        <span className="route-tile-published-fare">
+          Published fare <span className="numeric">{formatCents(option.fareCents)}</span>
+          {option.fareStatus === 'ESTIMATED' && (
+            <span className="fare-status fare-estimated" style={{ marginLeft: 4 }}>est</span>
+          )}
+        </span>
       )}
     </span>
   )

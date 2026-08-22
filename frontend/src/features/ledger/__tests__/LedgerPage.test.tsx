@@ -1,10 +1,11 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LedgerPage } from '../LedgerPage'
 import { renderWithProviders } from '../../../test/renderWith'
 import * as api from '../../../api'
 import { ApiError } from '../../../api/client'
-import { demoConfig, ledgerEntries, page, user } from '../../../test/fixtures'
+import { demoConfig, ledgerEntries, page, settledPayment, user } from '../../../test/fixtures'
 
 /** Demo mode: the server supplies the user, so no token is involved. */
 function stubAuth() {
@@ -15,6 +16,7 @@ function stubAuth() {
 describe('LedgerPage', () => {
   beforeEach(() => {
     stubAuth()
+    vi.spyOn(api.paymentsApi, 'list').mockResolvedValue(page([]))
   })
 
   it('renders charges and refunds with opposite visual treatment', async () => {
@@ -58,6 +60,22 @@ describe('LedgerPage', () => {
     renderWithProviders(<LedgerPage />)
 
     expect(await screen.findAllByText('View trip #1')).toHaveLength(2)
+  })
+
+  it('shows expandable payment receipts with status and method', async () => {
+    vi.mocked(api.paymentsApi.list).mockResolvedValue(page([settledPayment]))
+    vi.spyOn(api.ledgerApi, 'list').mockResolvedValue(page(ledgerEntries))
+    renderWithProviders(<LedgerPage />)
+
+    const receipt = await screen.findByTestId(`receipt-${settledPayment.id}`)
+    const summary = receipt.querySelector('summary')!
+    expect(within(summary).getByText('FareFlow Wallet')).toBeInTheDocument()
+    expect(within(summary).getByText('settled')).toBeInTheDocument()
+    expect(within(summary).getByText('$27.60')).toBeInTheDocument()
+
+    await userEvent.click(summary)
+    expect(within(receipt).getByText('Not refunded')).toBeInTheDocument()
+    expect(within(receipt).getByRole('link', { name: /open trip/i })).toHaveAttribute('href', '/trips?trip=3')
   })
 
   it('shows an empty state explaining what will appear', async () => {

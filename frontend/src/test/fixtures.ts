@@ -19,6 +19,7 @@ import type {
   Trip,
   SpendingHistory,
   PaymentIntent,
+  TransitSession,
 } from '../api/types'
 
 /**
@@ -328,11 +329,15 @@ export const emptySpendingHistory: SpendingHistory = {
     averageDurationMinutes: null,
     savedCents: null,
     totalMinutes: 0,
+    totalDistanceMetres: null,
+    costPerMileCents: null,
+    usagePricedTripCount: 0,
   },
   comparison: null,
   buckets: [],
   byOperator: [],
   byMode: [],
+  mostUsedRoutes: [],
 }
 
 export const spendingHistory: SpendingHistory = {
@@ -347,6 +352,9 @@ export const spendingHistory: SpendingHistory = {
     averageDurationMinutes: 38,
     savedCents: 420,
     totalMinutes: 190,
+    totalDistanceMetres: 18_000,
+    costPerMileCents: 140,
+    usagePricedTripCount: 3,
   },
   comparison: {
     startDate: '2026-06-22',
@@ -382,6 +390,12 @@ export const spendingHistory: SpendingHistory = {
   byMode: [
     { mode: 'RAIL', modeName: 'Rail', tripCount: 4, spentCents: 1200, shareOfSpend: .7668 },
     { mode: 'BUS', modeName: 'Bus', tripCount: 1, spentCents: 365, shareOfSpend: .2332 },
+  ],
+  mostUsedRoutes: [
+    {
+      origin: 'Newark', destination: 'Manhattan', provider: 'PATH',
+      tripCount: 4, totalFareCents: 1200, averageFareCents: 300,
+    },
   ],
 }
 
@@ -526,6 +540,8 @@ export const septaNjtJourney: JourneyOption = {
   labels: ['BEST_VALUE', 'CHEAPEST'], recommended: true, score: 0.21,
   explanation: 'SEPTA Trenton Line → NJ Transit saves you $12.40 while adding 32 minutes.',
   dataSource: 'CURATED_NETWORK',
+  usageFareMinCents: 130, usageFareMaxCents: 475,
+  usagePricingVersion: 'FAREFLOW_USAGE_V1',
   legs: [
     leg('WALK', 'Walk', 'Philadelphia, PA', 'Suburban Station', 4),
     leg('RAIL', 'SEPTA Trenton Line', 'Suburban Station', 'Trenton Transit Center', 65, 15),
@@ -544,6 +560,8 @@ export const amtrakJourney: JourneyOption = {
   labels: ['FASTEST'], recommended: false, score: 0.42,
   explanation: 'This option has no published fare FareFlow can compute, so it is not compared on cost.',
   dataSource: 'CURATED_NETWORK',
+  usageFareMinCents: 130, usageFareMaxCents: 310,
+  usagePricingVersion: 'FAREFLOW_USAGE_V1',
   legs: [
     leg('WALK', 'Walk', 'Philadelphia, PA', '30th Street Station', 19),
     leg('RAIL', 'Amtrak Northeast Regional', '30th Street Station', 'New York Penn Station', 85, 30),
@@ -578,9 +596,9 @@ export const rushJourneySearch: JourneySearchResponse = {
 
 export const emptyJourneySearch: JourneySearchResponse = {
   ...journeySearch,
-  summary: 'FareFlow does not have transit coverage between these places yet.',
+  summary: 'No public-transit route was returned between these places.',
   options: [],
-  notices: ["No journeys found. FareFlow's network currently covers the Philadelphia–New York corridor."],
+  notices: ["Google Routes, imported GTFS, and FareFlow's curated fallback returned no public-transit itinerary. No schedule was invented."],
 }
 
 export const passRecommendation: PassRecommendation = {
@@ -655,6 +673,125 @@ export const settledPayment: PaymentIntent = {
     { id: 3, fromStatus: 'AUTHORIZED', toStatus: 'PROCESSING', reason: 'Settlement started', occurredAt: '2026-08-20T12:32:00Z' },
     { id: 4, fromStatus: 'PROCESSING', toStatus: 'SETTLED', reason: 'Payment settled', occurredAt: '2026-08-20T12:32:00Z' },
   ],
+}
+
+export const startedTransitSession: TransitSession = {
+  id: 'c6bfac66-6fe4-4b60-a3e9-4bea7a366962',
+  status: 'STARTED',
+  journeyId: 12,
+  origin: 'Philadelphia, PA',
+  destination: 'Manhattan, NY',
+  summary: septaNjtJourney.summary,
+  dataSource: 'CURATED_NETWORK',
+  scheduledDeparture: null,
+  scheduledArrival: null,
+  hasRealtimeData: false,
+  startedAt: '2026-08-22T12:00:00Z',
+  endedAt: null,
+  elapsedSeconds: 0,
+  activeLegIndex: 1,
+  currentLine: 'SEPTA Trenton Line',
+  currentAgency: 'AGENCY',
+  currentMode: 'RAIL',
+  currentStop: 'Suburban Station',
+  nextStop: 'Trenton Transit Center',
+  nextStopFareIncreaseCents: 130,
+  transferToLine: 'NJ Transit Northeast Corridor',
+  progressUnitsCompleted: 0,
+  progressUnitsTotal: 2,
+  completedStops: 0,
+  plannedStops: 2,
+  distanceTravelledMetres: 0,
+  plannedDistanceMetres: 129_000,
+  progressSource: 'RIDER_CONFIRMED',
+  estimatedFareMinCents: 130,
+  estimatedFareMaxCents: 475,
+  currentFareCents: 0,
+  currentEstimatedFareCents: 0,
+  finalFareCents: null,
+  fareBreakdown: ['No transit progress recorded · no charge'],
+  stopFareProgress: [
+    { sequence: 0, stopName: 'Suburban Station', lineName: 'SEPTA Trenton Line',
+      mode: 'RAIL', state: 'CURRENT', fareIncrementCents: 0, cumulativeFareCents: 0 },
+    { sequence: 1, stopName: 'Trenton Transit Center', lineName: 'SEPTA Trenton Line',
+      mode: 'RAIL', state: 'NEXT', fareIncrementCents: 130, cumulativeFareCents: 130 },
+    { sequence: 2, stopName: 'New York Penn Station', lineName: 'NJ Transit Northeast Corridor',
+      mode: 'RAIL', state: 'UPCOMING', fareIncrementCents: 345, cumulativeFareCents: 475 },
+  ],
+  pricingVersion: 'FAREFLOW_USAGE_V1',
+  canAdvance: true,
+  canEnd: true,
+  canPay: false,
+  simulationNotice: 'FareFlow usage pricing is a simulation. No transit agency partnership or acceptance is implied.',
+  legs: septaNjtJourney.legs.map((item, sequence) => ({ ...item, sequence })),
+}
+
+export const progressedTransitSession: TransitSession = {
+  ...startedTransitSession,
+  status: 'IN_PROGRESS',
+  progressUnitsCompleted: 1,
+  completedStops: 1,
+  distanceTravelledMetres: 65_000,
+  currentFareCents: 130,
+  currentEstimatedFareCents: 130,
+  activeLegIndex: 2,
+  currentLine: 'NJ Transit Northeast Corridor',
+  currentStop: 'Trenton Transit Center',
+  nextStop: 'New York Penn Station',
+  transferToLine: null,
+  nextStopFareIncreaseCents: 345,
+  stopFareProgress: startedTransitSession.stopFareProgress.map((stop) => ({
+    ...stop,
+    state: stop.sequence < 1 ? 'COMPLETED'
+      : stop.sequence === 1 ? 'CURRENT' : stop.sequence === 2 ? 'NEXT' : 'UPCOMING',
+  })),
+}
+
+export const completedTransitSession: TransitSession = {
+  ...progressedTransitSession,
+  status: 'COMPLETED',
+  endedAt: '2026-08-22T12:12:00Z',
+  elapsedSeconds: 720,
+  finalFareCents: 130,
+  nextStopFareIncreaseCents: 0,
+  stopFareProgress: progressedTransitSession.stopFareProgress.map((stop) => ({
+    ...stop,
+    state: stop.sequence <= 1 ? 'COMPLETED' : 'UPCOMING',
+  })),
+  fareBreakdown: ['SEPTA Trenton Line · base 120¢ + distance 5¢ + 1 stop 5¢'],
+  canAdvance: false,
+  canEnd: false,
+  canPay: true,
+}
+
+export const noChargeTransitSession: TransitSession = {
+  ...startedTransitSession,
+  status: 'NO_CHARGE',
+  endedAt: '2026-08-22T12:02:00Z',
+  elapsedSeconds: 120,
+  finalFareCents: 0,
+  nextStopFareIncreaseCents: 0,
+  stopFareProgress: startedTransitSession.stopFareProgress.map((stop) => ({
+    ...stop, state: stop.sequence === 0 ? 'CURRENT' : 'UPCOMING',
+  })),
+  canAdvance: false,
+  canEnd: false,
+  canPay: false,
+}
+
+export const settledSessionPayment: PaymentIntent = {
+  ...settledPayment,
+  transitSessionId: startedTransitSession.id,
+  amountCents: 130,
+  trip: {
+    ...journeyTrip,
+    transitSessionId: startedTransitSession.id,
+    fareCents: 130,
+    durationMinutes: 12,
+    distanceMetres: 65_000,
+    stopsTravelled: 1,
+    fareModel: 'FAREFLOW_USAGE_V1',
+  },
 }
 
 export const journeyDetail: PersistedJourneyDetail = {

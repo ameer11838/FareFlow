@@ -16,6 +16,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +53,89 @@ public class GtfsScheduleRepository {
                                 stop.latitude(), stop.longitude())))
                 .limit(limit)
                 .toList();
+    }
+
+    /**
+     * Searches only stops from successfully imported, currently enabled feeds.
+     *
+     * <p>This is deliberately separate from web geocoding. A geocoder can tell us
+     * that a place called "Union Station" exists; this query proves that FareFlow
+     * has an actual GTFS stop identity and published service data for it.
+     */
+    public List<StopLocation> searchStops(String query, String regionHint, int limit) {
+        String contains = "%" + escapeLike(query.trim().toLowerCase(java.util.Locale.ROOT)) + "%";
+        String prefix = escapeLike(query.trim().toLowerCase(java.util.Locale.ROOT)) + "%";
+        String region = regionHint == null || regionHint.isBlank()
+                ? null : "%" + escapeLike(regionHint.trim().toLowerCase(java.util.Locale.ROOT)) + "%";
+
+        return jdbc.query("""
+                WITH matches AS (
+                    SELECT f.id AS feed_id, f.feed_key, f.region_code, f.region_name,
+                           f.publisher_name, f.realtime_expires_at > CURRENT_TIMESTAMP AS realtime_fresh,
+                           s.stop_id, s.stop_name, s.stop_latitude, s.stop_longitude,
+                           s.location_type,
+                           CASE WHEN LOWER(s.stop_name) = ? THEN 0
+                                WHEN LOWER(s.stop_name) LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END AS match_rank
+                      FROM gtfs_stops s
+                      JOIN gtfs_feeds f ON f.id = s.feed_id
+                     WHERE f.status = 'READY' AND f.enabled = TRUE
+                       AND s.location_type IN (0, 1)
+                       AND LOWER(s.stop_name) LIKE ? ESCAPE '\\'
+                       AND (CAST(? AS TEXT) IS NULL OR LOWER(f.region_name) LIKE ? ESCAPE '\\'
+                            OR LOWER(f.region_code) LIKE ? ESCAPE '\\')
+                     ORDER BY match_rank, s.location_type DESC, s.stop_name, f.region_name
+                     LIMIT ?
+                )
+                SELECT m.*,
+                       COALESCE((SELECT STRING_AGG(DISTINCT r.transit_mode, ',' ORDER BY r.transit_mode)
+                                   FROM gtfs_stop_times st
+                                   JOIN gtfs_trips t ON t.feed_id = st.feed_id AND t.trip_id = st.trip_id
+                                   JOIN gtfs_routes r ON r.feed_id = t.feed_id AND r.route_id = t.route_id
+                                  WHERE st.feed_id = m.feed_id AND st.stop_id = m.stop_id), '') AS modes,
+                       COALESCE((SELECT STRING_AGG(DISTINCT a.agency_name, '|' ORDER BY a.agency_name)
+                                   FROM gtfs_stop_times st
+                                   JOIN gtfs_trips t ON t.feed_id = st.feed_id AND t.trip_id = st.trip_id
+                                   JOIN gtfs_routes r ON r.feed_id = t.feed_id AND r.route_id = t.route_id
+                                   JOIN gtfs_agencies a ON a.feed_id = r.feed_id AND a.agency_id = r.agency_id
+                                  WHERE st.feed_id = m.feed_id AND st.stop_id = m.stop_id), '') AS operators,
+                       COALESCE((SELECT STRING_AGG(DISTINCT COALESCE(NULLIF(r.route_short_name, ''), r.route_long_name),
+                                                   '|' ORDER BY COALESCE(NULLIF(r.route_short_name, ''), r.route_long_name))
+                                   FROM gtfs_stop_times st
+                                   JOIN gtfs_trips t ON t.feed_id = st.feed_id AND t.trip_id = st.trip_id
+                                   JOIN gtfs_routes r ON r.feed_id = t.feed_id AND r.route_id = t.route_id
+                                  WHERE st.feed_id = m.feed_id AND st.stop_id = m.stop_id), '') AS lines
+                  FROM matches m
+                 ORDER BY m.match_rank, m.location_type DESC, m.stop_name, m.region_name
+                """, (rs, row) -> stopLocation(rs), query.trim().toLowerCase(java.util.Locale.ROOT),
+                prefix, contains, region, region, region, Math.max(limit * 4, 20));
+    }
+
+    /** Enriches a nearby routing stop with only facts present in imported GTFS. */
+    public StopLocation describeStop(Stop stop) {
+        List<StopLocation> rows = jdbc.query("""
+                SELECT f.id AS feed_id, f.feed_key, f.region_code, f.region_name,
+                       f.publisher_name, f.realtime_expires_at > CURRENT_TIMESTAMP AS realtime_fresh,
+                       s.stop_id, s.stop_name, s.stop_latitude, s.stop_longitude,
+                       s.location_type, 0 AS match_rank,
+                       COALESCE(STRING_AGG(DISTINCT r.transit_mode, ',' ORDER BY r.transit_mode)
+                                FILTER (WHERE r.transit_mode IS NOT NULL), '') AS modes,
+                       COALESCE(STRING_AGG(DISTINCT a.agency_name, '|' ORDER BY a.agency_name)
+                                FILTER (WHERE a.agency_name IS NOT NULL), '') AS operators,
+                       COALESCE(STRING_AGG(DISTINCT COALESCE(NULLIF(r.route_short_name, ''), r.route_long_name),
+                                           '|' ORDER BY COALESCE(NULLIF(r.route_short_name, ''), r.route_long_name))
+                                FILTER (WHERE r.route_id IS NOT NULL), '') AS lines
+                  FROM gtfs_stops s
+                  JOIN gtfs_feeds f ON f.id = s.feed_id
+                  LEFT JOIN gtfs_stop_times st ON st.feed_id = s.feed_id AND st.stop_id = s.stop_id
+                  LEFT JOIN gtfs_trips t ON t.feed_id = st.feed_id AND t.trip_id = st.trip_id
+                  LEFT JOIN gtfs_routes r ON r.feed_id = t.feed_id AND r.route_id = t.route_id
+                  LEFT JOIN gtfs_agencies a ON a.feed_id = r.feed_id AND a.agency_id = r.agency_id
+                 WHERE s.feed_id = ? AND s.stop_id = ? AND f.status = 'READY' AND f.enabled = TRUE
+                 GROUP BY f.id, f.feed_key, f.region_code, f.region_name, f.publisher_name,
+                          f.realtime_expires_at, s.stop_id, s.stop_name, s.stop_latitude,
+                          s.stop_longitude, s.location_type
+                """, (rs, row) -> stopLocation(rs), stop.feedId(), stop.stopId());
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     public List<Boarding> boardings(Stop stop, Instant earliest, Instant latest, int limit) {
@@ -343,6 +427,27 @@ public class GtfsScheduleRepository {
                 rs.getBoolean(8));
     }
 
+    private static StopLocation stopLocation(ResultSet rs) throws SQLException {
+        return new StopLocation(rs.getLong("feed_id"), rs.getString("feed_key"),
+                rs.getString("region_code"), rs.getString("region_name"),
+                rs.getString("publisher_name"), rs.getString("stop_id"),
+                rs.getString("stop_name"), rs.getDouble("stop_latitude"),
+                rs.getDouble("stop_longitude"), rs.getInt("location_type"),
+                split(rs.getString("modes"), ","), split(rs.getString("operators"), "\\|"),
+                split(rs.getString("lines"), "\\|"), rs.getBoolean("realtime_fresh"));
+    }
+
+    private static List<String> split(String value, String delimiter) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return List.copyOf(new LinkedHashSet<>(List.of(value.split(delimiter))));
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     private static String normalize(String name) {
         return name.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
@@ -351,6 +456,16 @@ public class GtfsScheduleRepository {
                        String name, double latitude, double longitude, boolean realtimeFresh) {
         public String key() {
             return feedId + ":" + stopId;
+        }
+    }
+
+    public record StopLocation(long feedId, String feedKey, String regionCode, String regionName,
+                               String publisherName, String stopId, String name,
+                               double latitude, double longitude, int locationType,
+                               List<String> modes, List<String> operators, List<String> lines,
+                               boolean realtimeAvailable) {
+        public String key() {
+            return feedKey + ":" + stopId;
         }
     }
 

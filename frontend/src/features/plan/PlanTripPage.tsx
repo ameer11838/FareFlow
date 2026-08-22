@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { journeysApi, paymentsApi, profileApi, recommendationsApi } from '../../api'
+import { journeysApi, profileApi, recommendationsApi, transitApi, transitSessionsApi } from '../../api'
 import { ApiError } from '../../api/client'
 import { BottomNav, TopBar } from '../../components/AppShell'
 import type {
-  JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, TravelProfile,
+  JourneyOption, JourneySearchResponse, LocationCandidate, PaymentIntent, PaymentRail,
+  TransitSession, TransitStop, TravelProfile,
 } from '../../api/types'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
 import { useAssistant } from '../assistant/AssistantContext'
 import { CommuteShortcut } from './CommuteShortcut'
-import { CheckoutSheet } from './CheckoutSheet'
 import { PlannerCard } from './PlannerCard'
 import { RouteDrawer } from './RouteDrawer'
+import { TransitSessionSheet } from './TransitSessionSheet'
 import { RouteMap } from './map/RouteMap'
 
 /**
@@ -35,6 +36,9 @@ export function PlanTripPage() {
   // once their profile loads, and a deep link overrides both.
   const [origin, setOrigin] = useState(searchParams.get('from') ?? '')
   const [destination, setDestination] = useState(searchParams.get('to') ?? '')
+  const [originCandidate, setOriginCandidate] = useState<LocationCandidate | null>(null)
+  const [destinationCandidate, setDestinationCandidate] = useState<LocationCandidate | null>(null)
+  const [nearbyStops, setNearbyStops] = useState<TransitStop[]>([])
   const [profile, setProfile] = useState(searchParams.get('profile') ?? 'BALANCED')
 
   const [result, setResult] = useState<JourneySearchResponse | null>(null)
@@ -44,10 +48,8 @@ export function PlanTripPage() {
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [choosingJourneyId, setChoosingJourneyId] = useState<string | null>(null)
-  const [checkout, setCheckout] = useState<{
-    option: JourneyOption
-    confirmUnknownFare: boolean
-  } | null>(null)
+  const [tripCandidate, setTripCandidate] = useState<JourneyOption | null>(null)
+  const [session, setSession] = useState<TransitSession | null>(null)
   const [payment, setPayment] = useState<PaymentIntent | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const applyingAssistantResult = useRef(false)
@@ -55,6 +57,20 @@ export function PlanTripPage() {
   const profiles = useAsync(() => recommendationsApi.profiles(), [])
   const travelProfile = useAsync<TravelProfile>(() => profileApi.get(), [])
   const commute = travelProfile.data?.hasTypicalCommute ? travelProfile.data : null
+
+  // Resume an unfinished trip after refresh. The endpoint returns only real
+  // server state; a paid or no-charge session is no longer considered open.
+  useEffect(() => {
+    if (!user) return
+    void transitSessionsApi.active().then((active) => {
+      if (!active) return
+      setSession(active)
+      setActiveLegIndex(active.activeLegIndex)
+    }).catch(() => {
+      // Planning still works if restoring a previous session fails. A later
+      // explicit action will surface its own error instead of blocking the map.
+    })
+  }, [user])
 
   // Pre-fill from the saved commute, once, and only into fields the rider has not
   // touched. Deliberately does not search: framing the map and filling a form are
@@ -86,7 +102,23 @@ export function PlanTripPage() {
     const to = reverse ? commute.typicalOrigin!.name : commute.typicalDestination!.name
     setOrigin(from)
     setDestination(to)
+    setOriginCandidate(null)
+    setDestinationCandidate(null)
     void runSearchFor(from, to, profile)
+  }
+
+  const changeOrigin = (value: string) => {
+    setOrigin(value)
+    setOriginCandidate(null)
+    setResult(null)
+    setSelectedJourneyId(null)
+  }
+
+  const changeDestination = (value: string) => {
+    setDestination(value)
+    setDestinationCandidate(null)
+    setResult(null)
+    setSelectedJourneyId(null)
   }
 
   const runSearch = (profileId: string) => runSearchFor(origin, destination, profileId)
@@ -99,6 +131,8 @@ export function PlanTripPage() {
       // Arbitrary origin and destination: neither has to be a seeded pair.
       const response = await journeysApi.search(from.trim(), to.trim(), profileId)
       setResult(response)
+      setOriginCandidate(response.origin)
+      setDestinationCandidate(response.destination)
       setSelectedJourneyId(response.options.find((option) => option.recommended)?.journeyId
         ?? response.options[0]?.journeyId
         ?? null)
@@ -142,6 +176,8 @@ export function PlanTripPage() {
   const applyAssistantRoutes = (routes: JourneySearchResponse) => {
     setOrigin(routes.origin.displayName)
     setDestination(routes.destination.displayName)
+    setOriginCandidate(routes.origin)
+    setDestinationCandidate(routes.destination)
     if (routes.profile.id !== profile) applyingAssistantResult.current = true
     setProfile(routes.profile.id)
     setResult(routes)
@@ -177,18 +213,10 @@ export function PlanTripPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assistant.latestRoutes, assistant.routeRevision])
 
-  /**
-   * Takes the selected journey.
-   *
-   * <p>Only the journey id is sent — the server re-prices it and charges its own
-   * figure. The idempotency key is generated once per attempt so a double click
-   * returns the first trip instead of charging twice.
-   */
-  // One key per (journey, search) so a retry of the same click dedupes, while a
-  // deliberate second trip on the same route does not.
+  // One key per lifecycle action: network retries replay the same server record,
+  // while a later trip on the same route gets a new key after local state clears.
   const idempotencyKeys = useRef(new Map<string, string>())
-  const idempotencyKeyFor = (option: JourneyOption, method: PaymentRail) => {
-    const cacheKey = `${result?.origin.displayName}|${result?.destination.displayName}|${option.journeyId}|${method}`
+  const idempotencyKeyFor = (cacheKey: string) => {
     const existing = idempotencyKeys.current.get(cacheKey)
     if (existing) return existing
     const key = `${cacheKey}|${crypto.randomUUID()}`
@@ -198,75 +226,62 @@ export function PlanTripPage() {
 
   const chooseJourney = (option: JourneyOption) => {
     if (!user || !result) return
-    let confirmUnknownFare = false
-    if (option.fareCents === null) {
-      confirmUnknownFare = window.confirm(
-        'FareFlow cannot calculate a published fare for this journey. Record it without a charge?')
-      if (!confirmUnknownFare) return
-    }
     setPayment(null)
     setPaymentError(null)
-    setCheckout({ option, confirmUnknownFare })
+    setSelectedJourneyId(option.journeyId)
+    setTripCandidate(option)
   }
 
-  const payForJourney = async (method: PaymentRail) => {
-    if (!user || !result || !checkout) return
-    const { option, confirmUnknownFare } = checkout
-    setChoosingJourneyId(option.journeyId)
+  const startTrip = async () => {
+    if (!user || !result || !tripCandidate) return
+    setChoosingJourneyId(tripCandidate.journeyId)
     setPaymentError(null)
     try {
-      if (option.fareCents === null) {
-        await journeysApi.take(
-          {
-            from: result.origin.displayName,
-            to: result.destination.displayName,
-            journeyId: option.journeyId,
-            profile,
-            confirmUnknownFare,
-          },
-          idempotencyKeyFor(option, method),
-        )
-        navigate('/trips')
-        return
-      }
-      const created = await paymentsApi.create(
+      const started = await transitSessionsApi.start(
         {
           from: result.origin.displayName,
           to: result.destination.displayName,
-          journeyId: option.journeyId,
+          journeyId: tripCandidate.journeyId,
           profile,
-          confirmUnknownFare,
-          paymentMethod: method,
         },
-        idempotencyKeyFor(option, method),
+        idempotencyKeyFor(`session:${result.origin.displayName}|${result.destination.displayName}|${tripCandidate.journeyId}`),
       )
-      setPayment(created)
-      const settled = created.status === 'FAILED'
-        ? await paymentsApi.retry(created.id)
-        : created.status === 'CREATED'
-          ? await paymentsApi.confirm(created.id)
-          : created
-      setPayment(settled)
-      if (settled.status === 'SETTLED' && settled.trip) {
-        navigate(`/trips?payment=${settled.id}`)
-      }
+      setSession(started)
+      setActiveLegIndex(started.activeLegIndex)
     } catch (caught) {
-      const apiError = toApiError(caught)
-      setPaymentError(apiError.message)
+      setPaymentError(toApiError(caught).message)
     } finally {
       setChoosingJourneyId(null)
     }
   }
 
-  const retryPayment = async () => {
-    if (!payment || !checkout) return
-    setChoosingJourneyId(checkout.option.journeyId)
+  const updateSession = async (action: 'advance' | 'end') => {
+    if (!session) return
+    setChoosingJourneyId(tripCandidate?.journeyId ?? session.id)
     setPaymentError(null)
     try {
-      const retried = await paymentsApi.retry(payment.id)
-      setPayment(retried)
-      if (retried.status === 'SETTLED' && retried.trip) {
-        navigate(`/trips?payment=${retried.id}`)
+      const updated = action === 'advance'
+        ? await transitSessionsApi.advance(session.id)
+        : await transitSessionsApi.end(session.id)
+      setSession(updated)
+      setActiveLegIndex(updated.activeLegIndex)
+    } catch (caught) {
+      setPaymentError(toApiError(caught).message)
+    } finally {
+      setChoosingJourneyId(null)
+    }
+  }
+
+  const payForSession = async (method: PaymentRail) => {
+    if (!session) return
+    setChoosingJourneyId(tripCandidate?.journeyId ?? session.id)
+    setPaymentError(null)
+    try {
+      const paid = await transitSessionsApi.pay(
+        session.id, method, idempotencyKeyFor(`session-payment:${session.id}|${method}`))
+      setPayment(paid)
+      if (paid.status === 'SETTLED' && paid.trip) {
+        navigate(`/trips?payment=${paid.id}`)
       }
     } catch (caught) {
       setPaymentError(toApiError(caught).message)
@@ -275,7 +290,45 @@ export function PlanTripPage() {
     }
   }
 
-  const hasResults = (result?.options.length ?? 0) > 0
+  const mapJourneys = useMemo(() => {
+    if (result?.options.length) return result.options
+    return session ? [sessionAsJourney(session)] : []
+  }, [result, session])
+  const mapSelection = result?.options.length
+    ? selectedJourneyId
+    : session ? `session:${session.id}` : null
+  const hasResults = !session && (result?.options.length ?? 0) > 0
+  const selectedPlaces = useMemo(() =>
+    [originCandidate, destinationCandidate].filter(
+      (candidate): candidate is LocationCandidate => candidate !== null),
+  [originCandidate, destinationCandidate])
+
+  // A selected nationwide geocoder result moves the map immediately. If the
+  // location is within an imported feed, add real GTFS stops around it; an empty
+  // response stays empty rather than inventing station markers.
+  useEffect(() => {
+    if (result || session || selectedPlaces.length === 0) {
+      setNearbyStops([])
+      return
+    }
+    let cancelled = false
+    Promise.all(selectedPlaces.map((place) =>
+      transitApi.nearbyStops(place.latitude, place.longitude).catch(() => [])))
+      .then((groups) => {
+        if (cancelled) return
+        const unique = new Map<string, TransitStop>()
+        groups.flat().forEach((stop) => unique.set(stop.id, stop))
+        setNearbyStops([...unique.values()])
+      })
+    return () => { cancelled = true }
+  }, [result, session, selectedPlaces])
+
+  const mapFocus = selectedPlaces.length > 0
+    ? selectedPlaces.map((place) => ({ lng: place.longitude, lat: place.latitude }))
+    : commute ? [
+      { lng: commute.typicalOrigin!.longitude, lat: commute.typicalOrigin!.latitude },
+      { lng: commute.typicalDestination!.longitude, lat: commute.typicalDestination!.latitude },
+    ] : null
 
   return (
     <div className="plan-shell">
@@ -283,10 +336,10 @@ export function PlanTripPage() {
 
       <div className={`plan-body${hasResults || searching || error ? ' has-drawer' : ''}`}>
         <RouteMap
-          journeys={result?.options ?? []}
-          selectedJourneyId={selectedJourneyId}
+          journeys={mapJourneys}
+          selectedJourneyId={mapSelection}
           highlightedJourneyId={hoveredJourneyId}
-          activeLegIndex={activeLegIndex}
+          activeLegIndex={session?.activeLegIndex ?? activeLegIndex}
           onSelectJourney={(journeyId) => {
             setSelectedJourneyId(journeyId)
             setActiveLegIndex(null)
@@ -295,19 +348,25 @@ export function PlanTripPage() {
             setSelectedJourneyId(journeyId)
             setActiveLegIndex(index)
           }}
-          focus={commute ? [
-            { lng: commute.typicalOrigin!.longitude, lat: commute.typicalOrigin!.latitude },
-            { lng: commute.typicalDestination!.longitude, lat: commute.typicalDestination!.latitude },
-          ] : null}
+          focus={mapFocus}
+          focusLocations={selectedPlaces}
+          nearbyStops={nearbyStops}
         />
 
-        <div className="plan-overlay">
+        {!session && <div className="plan-overlay">
           <PlannerCard
             origin={origin}
             destination={destination}
-            onOriginChange={setOrigin}
-            onDestinationChange={setDestination}
-            onSwap={() => { setOrigin(destination); setDestination(origin) }}
+            onOriginChange={changeOrigin}
+            onDestinationChange={changeDestination}
+            onOriginSelect={setOriginCandidate}
+            onDestinationSelect={setDestinationCandidate}
+            onSwap={() => {
+              setOrigin(destination)
+              setDestination(origin)
+              setOriginCandidate(destinationCandidate)
+              setDestinationCandidate(originCandidate)
+            }}
             onSubmit={() => void runSearch(profile)}
             searching={searching}
             profiles={profiles.data ?? []}
@@ -325,7 +384,7 @@ export function PlanTripPage() {
             />
           )}
 
-        </div>
+        </div>}
 
         {/*
           The selected route's reasoning sits in the opposite corner from the
@@ -334,13 +393,13 @@ export function PlanTripPage() {
           three options — the explanation ended up covering the option it was
           explaining.
         */}
-        {selectedJourney && (
+        {selectedJourney && !session && (
           <div className="plan-note-slot">
             <SelectionSummary option={selectedJourney} />
           </div>
         )}
 
-        <div className="plan-drawer-slot">
+        {!session && <div className="plan-drawer-slot">
           <RouteDrawer
             result={result}
             selectedJourneyId={selectedJourneyId}
@@ -357,24 +416,30 @@ export function PlanTripPage() {
             activeLegIndex={activeLegIndex}
             onSelectLeg={setActiveLegIndex}
           />
-        </div>
+        </div>}
 
-        {checkout && result && (
-          <CheckoutSheet
-            option={checkout.option}
+        {(tripCandidate || session) && (
+          <TransitSessionSheet
+            option={tripCandidate}
             result={result}
+            session={session}
             payment={payment}
             processing={choosingJourneyId !== null}
             error={paymentError}
             onClose={() => {
               if (choosingJourneyId === null) {
-                setCheckout(null)
+                setTripCandidate(null)
+                if (session?.status === 'NO_CHARGE' || session?.status === 'PAID') {
+                  setSession(null)
+                }
                 setPayment(null)
                 setPaymentError(null)
               }
             }}
-            onPay={(method) => void payForJourney(method)}
-            onRetry={() => void retryPayment()}
+            onStart={() => void startTrip()}
+            onAdvance={() => void updateSession('advance')}
+            onEnd={() => void updateSession('end')}
+            onPay={(method) => void payForSession(method)}
           />
         )}
       </div>
@@ -382,6 +447,30 @@ export function PlanTripPage() {
       <BottomNav />
     </div>
   )
+}
+
+function sessionAsJourney(session: TransitSession): JourneyOption {
+  return {
+    journeyId: `session:${session.id}`,
+    summary: session.summary,
+    totalMinutes: session.legs.reduce((sum, leg) => sum + leg.durationMinutes + leg.waitMinutes, 0),
+    walkingMinutes: session.legs.filter((leg) => leg.mode === 'WALK')
+      .reduce((sum, leg) => sum + leg.durationMinutes, 0),
+    transfers: Math.max(0, session.legs.filter((leg) => leg.mode !== 'WALK').length - 1),
+    fareCents: null,
+    fareStatus: 'UNKNOWN',
+    fareSource: 'FAREFLOW_USAGE_SIMULATION',
+    fareBreakdown: session.fareBreakdown,
+    labels: [],
+    recommended: true,
+    score: 0,
+    explanation: 'Active FareFlow transit session',
+    dataSource: session.dataSource,
+    usageFareMinCents: session.estimatedFareMinCents,
+    usageFareMaxCents: session.estimatedFareMaxCents,
+    usagePricingVersion: session.pricingVersion,
+    legs: session.legs,
+  }
 }
 
 /**

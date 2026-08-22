@@ -8,9 +8,10 @@ import java.util.List;
 /**
  * Produces candidate journeys between two resolved places.
  *
- * <p>The seam that keeps the optimization engine ignorant of data sources. A GTFS
- * loader or a third-party transit API would implement this and everything
- * downstream — fares, scoring, explanations, the map — would be unchanged.
+ * <p>The seam that keeps the optimization engine ignorant of data sources. Google
+ * Routes, imported GTFS, and the curated fallback all implement this contract, so
+ * everything downstream—usage fares, scoring, payments, explanations, and the
+ * map—remains FareFlow-owned.
  */
 public interface RouteDiscoveryProvider {
 

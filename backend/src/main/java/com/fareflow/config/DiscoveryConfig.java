@@ -2,6 +2,8 @@ package com.fareflow.config;
 
 import com.fareflow.discovery.NetworkRouteDiscoveryProvider;
 import com.fareflow.discovery.RouteDiscoveryProvider;
+import com.fareflow.gtfs.GtfsStopService;
+import com.fareflow.google.GoogleRoutesTransitProvider;
 import com.fareflow.location.GeocodingProvider;
 import com.fareflow.location.StaticGeocodingProvider;
 import com.fareflow.location.TomTomGeocodingProvider;
@@ -10,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -53,8 +56,22 @@ public class DiscoveryConfig {
 
     @Bean
     public com.fareflow.location.LocationService locationService(
-            GeocodingProvider primary, StaticGeocodingProvider fallback) {
-        return new com.fareflow.location.LocationService(primary, fallback);
+            GeocodingProvider primary, StaticGeocodingProvider fallback,
+            GtfsStopService gtfsStops) {
+        return new com.fareflow.location.LocationService(primary, fallback, gtfsStops);
+    }
+
+    @Bean
+    @Order(0)
+    public RouteDiscoveryProvider googleRoutesTransitProvider(
+            @Value("${fareflow.google-routes.api-key:}") String apiKey,
+            RestClient.Builder restClientBuilder,
+            java.time.Clock clock) {
+        RestClient client = restClientBuilder
+                .baseUrl("https://routes.googleapis.com")
+                .requestFactory(routesTimeoutFactory())
+                .build();
+        return new GoogleRoutesTransitProvider(client, apiKey, clock);
     }
 
     @Bean
@@ -67,6 +84,14 @@ public class DiscoveryConfig {
         var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) Duration.ofSeconds(3).toMillis());
         factory.setReadTimeout((int) Duration.ofSeconds(5).toMillis());
+        return factory;
+    }
+
+    /** Transit route computation can take longer than place autocomplete. */
+    private static org.springframework.http.client.ClientHttpRequestFactory routesTimeoutFactory() {
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(3).toMillis());
+        factory.setReadTimeout((int) Duration.ofSeconds(12).toMillis());
         return factory;
     }
 }

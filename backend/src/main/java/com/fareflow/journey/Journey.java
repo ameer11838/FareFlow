@@ -16,8 +16,15 @@ public record Journey(
         String originName,
         String destinationName,
         List<JourneyLeg> legs,
-        String dataSource
+        String dataSource,
+        ProviderFare providerFare
 ) {
+
+    /** Compatibility constructor for providers that do not return a route-level fare. */
+    public Journey(String id, String originName, String destinationName,
+                   List<JourneyLeg> legs, String dataSource) {
+        this(id, originName, destinationName, legs, dataSource, null);
+    }
 
     public Journey {
         if (legs == null || legs.isEmpty()) {
@@ -33,6 +40,24 @@ public record Journey(
                     && legs.get(index).mode() == TransitMode.WALK) {
                 throw new IllegalArgumentException(
                         "Walking legs must only connect a rider to public transit");
+            }
+        }
+    }
+
+    /**
+     * A route provider's published/estimated fare quote. This is comparison data,
+     * never FareFlow's final usage-based charge.
+     */
+    public record ProviderFare(long amountCents, String currencyCode, String providerName) {
+        public ProviderFare {
+            if (amountCents < 0) {
+                throw new IllegalArgumentException("provider fare must not be negative");
+            }
+            if (currencyCode == null || currencyCode.isBlank()) {
+                throw new IllegalArgumentException("provider fare currency is required");
+            }
+            if (providerName == null || providerName.isBlank()) {
+                throw new IllegalArgumentException("provider fare source is required");
             }
         }
     }
@@ -87,7 +112,9 @@ public record Journey(
         public static final String GTFS_SCHEDULE = "GTFS_SCHEDULE";
         /** A scheduled GTFS route with at least one fresh GTFS-Realtime fact applied. */
         public static final String GTFS_REALTIME = "GTFS_REALTIME";
-        /** Reserved: a provider API that supplies its own complete itinerary. */
+        /** A complete U.S. transit itinerary returned by Google Maps Routes API. */
+        public static final String GOOGLE_ROUTES = "GOOGLE_ROUTES";
+        /** Reserved: another provider API that supplies its own complete itinerary. */
         public static final String LIVE_FEED = "LIVE_FEED";
 
         private DataSource() {

@@ -275,6 +275,9 @@
 .history-breakdowns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); }
 .history-breakdowns > div { min-width: 0; }
 .history-breakdowns h3 { margin-bottom: var(--space-4); font-size: var(--text-sm); }
+.history-unit-metrics { margin-top: calc(-1 * var(--space-2)); }
+.history-routes { display: grid; gap: var(--space-3); padding-top: var(--space-2); }
+.history-routes h3 { font-size: var(--text-sm); }
 
 /* ============================================================================
    STATES

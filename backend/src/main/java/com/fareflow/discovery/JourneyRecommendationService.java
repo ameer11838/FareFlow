@@ -14,6 +14,7 @@ import com.fareflow.recommendation.dto.ProfileDto;
 import com.fareflow.recommendation.dto.WeightsDto;
 import com.fareflow.recommendation.optimization.*;
 import com.fareflow.exception.ResourceNotFoundException;
+import com.fareflow.session.UsageFareEngine;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,17 +40,20 @@ public class JourneyRecommendationService {
     private final RouteScorer routeScorer;
     private final ExplanationBuilder explanationBuilder;
     private final PreferenceResolver preferenceResolver;
+    private final UsageFareEngine usageFareEngine;
 
     public JourneyRecommendationService(LocationService locationService,
                                         JourneyPlanningService planningService,
                                         RouteScorer routeScorer,
                                         ExplanationBuilder explanationBuilder,
-                                        PreferenceResolver preferenceResolver) {
+                                        PreferenceResolver preferenceResolver,
+                                        UsageFareEngine usageFareEngine) {
         this.locationService = locationService;
         this.planningService = planningService;
         this.routeScorer = routeScorer;
         this.explanationBuilder = explanationBuilder;
         this.preferenceResolver = preferenceResolver;
+        this.usageFareEngine = usageFareEngine;
     }
 
     public JourneySearchResponse search(String originQuery,
@@ -74,10 +78,10 @@ public class JourneyRecommendationService {
         if (priced.isEmpty()) {
             return new JourneySearchResponse(origin, destination, profile, weightsDto,
                     budgetContext(context),
-                    "FareFlow does not have transit coverage between these places yet.",
+                    "No public-transit route was returned between these places.",
                     null, List.of(),
-                    List.of("No journeys found. FareFlow's network currently covers the "
-                            + "Philadelphia–New York corridor."));
+                    List.of("Google Routes, imported GTFS, and FareFlow's curated fallback "
+                            + "returned no public-transit itinerary. No schedule was invented."));
         }
 
         // Index by synthetic id so scored results can be mapped back to journeys.
@@ -156,7 +160,12 @@ public class JourneyRecommendationService {
                 Journey.DataSource.GTFS_SCHEDULE.equals(entry.journey().dataSource()));
         boolean curated = priced.stream().anyMatch(entry ->
                 Journey.DataSource.CURATED_NETWORK.equals(entry.journey().dataSource()));
-        if (gtfsRealtime) {
+        boolean googleRoutes = priced.stream().anyMatch(entry ->
+                Journey.DataSource.GOOGLE_ROUTES.equals(entry.journey().dataSource()));
+        if (googleRoutes) {
+            notices.add("Routes, stops, times, operators, and map geometry come from Google Maps. "
+                    + "FareFlow independently scores routes and calculates its simulated usage fare.");
+        } else if (gtfsRealtime) {
             notices.add("Fresh GTFS-Realtime updates are applied only to the trips that agencies reported; "
                     + "an unreported trip is not assumed to be on time.");
         } else if (gtfsSchedule) {
@@ -186,11 +195,12 @@ public class JourneyRecommendationService {
                 context.profile(), ranked.getFirst(), balancedRanking.getFirst());
     }
 
-    private static JourneyOptionDto toDto(ScoredRoute scored,
-                                          JourneyPlanningService.PricedJourney entry,
-                                          Map<Long, String> explanations) {
+    private JourneyOptionDto toDto(ScoredRoute scored,
+                                   JourneyPlanningService.PricedJourney entry,
+                                   Map<Long, String> explanations) {
         Journey journey = entry.journey();
         FareCalculation fare = entry.fare();
+        var usage = usageFareEngine.estimate(journey);
 
         return new JourneyOptionDto(
                 journey.id(),
@@ -211,6 +221,9 @@ public class JourneyRecommendationService {
                         : "This option has no published fare FareFlow can compute, so it is "
                           + "not compared on cost.",
                 journey.dataSource(),
+                usage.minimumCents(),
+                usage.maximumCents(),
+                usage.pricingVersion(),
                 journey.legs().stream().map(JourneyRecommendationService::toLegDto).toList());
     }
 

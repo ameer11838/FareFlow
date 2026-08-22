@@ -4,12 +4,25 @@ FareFlow is a public-transit and fintech platform that helps riders plan, compar
 pay for, travel, and track train, subway, bus, and ferry journeys based on travel
 time, fare cost, transfers, walking connections, personal budget, and current context.
 
+Google Maps Routes API is the primary route-discovery source, using
+`travelMode: TRANSIT` for U.S. coverage wherever Google returns transit service.
+Imported GTFS/GTFS-Realtime and the curated network remain optional fallback and
+enrichment providers. FareFlow, not Google, owns recommendation scoring, usage
+pricing, payments, wallet balances, history, analytics, and personalization.
+
 Cars, taxis, rideshare, flights, and bicycle routing are deliberately outside the
-product. The product loop is:
+product. FareFlow's usage-priced product loop is:
 
 ```
-PLAN → COMPARE → CHOOSE → PAY → TRAVEL → TRACK → PERSONALIZE
+FIND ROUTE → SELECT TRANSIT → START TRIP → TRACK → END TRIP → CALCULATE FARE → PAY → HISTORY
 ```
+
+Usage pricing is a FareFlow simulation, not an agency tariff or claim of agency
+acceptance. A rider starts at $0, confirms actual transit progress, and the server
+calculates a configurable fare from mode, distance, and stops. The current fare
+updates only when a stop is confirmed complete; distance is recognized at that
+stop boundary. Elapsed time is recorded for trip history but waiting and delays
+never increase the fare.
 
 The core idea: the *best* route is not always the cheapest or the fastest one.
 
@@ -148,9 +161,17 @@ Open http://localhost:5173. On first run you will be asked to create a profile.
 
 **Optional — the map basemap.** Set `VITE_TOMTOM_API_KEY` in `frontend/.env` with a
 free key from <https://developer.tomtom.com/> (Maps SDK for Web). Without it, Plan
-Trip renders a schematic route diagram instead of TomTom tiles; everything else —
+Trip renders an honest coordinate-based schematic instead of TomTom tiles; everything else —
 scoring, recommendations, route selection, trip creation — works identically.
-See [docs/MAP.md](docs/MAP.md).
+Place search and Google transit routing are U.S.-wide when their respective keys are
+configured. Imported nearby-stop markers still appear only where a GTFS feed has
+successfully imported. See
+[docs/MAP.md](docs/MAP.md) and [docs/TRANSIT_DATA.md](docs/TRANSIT_DATA.md).
+
+**Optional — nationwide transit routing.** Set `GOOGLE_MAPS_ROUTES_API_KEY` in the
+root `.env` to a Google Maps Platform key with the Routes API enabled. This is a
+server-side credential and is intentionally separate from `GEMINI_API_KEY`. Without
+it, routing falls through to imported GTFS and the curated offline network.
 
 **Optional — Ask FareFlow.** Set `GEMINI_API_KEY` in the root `.env`. Without
 it the assistant panel shows a configuration notice and the planner, wallet,
@@ -168,8 +189,8 @@ curl "http://localhost:8080/api/recommendations?origin=Newark&destination=Manhat
 ## Tests
 
 ```bash
-cd backend  && mvn test          # 252 tests
-cd frontend && npm test          # 129 tests
+cd backend  && mvn test          # 282 tests
+cd frontend && npm test          # 133 tests
 cd frontend && npm run typecheck
 ```
 
@@ -198,6 +219,7 @@ com.fareflow
 ├── recommendation/
 │   └── optimization/    ⭐ the scoring engine — no Spring, no JPA, no HTTP
 ├── trip/            trip creation and cancellation
+├── session/         usage-priced session lifecycle and fare engine
 ├── payment/         provider-neutral intent lifecycle + reconciliation
 ├── ledger/          append-only financial ledger
 ├── user/            users and weekly budgets
@@ -358,10 +380,10 @@ Plan Trip is a full-viewport map with floating panels, deliberately different fr
 the sidebar shell the reporting pages use. Clicking a route card highlights its line;
 clicking a line selects its card. They share one piece of state.
 
-Geometry comes only from transit data. Curated routes use published station
-coordinates; GTFS routes use imported official stops. FareFlow does not draw a
-driving route and relabel it as transit. Until `shapes.txt` is ingested, lines between
-stops remain explicitly schematic.
+Geometry comes only from transit data. Google journeys use the step polylines from
+its `TRANSIT` response. Curated routes use published station coordinates and GTFS
+routes use imported official stops, so those fallback lines remain explicitly
+schematic. FareFlow never draws a driving route and relabels it as transit.
 
 Four layers stay separate — transit/fare data, route geometry, recommendation logic,
 and map rendering. The invariant that matters: **`RouteCandidate`, the type the
@@ -372,10 +394,15 @@ See [docs/MAP.md](docs/MAP.md) for what is real versus approximate.
 
 ### Route sources
 
-Journey discovery is provider-neutral. Imported GTFS Schedule data is tried first;
-the curated Philadelphia–New York graph remains an offline fallback. Both produce
-the same `Journey` model, so fare calculation, recommendation scoring, payments,
-personalization, AI tools, itinerary rendering, and map selection stay downstream.
+Journey discovery is provider-neutral. Google Routes transit is tried first,
+imported GTFS Schedule second, and the curated Philadelphia–New York graph remains
+an offline fallback. Every provider produces the same `Journey` model, so FareFlow's
+recommendation scoring, usage fare, payments, personalization, AI tools, itinerary
+rendering, and map selection remain downstream.
+
+Google's estimated transit fare is used for comparison only when the response
+contains a complete USD fare. An absent fare stays unavailable. It never determines
+the final FareFlow usage charge, which is calculated after confirmed stop progress.
 
 GTFS identifiers are feed-scoped and normalized in Postgres. Routing is
 time-dependent, honors calendars and date exceptions, can transfer across agencies,
@@ -468,7 +495,10 @@ Deliberate Phase 1 scope, not oversights:
 - **No rate limiting** on `/api/auth/login` or `/api/auth/register`. Registration also
   reveals whether an email is already taken, which is unavoidable for a usable signup flow;
   rate limiting is the real mitigation.
-- **GTFS coverage is opt-in and publisher-dependent.** Boston MBTA, Chicago CTA, and
+- **Google transit coverage is provider-dependent.** A Maps Platform key with Routes
+  API enabled is required, and an empty Google response remains empty rather than
+  becoming a fabricated itinerary. GTFS then acts as a fallback where imported.
+- **GTFS enrichment is opt-in and publisher-dependent.** Boston MBTA, Chicago CTA, and
   Bay Area BART feeds are registered, but a region is only marked supported after a
   successful import whose service window is current. The curated Philadelphia–New
   York network remains the offline fallback. See `docs/TRANSIT_DATA.md`.
@@ -497,8 +527,9 @@ Deliberate Phase 1 scope, not oversights:
   ranking today; the ranking has no mode-affinity term to feed. Stored for when it does.
 - **The selected-route note can overlap the results drawer** on short viewports when many
   options are returned. Pre-existing Plan-overlay behaviour, not introduced by onboarding.
-- **Map geometry is schematic.** Curated station or official GTFS stop coordinates are
-  connected by straight lines. Track-accurate geometry requires GTFS `shapes.txt`.
+- **Fallback map geometry is schematic.** Google routes use provider polylines;
+  curated station and GTFS stop coordinates are connected schematically until GTFS
+  `shapes.txt` ingestion is added.
 - **Geocoding degrades to a finite gazetteer.** TomTom Search handles broad free-text
   coverage when configured; the keyless fallback includes major supported-region places.
 - **No Docker, CI, metrics, or tracing.**

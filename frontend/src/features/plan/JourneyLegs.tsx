@@ -26,6 +26,10 @@ export function JourneyLegs({ legs, activeLegIndex = null, onSelectLeg }: {
       {legs.map((leg, index) => {
         const walking = leg.mode === 'WALK'
         const selected = activeLegIndex === index
+        // Google polylines contain unnamed shape points. Only provider-supplied
+        // stop names belong in the itinerary; geometry must never become a fake stop.
+        const namedIntermediateStops = leg.waypoints.slice(1, -1)
+          .filter((stop) => stop.name.trim().length > 0)
         return (
           <li key={index} className={`leg${walking ? ' leg-walk' : ''}${selected ? ' active' : ''}`}>
             <button
@@ -71,9 +75,9 @@ export function JourneyLegs({ legs, activeLegIndex = null, onSelectLeg }: {
                       Ride {formatMinutes(leg.durationMinutes)}{stopCount(leg)}
                       {leg.arrivalTime && <> · Arrive {formatTransitTime(leg.arrivalTime)}</>}
                     </span>
-                    {leg.waypoints.length > 2 && (
+                    {namedIntermediateStops.length > 0 && (
                       <span className="leg-stops">
-                        Via {leg.waypoints.slice(1, -1).map((stop) => stop.name).join(' · ')}
+                        Via {namedIntermediateStops.map((stop) => stop.name).join(' · ')}
                       </span>
                     )}
                   </>

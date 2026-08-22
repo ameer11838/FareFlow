@@ -38,6 +38,17 @@ fareflow:
     default-time-priority: 0.45
     default-transfer-priority: 0.10
     budget-pressure-beta: 0.40
+  usage-pricing:
+    version: FAREFLOW_USAGE_V1
+    bus: { base-cents: 85, cents-per-mile: 8, cents-per-stop: 3 }
+    rail: { base-cents: 120, cents-per-mile: 10, cents-per-stop: 5 }
+    subway: { base-cents: 100, cents-per-mile: 8, cents-per-stop: 4 }
+    light-rail: { base-cents: 90, cents-per-mile: 8, cents-per-stop: 3 }
+    ferry: { base-cents: 175, cents-per-mile: 14, cents-per-stop: 6 }
+  google-routes:
+    # Unit tests exercise the provider against a mock HTTP server. Integration
+    # tests keep external routing disabled and deterministic.
+    api-key: ""
   cors:
     allowed-origins: http://localhost:5173
 

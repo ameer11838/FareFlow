@@ -1,21 +1,20 @@
 import { useMemo } from 'react'
-import type { JourneyOption } from '../../../api/types'
+import type { JourneyOption, LocationCandidate, TransitStop } from '../../../api/types'
 import { AlertIcon } from '../../../components/Icons'
 
 /**
  * Fallback route view used when no TomTom key is configured.
  *
- * This is a working schematic, not a placeholder: it projects the same real station
- * coordinates the TomTom layer uses, supports the same selection interaction, and
- * keeps the rest of Plan Trip fully functional. What it lacks is the basemap —
- * streets, water, and labels — which is precisely what the TomTom key buys.
+ * This is a working fallback, not a placeholder: it projects the same provider
+ * geometry and stop coordinates the TomTom layer uses, supports the same selection
+ * interaction, and keeps Plan Trip functional without a street basemap.
  *
  * Rendering it honestly matters: it is clearly labelled as a schematic so nobody
  * mistakes it for a real map.
  */
 export function SchematicMap({
   journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
-  onSelectJourney, onSelectLeg, reason,
+  onSelectJourney, onSelectLeg, reason, focusLocations = [], nearbyStops = [],
 }: {
   journeys: JourneyOption[]
   selectedJourneyId: string | null
@@ -24,17 +23,34 @@ export function SchematicMap({
   activeLegIndex?: number | null
   onSelectLeg?: (journeyId: string, legIndex: number) => void
   reason: string
+  focusLocations?: LocationCandidate[]
+  nearbyStops?: TransitStop[]
 }) {
   const drawable = journeys
     .map((option) => ({
       id: option.journeyId,
       name: option.summary,
+      hasProviderGeometry: option.dataSource === 'GOOGLE_ROUTES',
       waypoints: option.legs.flatMap((leg) => leg.waypoints),
       legs: option.legs,
     }))
     .filter((entry) => entry.waypoints.length > 1)
+  const hasGoogleGeometry = drawable.some((entry) => entry.hasProviderGeometry)
 
-  const projection = useMemo(() => buildProjection(drawable), [drawable])
+  const contextPoints = [
+    ...focusLocations.map((place) => ({
+      latitude: place.latitude, longitude: place.longitude, name: place.displayName,
+    })),
+    ...nearbyStops.map((stop) => ({
+      latitude: stop.latitude, longitude: stop.longitude, name: stop.name,
+    })),
+  ]
+  const projection = useMemo(
+    () => buildProjection(drawable, contextPoints),
+    // The coordinate key avoids recomputing for otherwise identical API objects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [drawable, contextPoints.map((point) => `${point.latitude},${point.longitude}`).join('|')],
+  )
 
   return (
     <div className="map-canvas map-canvas-schematic" data-testid="schematic-map">
@@ -45,7 +61,9 @@ export function SchematicMap({
           {reason === 'missing-key'
             ? 'Set VITE_TOMTOM_API_KEY to load the TomTom basemap.'
             : reason}{' '}
-          Station positions are real; connecting lines are indicative.
+          {hasGoogleGeometry
+            ? ' Google routes use provider geometry; fallback routes connect real stops schematically.'
+            : ' Station positions are real; connecting lines are indicative.'}
         </span>
       </div>
 
@@ -63,6 +81,29 @@ export function SchematicMap({
             </pattern>
           </defs>
           <rect width={projection.width} height={projection.height} fill="url(#grid)" />
+
+          {drawable.length === 0 && nearbyStops.map((stop) => {
+            const point = projection.project(stop)
+            return (
+              <circle key={stop.id} cx={point.x} cy={point.y} r={4.5}
+                      fill="#fff" stroke="var(--color-accent)" strokeWidth={2}>
+                <title>{stop.name} · {stop.modes.join(', ')}</title>
+              </circle>
+            )
+          })}
+
+          {drawable.length === 0 && focusLocations.map((place) => {
+            const point = projection.project(place)
+            return (
+              <g key={place.providerPlaceId ?? place.displayName}>
+                <circle cx={point.x} cy={point.y} r={9} fill="var(--color-accent)"
+                        stroke="#fff" strokeWidth={3} />
+                <text x={point.x + 16} y={point.y + 4} className="map-schematic-label">
+                  {place.displayName}
+                </text>
+              </g>
+            )
+          })}
 
           {/* Unselected routes first so the selected line draws on top. */}
           {[...drawable]
@@ -83,7 +124,7 @@ export function SchematicMap({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeOpacity={isSelected ? 1 : isHighlighted ? 0.85 : 0.45}
-                    strokeDasharray={isSelected ? undefined : '7 6'}
+                    strokeDasharray={route.hasProviderGeometry || isSelected ? undefined : '7 6'}
                   />
                   <path
                     d={path}
@@ -96,17 +137,26 @@ export function SchematicMap({
                     <title>{route.name}</title>
                   </path>
 
-                  {isSelected && points.slice(1, -1).map((point, index) => (
-                    <circle
-                      key={index}
-                      cx={point.x}
-                      cy={point.y}
-                      r={4.5}
-                      fill="#fff"
-                      stroke="var(--color-accent)"
-                      strokeWidth={2.5}
-                    />
-                  ))}
+                  {isSelected && route.waypoints.slice(1, -1)
+                    .filter((point) => point.name.trim().length > 0)
+                    .filter((point, index, all) => index === all.findIndex((candidate) =>
+                      candidate.name === point.name
+                      && candidate.latitude === point.latitude
+                      && candidate.longitude === point.longitude))
+                    .map((waypoint, index) => {
+                      const point = projection.project(waypoint)
+                      return (
+                        <circle
+                          key={index}
+                          cx={point.x}
+                          cy={point.y}
+                          r={4.5}
+                          fill="#fff"
+                          stroke="var(--color-accent)"
+                          strokeWidth={2.5}
+                        />
+                      )
+                    })}
                   {isSelected && route.legs.map((leg, legIndex) => {
                     if (leg.waypoints.length < 2) return null
                     const legPoints = leg.waypoints.map((point) => projection.project(point))
@@ -173,7 +223,7 @@ export function SchematicMap({
 
       {!projection && (
         <div className="map-loading">
-          <span className="muted">Search for a route to see it here.</span>
+          <span className="muted">Choose a station or search for a route to see it here.</span>
         </div>
       )}
     </div>
@@ -190,9 +240,12 @@ interface Projection {
  * Equirectangular projection fitted to the bounding box of all routes. Good enough
  * at city scale, and honest: this is a diagram, not a survey.
  */
-function buildProjection(routes: { waypoints: { latitude: number; longitude: number }[] }[]): Projection | null {
-  const points = routes.flatMap((route) => route.waypoints)
-  if (points.length < 2) return null
+function buildProjection(
+  routes: { waypoints: { latitude: number; longitude: number }[] }[],
+  contextPoints: { latitude: number; longitude: number }[] = [],
+): Projection | null {
+  const points = [...routes.flatMap((route) => route.waypoints), ...contextPoints]
+  if (points.length === 0) return null
 
   const lats = points.map((point) => point.latitude)
   const lngs = points.map((point) => point.longitude)

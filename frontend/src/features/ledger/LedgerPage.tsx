@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ledgerApi } from '../../api'
-import type { LedgerEntry, LedgerEntryType, Page } from '../../api/types'
+import { ledgerApi, paymentsApi } from '../../api'
+import type { LedgerEntry, LedgerEntryType, Page, PaymentIntent } from '../../api/types'
 import { PaymentHistoryIcon, SearchIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Section, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useCurrentUser } from '../../hooks/useAuth'
-import { formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
+import { formatCents, formatDateTime, formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
 
 /**
  * The payment history, and deliberately the densest screen in the app.
@@ -38,6 +38,12 @@ export function LedgerPage() {
     () => ledgerApi.list(page),
     [page],
   )
+  const {
+    data: payments,
+    loading: paymentsLoading,
+    error: paymentsError,
+    refetch: refetchPayments,
+  } = useAsync<Page<PaymentIntent> | null>(() => paymentsApi.list(page), [page])
 
   /*
    * Filtering happens over the loaded page, not over the whole ledger: the API
@@ -74,7 +80,27 @@ export function LedgerPage() {
         )}
       />
 
-      <Section>
+      <Section
+        title="Receipts"
+        caption="Trip, payment method, status, and provider reference stay together for review."
+      >
+        <Card className="receipt-list">
+          {paymentsLoading && <div className="card-body"><Skeleton height={120} /></div>}
+          {paymentsError && (
+            <div className="card-body"><ErrorState error={paymentsError} onRetry={refetchPayments} /></div>
+          )}
+          {payments && payments.content.length === 0 && (
+            <div className="receipt-empty">
+              Receipts appear after a payment is created for a completed trip.
+            </div>
+          )}
+          {payments?.content.map((payment) => (
+            <PaymentReceipt key={payment.id} payment={payment} />
+          ))}
+        </Card>
+      </Section>
+
+      <Section title="Account activity" caption="Append-only charges, refunds, and corrections.">
         <div className="ledger-controls">
           <div className="filter-row" role="group" aria-label="Filter by entry type">
             {FILTERS.map((option) => (
@@ -187,6 +213,59 @@ export function LedgerPage() {
         </Card>
       </Section>
     </div>
+  )
+}
+
+function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
+  const date = payment.settledAt ?? payment.refundedAt ?? payment.failedAt ?? payment.createdAt
+  const method = payment.paymentMethod === 'FAREFLOW_WALLET'
+    ? 'FareFlow Wallet'
+    : 'Simulated card'
+  const operator = payment.trip?.providerName ?? payment.journeySummary
+  const refunded = payment.status === 'REFUNDED'
+
+  return (
+    <details className="payment-receipt" data-testid={`receipt-${payment.id}`}>
+      <summary>
+        <span className={`payment-state-dot state-${payment.status.toLowerCase()}`} aria-hidden="true" />
+        <span className="receipt-trip">
+          <strong>{payment.origin} → {payment.destination}</strong>
+          <small>{operator} · {formatDateTime(date)}</small>
+        </span>
+        <span className="receipt-method">{method}</span>
+        <span className={`receipt-status status-${payment.status.toLowerCase()}`}>
+          {refunded ? 'Refunded' : payment.status.toLowerCase()}
+        </span>
+        <strong className="receipt-fare numeric">{formatCents(payment.amountCents)}</strong>
+      </summary>
+      <div className="receipt-detail">
+        <dl>
+          <div><dt>Payment ID</dt><dd className="numeric">{payment.id}</dd></div>
+          <div><dt>Payment method</dt><dd>{method}</dd></div>
+          <div><dt>Fare</dt><dd className="numeric">{formatCents(payment.amountCents)}</dd></div>
+          <div><dt>Refund status</dt><dd>{refunded ? `Refunded ${formatDateTime(payment.refundedAt!)}` : 'Not refunded'}</dd></div>
+          {payment.providerReference && (
+            <div><dt>Reference</dt><dd className="numeric">{payment.providerReference}</dd></div>
+          )}
+        </dl>
+        {payment.trip && (
+          <Link className="btn btn-sm" to={`/trips?trip=${payment.trip.id}`}>
+            Open trip
+          </Link>
+        )}
+        {payment.events.length > 0 && (
+          <ol className="receipt-events" aria-label="Payment status timeline">
+            {payment.events.map((event) => (
+              <li key={event.id}>
+                <span className={`payment-state-dot state-${event.toStatus.toLowerCase()}`} aria-hidden="true" />
+                <span><strong>{event.toStatus.toLowerCase()}</strong><small>{event.reason}</small></span>
+                <time dateTime={event.occurredAt}>{formatDateTime(event.occurredAt)}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </details>
   )
 }
 

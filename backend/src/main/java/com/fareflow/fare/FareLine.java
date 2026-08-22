@@ -11,6 +11,7 @@ public record FareLine(String label, long amountCents, FareLineType type) {
 
     public enum FareLineType {
         BASE_FARE,
+        PROVIDER_FARE,
         TRANSFER_CREDIT,
         CAP_ADJUSTMENT,
         PASS_ADJUSTMENT,
@@ -20,6 +21,10 @@ public record FareLine(String label, long amountCents, FareLineType type) {
 
     public static FareLine base(String label, long cents) {
         return new FareLine(label, cents, FareLineType.BASE_FARE);
+    }
+
+    public static FareLine providerFare(String label, long cents) {
+        return new FareLine(label, cents, FareLineType.PROVIDER_FARE);
     }
 
     public static FareLine transferCredit(String label, long cents) {

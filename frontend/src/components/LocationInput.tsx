@@ -145,10 +145,15 @@ export function LocationInput({
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => select(candidate)}
               >
-                <span className="location-name">{candidate.displayName}</span>
+                <span className="location-option-head">
+                  <span className={`location-kind${candidate.source === 'GTFS' ? ' is-transit' : ''}`}
+                        aria-hidden="true" />
+                  <span className="location-name">{candidate.displayName}</span>
+                </span>
                 {(candidate.locality || candidate.region) && (
                   <span className="location-meta">
                     {[candidate.locality, candidate.region].filter(Boolean).join(', ')}
+                    {candidate.source === 'GTFS' ? ' · Imported schedule' : ''}
                   </span>
                 )}
               </button>

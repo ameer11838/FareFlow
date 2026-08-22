@@ -8,6 +8,7 @@ import com.fareflow.payment.PaymentService;
 import com.fareflow.payment.dto.PaymentIntentResponse;
 import com.fareflow.user.User;
 import com.fareflow.wallet.dto.WalletResponse;
+import com.fareflow.session.TransitSessionService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,13 +29,16 @@ public class WalletService {
     private final BudgetService budgetService;
     private final LedgerService ledgerService;
     private final PaymentService paymentService;
+    private final TransitSessionService transitSessionService;
 
     public WalletService(BudgetService budgetService,
                          LedgerService ledgerService,
-                         PaymentService paymentService) {
+                         PaymentService paymentService,
+                         TransitSessionService transitSessionService) {
         this.budgetService = budgetService;
         this.ledgerService = ledgerService;
         this.paymentService = paymentService;
+        this.transitSessionService = transitSessionService;
     }
 
     public WalletResponse forUser(User user) {
@@ -56,7 +60,8 @@ public class WalletService {
                 summary.budgetUtilization(),
                 paymentMethods(),
                 recent,
-                recentPayments);
+                recentPayments,
+                transitSessionService.active(user).orElse(null));
     }
 
     /**

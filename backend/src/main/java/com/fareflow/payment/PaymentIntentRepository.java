@@ -11,6 +11,7 @@ public interface PaymentIntentRepository extends JpaRepository<PaymentIntent, UU
     Optional<PaymentIntent> findByUserIdAndIdempotencyKey(long userId, String idempotencyKey);
     Optional<PaymentIntent> findByUserIdAndId(long userId, UUID id);
     Optional<PaymentIntent> findByTripId(long tripId);
+    Optional<PaymentIntent> findByTransitSessionId(UUID transitSessionId);
     Page<PaymentIntent> findByUserIdOrderByCreatedAtDesc(long userId, Pageable pageable);
     long countByStatus(PaymentStatus status);
 }

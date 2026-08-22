@@ -21,6 +21,7 @@ import com.fareflow.trip.TripRepository;
 import com.fareflow.trip.TripStatus;
 import com.fareflow.trip.dto.TripResponse;
 import com.fareflow.user.User;
+import com.fareflow.session.TransitSessionService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.FunctionDeclaration;
@@ -89,6 +90,7 @@ public class AssistantToolbox {
     private final TripRepository tripRepository;
     private final PassOptimizationService passOptimizationService;
     private final JourneyRecommendationService journeyRecommendationService;
+    private final TransitSessionService transitSessionService;
     private final Clock clock;
 
     public AssistantToolbox(ObjectMapper objectMapper,
@@ -99,6 +101,7 @@ public class AssistantToolbox {
                             TripRepository tripRepository,
                             PassOptimizationService passOptimizationService,
                             JourneyRecommendationService journeyRecommendationService,
+                            TransitSessionService transitSessionService,
                             Clock clock) {
         this.objectMapper = objectMapper;
         this.budgetService = budgetService;
@@ -108,6 +111,7 @@ public class AssistantToolbox {
         this.tripRepository = tripRepository;
         this.passOptimizationService = passOptimizationService;
         this.journeyRecommendationService = journeyRecommendationService;
+        this.transitSessionService = transitSessionService;
         this.clock = clock;
     }
 
@@ -199,6 +203,17 @@ public class AssistantToolbox {
                         plainly when there is no active route search on the current page.""",
                         Map.of(), List.of()),
 
+                tool("get_active_transit_session",
+                        """
+                        The rider's current FareFlow transit session, including its selected route, \
+                        current and next known stop, recorded stops, route-derived distance, elapsed \
+                        time, current simulated fare, final fare when ended, and whether it can be \
+                        advanced, ended, or paid. Call this for questions about an active trip, a \
+                        usage fare, a bus that did not arrive, or why the current trip costs what it \
+                        does. If no session is open, say so. This is read-only and never changes or \
+                        pays for the trip.""",
+                        Map.of(), List.of()),
+
                 tool("plan_journey",
                         """
                         Plans real public-transit journeys between two places and prices them. \
@@ -268,6 +283,8 @@ public class AssistantToolbox {
                 case "get_recent_trips" -> recentTripsOutcome(user, input);
                 case "get_pass_recommendation" -> Outcome.ok(json(passOptimizationService.recommendFor(user)));
                 case "get_current_route_search" -> currentRouteSearch(user, pageContext);
+                case "get_active_transit_session" -> Outcome.ok(json(
+                        transitSessionService.active(user).orElse(null)));
                 case "plan_journey" -> planJourney(user, input, pageContext);
                 default -> Outcome.error("Unknown tool: " + name);
             };
@@ -435,7 +452,8 @@ public class AssistantToolbox {
                     option.journeyId(), option.summary(), option.totalMinutes(), option.walkingMinutes(),
                     option.transfers(), option.fareCents(), option.fareStatus(), option.fareSource(),
                     option.fareBreakdown(), option.labels(), index == 0, option.score(),
-                    option.explanation(), option.dataSource(), option.legs()));
+                    option.explanation(), option.dataSource(), option.usageFareMinCents(),
+                    option.usageFareMaxCents(), option.usagePricingVersion(), option.legs()));
         }
         List<String> notices = new ArrayList<>(result.notices());
         notices.add(reranked.isEmpty()

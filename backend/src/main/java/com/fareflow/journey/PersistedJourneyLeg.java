@@ -2,6 +2,7 @@ package com.fareflow.journey;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -30,6 +31,11 @@ public class PersistedJourneyLeg {
     @Column(name = "to_name", nullable = false, updatable = false) private String toName;
     @Column(name = "duration_minutes", nullable = false, updatable = false) private int durationMinutes;
     @Column(name = "wait_minutes", nullable = false, updatable = false) private int waitMinutes;
+    @Column(name = "distance_metres", updatable = false) private Double distanceMetres;
+    @Column(name = "departure_time", updatable = false) private Instant departureTime;
+    @Column(name = "arrival_time", updatable = false) private Instant arrivalTime;
+    @Column(nullable = false, updatable = false) private boolean realtime;
+    @Column(name = "stop_count", updatable = false) private Integer stopCount;
     @Column(updatable = false) private String waypoints;
 
     protected PersistedJourneyLeg() {
@@ -45,6 +51,11 @@ public class PersistedJourneyLeg {
         entity.toName = leg.toStopName();
         entity.durationMinutes = leg.durationMinutes();
         entity.waitMinutes = leg.waitMinutes();
+        entity.distanceMetres = Math.max(0, leg.distanceMetres());
+        entity.departureTime = leg.departureTime();
+        entity.arrivalTime = leg.arrivalTime();
+        entity.realtime = leg.realtime();
+        entity.stopCount = leg.stopCount();
         entity.waypoints = encode(leg.waypoints());
         return entity;
     }
@@ -83,4 +94,9 @@ public class PersistedJourneyLeg {
     public String getToName() { return toName; }
     public int getDurationMinutes() { return durationMinutes; }
     public int getWaitMinutes() { return waitMinutes; }
+    public double getDistanceMetres() { return distanceMetres == null ? 0 : distanceMetres; }
+    public Instant getDepartureTime() { return departureTime; }
+    public Instant getArrivalTime() { return arrivalTime; }
+    public boolean isRealtime() { return realtime; }
+    public Integer getStopCount() { return stopCount; }
 }

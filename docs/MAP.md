@@ -3,26 +3,26 @@
 The Plan Trip page is map-first. This document records what is real, what is
 approximate, and why the boundaries sit where they do.
 
-## The constraint that shaped everything
+## Routing geometry sources
 
-**TomTom's Routing API has no public-transit mode.** It supports car, truck,
-pedestrian, and bicycle. It cannot return the shape of a PATH train or an NJ Transit
-rail journey.
+TomTom remains the interactive basemap renderer, but route discovery no longer asks
+TomTom to calculate transit. Google Maps Routes API supplies primary U.S. transit
+itineraries and step polylines using `travelMode: TRANSIT`.
 
-That leaves three options:
+Fallback geometry follows the original truth boundary:
 
 1. Ask TomTom for a *driving* route and draw it as if it were the train. **Rejected** —
    it would be a lie rendered at GPS precision.
 2. Invent plausible-looking coordinates. **Rejected** — fabricated data.
-3. Model geometry as transit data we own, from real published station coordinates,
-   and label the connecting lines as schematic. **Chosen.**
+3. Model fallback geometry from real published station coordinates and label the
+   connecting lines as schematic. **Chosen for GTFS/curated fallback routes.**
 
 ## Four separate layers
 
 | Layer | Owns | Where |
 | --- | --- | --- |
-| **Transit & fare data** | routes, fares, durations, transfers | `route/`, `route/provider/` |
-| **Route geometry** | ordered station coordinates | `transit_route_waypoints`, `TransitRouteData.waypoints` |
+| **Transit facts** | Google Routes, imported GTFS, curated fallback | `google/`, `gtfs/`, `discovery/` |
+| **Comparison and usage fares** | provider quote when present; FareFlow session pricing | `fare/`, `session/` |
 | **Recommendation logic** | scoring, labels, explanations | `recommendation/optimization/` (pure Java) |
 | **Map rendering** | tiles, markers, lines, viewport | `features/plan/map/` (frontend only) |
 
@@ -37,6 +37,7 @@ id; it draws coordinates and reports clicks. It does not know what a fare is.
 ## What is real vs. approximate
 
 **Real:**
+- Google Routes `TRANSIT` step polylines for Google-discovered journeys.
 - Station coordinates. Newark Penn Station, Journal Square, Grove Street, Exchange
   Place, World Trade Center, Hoboken Terminal, Port Authority, Secaucus Junction,
   New York Penn Station, Princeton Junction, and the PATH 33rd Street line stops are
@@ -44,14 +45,16 @@ id; it draws coordinates and reports clicks. It does not know what a fare is.
 - TomTom basemap tiles, when a key is configured.
 
 **Approximate, and labelled as such:**
-- The lines *between* stations. These are straight segments, not track geometry.
-  Every route carries `geometry.source = "SCHEMATIC"`, the UI renders unselected
-  routes dashed, and the detail panel says so in words.
+- Geometry between stops for curated and GTFS routes without a published shape.
+  These routes connect real stop coordinates schematically and are rendered dashed.
+- FareFlow's usage-based fare range. It is a product simulation and remains separate
+  from an optional transit fare quote returned by Google.
 
-**Mocked FareFlow data (unchanged from Phase 1):**
-- Fares, durations, and transfer counts. Seeded fixtures, not live agency feeds.
+**Provider-backed when returned:**
+- Google route times, transit stops, line/operator facts, step geometry, and transit
+  fare quotes. Missing fields remain missing; FareFlow does not infer them.
 
-## Upgrading to real geometry
+## Upgrading GTFS fallback geometry
 
 `geometry_source` already allows `SURVEYED`. A `GtfsTransitRouteProvider` that loads
 `shapes.txt` would populate the same `transit_route_waypoints` structure and set that
@@ -88,10 +91,7 @@ bundle for users who never open Plan Trip.
 | Fit viewport to journey | Yes | implemented |
 | Click a line to select a route | Yes | implemented |
 | Schematic fallback | No | working now |
-| Geocoding free-text places | Yes, **and not implemented** | see below |
+| Geocoding free-text places | Server-side TomTom key | implemented |
 
-**Not implemented, and it needs the key to build meaningfully:** TomTom Search /
-Geocoding to turn arbitrary typed text ("Grand Central") into coordinates. Today the
-origin and destination pickers are constrained to the seeded location list, so
-geocoding would add nothing until the catalog covers more places. It is the natural
-next step once real transit data lands.
+TomTom Search resolves arbitrary U.S. place text when `TOMTOM_API_KEY` is configured.
+Imported GTFS stops and the built-in gazetteer remain the fallback search sources.

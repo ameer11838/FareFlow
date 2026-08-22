@@ -5,9 +5,11 @@ import com.fareflow.gtfs.GtfsImportResult;
 import com.fareflow.gtfs.GtfsRealtimeImporter;
 import com.fareflow.gtfs.GtfsRouteDiscoveryProvider;
 import com.fareflow.gtfs.GtfsScheduleImporter;
+import com.fareflow.gtfs.GtfsStopService;
 import com.fareflow.journey.Journey;
 import com.fareflow.journey.TransitMode;
 import com.fareflow.location.LocationCandidate;
+import com.fareflow.location.LocationService;
 import com.google.transit.realtime.GtfsRealtime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +48,12 @@ class GtfsTransitIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private GtfsCoverageService coverageService;
+
+    @Autowired
+    private GtfsStopService stopService;
+
+    @Autowired
+    private LocationService locationService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -99,6 +107,52 @@ class GtfsTransitIntegrationTest extends IntegrationTestBase {
             assertThat(leg.arrivalTime()).isAfter(leg.departureTime());
             assertThat(leg.stopCount()).isPositive();
         });
+    }
+
+    @Test
+    void importedStopsBecomeSearchableWithoutFabricatingUnimportedCoverage() throws Exception {
+        assertThat(stopService.searchLocations("Origin Stop", 6)).isEmpty();
+        importer.importFeed("mbta", fixture());
+
+        var matches = stopService.searchLocations("Origin Stop", 6);
+
+        assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().displayName()).isEqualTo("Origin Stop — Greater Boston");
+        assertThat(matches.getFirst().source()).isEqualTo("GTFS");
+        assertThat(matches.getFirst().providerPlaceId()).isEqualTo("gtfs:mbta:ORIGIN");
+        assertThat(locationService.resolve(matches.getFirst().displayName()).orElseThrow())
+                .extracting(LocationCandidate::latitude, LocationCandidate::longitude,
+                        LocationCandidate::source)
+                .containsExactly(42.3500, -71.0600, "GTFS");
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/locations").param("q", "Origin Stop"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].source").value("GTFS"));
+    }
+
+    @Test
+    void nearbyStopEndpointReturnsOnlyImportedModesOperatorsAndLines() throws Exception {
+        importer.importFeed("mbta", fixture());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/transit/stops/nearby")
+                        .param("latitude", "42.3500")
+                        .param("longitude", "-71.0600")
+                        .param("radiusMetres", "500")
+                        .param("limit", "10"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].name").value("Origin Stop"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].modes[0]").value("BUS"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].operators[0]").value("City Bus"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].lines[0]").value("B1"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].source").value("GTFS"));
     }
 
     @Test

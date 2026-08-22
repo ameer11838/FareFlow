@@ -1,4 +1,4 @@
-import type { ContextProfileOption } from '../../api/types'
+import type { ContextProfileOption, LocationCandidate } from '../../api/types'
 import { SearchIcon, SwapIcon } from '../../components/Icons'
 import { LocationInput } from '../../components/LocationInput'
 
@@ -26,12 +26,15 @@ const STANCE_LABELS: Record<string, string> = {
  */
 export function PlannerCard({
   origin, destination, onOriginChange, onDestinationChange, onSwap, onSubmit,
-  searching, profiles, selectedProfile, onProfileChange, children,
+  onOriginSelect, onDestinationSelect, searching, profiles, selectedProfile,
+  onProfileChange, children,
 }: {
   origin: string
   destination: string
   onOriginChange: (value: string) => void
   onDestinationChange: (value: string) => void
+  onOriginSelect?: (candidate: LocationCandidate) => void
+  onDestinationSelect?: (candidate: LocationCandidate) => void
   onSwap: () => void
   onSubmit: () => void
   searching: boolean
@@ -63,7 +66,8 @@ export function PlannerCard({
             label="From"
             value={origin}
             onChange={onOriginChange}
-            placeholder="Philadelphia"
+            onSelectCandidate={onOriginSelect}
+            placeholder="Station, stop, or address"
           />
           <span className="planner-divider" />
           <LocationInput
@@ -71,7 +75,8 @@ export function PlannerCard({
             label="To"
             value={destination}
             onChange={onDestinationChange}
-            placeholder="Manhattan"
+            onSelectCandidate={onDestinationSelect}
+            placeholder="Station, stop, or destination"
           />
         </div>
 

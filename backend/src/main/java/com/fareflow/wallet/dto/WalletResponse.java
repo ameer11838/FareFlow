@@ -2,6 +2,7 @@ package com.fareflow.wallet.dto;
 
 import com.fareflow.ledger.dto.LedgerEntryResponse;
 import com.fareflow.payment.dto.PaymentIntentResponse;
+import com.fareflow.session.dto.TransitSessionResponse;
 
 import java.util.List;
 
@@ -27,7 +28,8 @@ public record WalletResponse(
         Double budgetUtilization,
         List<PaymentMethod> paymentMethods,
         List<LedgerEntryResponse> recentActivity,
-        List<PaymentIntentResponse> recentPayments
+        List<PaymentIntentResponse> recentPayments,
+        TransitSessionResponse openTransitSession
 ) {
 
     /**

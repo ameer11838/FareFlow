@@ -26,6 +26,9 @@ public record JourneyOptionDto(
         double score,
         String explanation,
         String dataSource,
+        long usageFareMinCents,
+        long usageFareMaxCents,
+        String usagePricingVersion,
         List<LegDto> legs
 ) {
 

@@ -56,6 +56,7 @@ class AssistantToolboxTest {
         return new JourneyOptionDto(
                 id, id, 30, 5, 0, fareCents,
                 fareCents == null ? "UNKNOWN" : "EXACT", "TEST", List.of(), List.of(),
-                recommended, .2, "Deterministic explanation", "TEST", List.of());
+                recommended, .2, "Deterministic explanation", "TEST",
+                90, 240, "FAREFLOW_USAGE_V1", List.of());
     }
 }

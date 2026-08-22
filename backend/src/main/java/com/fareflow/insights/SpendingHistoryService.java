@@ -94,7 +94,8 @@ public class SpendingHistoryService {
                 comparison(user, zone, seriesStart, today, trips),
                 buckets,
                 byOperator(trips),
-                byMode(trips));
+                byMode(trips),
+                mostUsedRoutes(trips));
     }
 
     // ---------------------------------------------------------------- buckets
@@ -155,13 +156,23 @@ public class SpendingHistoryService {
     private static SpendingHistoryResponse.Totals totals(List<Trip> trips) {
         long spent = trips.stream().mapToLong(Trip::getFareCents).sum();
         long minutes = trips.stream().mapToLong(Trip::getDurationMinutes).sum();
+        List<Trip> distanceTrips = trips.stream()
+                .filter(trip -> trip.getDistanceMetres() != null && trip.getDistanceMetres() > 0)
+                .toList();
+        long distanceMetres = distanceTrips.stream().mapToLong(Trip::getDistanceMetres).sum();
+        long distanceSpend = distanceTrips.stream().mapToLong(Trip::getFareCents).sum();
+        Long costPerMile = distanceMetres == 0 ? null : Math.round(
+                distanceSpend / (distanceMetres / 1_609.344));
         return new SpendingHistoryResponse.Totals(
                 spent,
                 trips.size(),
                 trips.isEmpty() ? null : Math.round((double) spent / trips.size()),
                 trips.isEmpty() ? null : Math.round((double) minutes / trips.size()),
                 savings(trips),
-                minutes);
+                minutes,
+                distanceMetres == 0 ? null : distanceMetres,
+                costPerMile,
+                distanceTrips.size());
     }
 
     /**
@@ -260,6 +271,26 @@ public class SpendingHistoryService {
                             total > 0 ? (double) spent / total : 0d);
                 })
                 .sorted(Comparator.comparingLong(SpendingHistoryResponse.ModeSlice::spentCents).reversed())
+                .toList();
+    }
+
+    private static List<SpendingHistoryResponse.RouteSlice> mostUsedRoutes(List<Trip> trips) {
+        Map<String, List<Trip>> grouped = new LinkedHashMap<>();
+        trips.forEach(trip -> grouped.computeIfAbsent(
+                trip.getOrigin() + "\u0000" + trip.getDestination() + "\u0000" + trip.getProvider(),
+                key -> new ArrayList<>()).add(trip));
+        return grouped.values().stream()
+                .map(routeTrips -> {
+                    Trip first = routeTrips.getFirst();
+                    long total = routeTrips.stream().mapToLong(Trip::getFareCents).sum();
+                    return new SpendingHistoryResponse.RouteSlice(
+                            first.getOrigin(), first.getDestination(), first.getProvider(),
+                            routeTrips.size(), total, Math.round((double) total / routeTrips.size()));
+                })
+                .sorted(Comparator.comparingLong(SpendingHistoryResponse.RouteSlice::tripCount)
+                        .reversed()
+                        .thenComparing(SpendingHistoryResponse.RouteSlice::origin))
+                .limit(5)
                 .toList();
     }
 

@@ -134,6 +134,13 @@ public class AssistantService {
             For "show my cheapest trips", call get_recent_trips with sort CHEAPEST. The client \
             can open those returned trip records. You cannot initiate payment or trip changes.
 
+            For an active-trip question such as "why did this cost that?", "where am I?", \
+            "my bus never arrived", or "what is my current fare?", call \
+            get_active_transit_session. FareFlow usage pricing is a proposed simulation, not an \
+            agency fare or partnership. If the session reports no progress, explain that ending it \
+            creates no charge. Never claim to advance, end, or pay for a session; direct the rider \
+            to the explicit control in the trip panel.
+
             When a question is about affordability or pace, call get_budget_status first. \
             Answer the actual question ("yes, you have $18.40 left") before adding context.
 

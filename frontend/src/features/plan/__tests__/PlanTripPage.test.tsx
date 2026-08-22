@@ -10,12 +10,15 @@ import {
   demoConfig,
   emptyJourneySearch,
   journeySearch,
-  createdPayment,
-  settledPayment,
+  completedTransitSession,
+  noChargeTransitSession,
   profiles,
+  progressedTransitSession,
   rushJourneySearch,
   emptyTravelProfile,
   septaNjtJourney,
+  settledSessionPayment,
+  startedTransitSession,
   travelProfile,
   user,
 } from '../../../test/fixtures'
@@ -39,13 +42,15 @@ function stubApis() {
   vi.spyOn(api.authApi, 'me').mockResolvedValue(user)
   vi.spyOn(api.recommendationsApi, 'profiles').mockResolvedValue(profiles)
   vi.spyOn(api.locationsApi, 'search').mockResolvedValue([])
+  vi.spyOn(api.transitApi, 'nearbyStops').mockResolvedValue([])
   // Origin and destination are no longer hardcoded: they are pre-filled from the
   // signed-in rider's saved commute, which is Newark to Manhattan here.
   vi.spyOn(api.profileApi, 'get').mockResolvedValue(travelProfile)
-  vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
-  vi.spyOn(api.paymentsApi, 'confirm').mockResolvedValue(settledPayment)
-  vi.spyOn(api.paymentsApi, 'retry').mockResolvedValue(settledPayment)
-  vi.spyOn(api.journeysApi, 'take').mockResolvedValue(settledPayment.trip!)
+  vi.spyOn(api.transitSessionsApi, 'active').mockResolvedValue(null)
+  vi.spyOn(api.transitSessionsApi, 'start').mockResolvedValue(startedTransitSession)
+  vi.spyOn(api.transitSessionsApi, 'advance').mockResolvedValue(progressedTransitSession)
+  vi.spyOn(api.transitSessionsApi, 'end').mockResolvedValue(completedTransitSession)
+  vi.spyOn(api.transitSessionsApi, 'pay').mockResolvedValue(settledSessionPayment)
 }
 
 async function search() {
@@ -207,6 +212,53 @@ describe('PlanTripPage — multi-leg journeys', () => {
     expect(within(card).getByText(/NJ Transit rail \(Trenton/)).toBeInTheDocument()
   })
 
+  it('shows Google schedule provenance and does not render polyline points as stops', async () => {
+    const googleJourney = {
+      ...septaNjtJourney,
+      journeyId: 'GOOGLE:route-1',
+      summary: '62 toward Newark Penn Station',
+      totalMinutes: 18,
+      walkingMinutes: 0,
+      transfers: 0,
+      dataSource: 'GOOGLE_ROUTES',
+      fareCents: 250,
+      fareSource: 'PROVIDER',
+      fareBreakdown: ['Google Maps estimated transit fare  $2.50'],
+      legs: [{
+        ...septaNjtJourney.legs[1],
+        mode: 'BUS' as const,
+        agency: 'NJ TRANSIT',
+        lineName: '62 toward Newark Penn Station',
+        fromName: 'NJIT',
+        toName: 'Newark Penn Station',
+        departureTime: '2026-08-22T12:07:00Z',
+        arrivalTime: '2026-08-22T12:22:00Z',
+        stopCount: 5,
+        waypoints: [
+          { name: 'NJIT', latitude: 40.741, longitude: -74.176 },
+          { name: '', latitude: 40.738, longitude: -74.170 },
+          { name: 'Newark Penn Station', latitude: 40.7347, longitude: -74.1642 },
+        ],
+      }],
+    }
+    vi.spyOn(api.journeysApi, 'search').mockResolvedValue({
+      ...journeySearch,
+      options: [googleJourney],
+      notices: ['Routes and times come from Google Maps.'],
+    })
+    renderWithProviders(<PlanTripPage />)
+    await search()
+
+    const card = await screen.findByTestId('journey-card-GOOGLE:route-1')
+    await userEvent.click(within(card).getByRole('button', { name: /view details/i }))
+
+    expect(within(card).getByText(/Google-provided transit times and geometry/i))
+      .toBeInTheDocument()
+    expect(within(card).getAllByText('62 toward Newark Penn Station')).toHaveLength(2)
+    expect(within(card).queryByText(/^Via /)).not.toBeInTheDocument()
+    expect(within(card).getByText(/5 stops/)).toBeInTheDocument()
+  })
+
   it('reports walking time as part of the journey', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
     renderWithProviders(<PlanTripPage />)
@@ -330,95 +382,104 @@ describe('PlanTripPage — states and map', () => {
 describe('PlanTripPage — taking a journey', () => {
   beforeEach(() => { navigate.mockReset(); mapAvailable = false; stubApis() })
 
-  it('creates and settles a server-priced payment without sending a fare', async () => {
+  it('runs select, start, track, end, and server-priced payment without sending a fare', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const create = vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
-    const confirmPayment = vi.spyOn(api.paymentsApi, 'confirm').mockResolvedValue(settledPayment)
+    const start = vi.spyOn(api.transitSessionsApi, 'start').mockResolvedValue(startedTransitSession)
+    const advance = vi.spyOn(api.transitSessionsApi, 'advance').mockResolvedValue(progressedTransitSession)
+    const end = vi.spyOn(api.transitSessionsApi, 'end').mockResolvedValue(completedTransitSession)
+    const pay = vi.spyOn(api.transitSessionsApi, 'pay').mockResolvedValue(settledSessionPayment)
 
     renderWithProviders(<PlanTripPage />)
     await search()
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pay \$27\.60/i }))
+    expect(await screen.findByText(/FareFlow’s proposed usage-pricing simulation/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^start trip$/i }))
+    await screen.findByText(/session active/i)
+    expect(screen.getAllByText(/trip duration/i)).not.toHaveLength(0)
+    expect(screen.getByRole('region', { name: /current fare/i }))
+      .toHaveTextContent('$0.00')
+    const stopFares = screen.getByRole('region', { name: /fare by stop/i })
+    expect(stopFares).toHaveTextContent('Trenton Transit Center')
+    expect(stopFares).toHaveTextContent('+$1.30')
+    expect(screen.getByText(/\+\$1\.30 when reached/i)).toBeInTheDocument()
+    expect(screen.getByText(/waiting time and delays never increase/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /complete next stop/i }))
+    await waitFor(() => expect(advance).toHaveBeenCalledWith(startedTransitSession.id))
+    expect(screen.getByRole('region', { name: /current fare/i }))
+      .toHaveTextContent('$1.30')
+    expect(screen.getByText(/\+\$3\.45 when reached/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /end trip/i }))
+    await screen.findByRole('heading', { name: /review and pay/i })
+    await userEvent.click(screen.getByRole('button', { name: /pay \$1\.30 with FareFlow/i }))
 
-    await waitFor(() => expect(create).toHaveBeenCalled())
-    const [body] = create.mock.calls[0]
+    await waitFor(() => expect(start).toHaveBeenCalled())
+    const [body] = start.mock.calls[0]
     expect(body).toEqual({
       from: 'Philadelphia, PA',
       to: 'Manhattan, NY',
       journeyId: septaNjtJourney.journeyId,
       profile: 'BALANCED',
-      confirmUnknownFare: false,
-      paymentMethod: 'FAREFLOW_WALLET',
     })
     // The amount is the server's business; the client must not be able to state one.
-    expect(JSON.stringify(body)).not.toContain('2760')
-    expect(confirmPayment).toHaveBeenCalledWith(createdPayment.id)
-    expect(navigate).toHaveBeenCalledWith(`/trips?payment=${settledPayment.id}`)
+    expect(JSON.stringify(body)).not.toMatch(/fareCents|amountCents/)
+    expect(end).toHaveBeenCalledWith(startedTransitSession.id)
+    expect(pay).toHaveBeenCalledWith(
+      startedTransitSession.id, 'FAREFLOW_WALLET', expect.any(String))
+    expect(navigate).toHaveBeenCalledWith(`/trips?payment=${settledSessionPayment.id}`)
   })
 
-  it('sends an idempotency key so a double click cannot charge twice', async () => {
+  it('sends an idempotency key when starting a session', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const create = vi.spyOn(api.paymentsApi, 'create').mockResolvedValue(createdPayment)
+    const start = vi.spyOn(api.transitSessionsApi, 'start').mockResolvedValue(startedTransitSession)
 
     renderWithProviders(<PlanTripPage />)
     await search()
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
-    const choose = within(card).getByRole('button', { name: /choose/i })
-    await userEvent.click(choose)
-    const pay = await screen.findByRole('button', { name: /pay \$27\.60/i })
-    await userEvent.click(pay)
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
-
-    await userEvent.click(pay)
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(2))
-
-    // The same journey reuses its key, so the server dedupes the retry.
-    expect(create.mock.calls[0][1]).toBe(create.mock.calls[1][1])
-    expect(create.mock.calls[0][1]).toBeTruthy()
+    await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^start trip$/i }))
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
+    expect(start.mock.calls[0][1]).toBeTruthy()
   })
 
-  it('asks before recording a journey with no computable fare', async () => {
+  it('can start usage tracking even when the agency published fare is unavailable', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const take = vi.spyOn(api.journeysApi, 'take').mockResolvedValue(settledPayment.trip!)
-    const create = vi.spyOn(api.paymentsApi, 'create')
-
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const start = vi.spyOn(api.transitSessionsApi, 'start').mockResolvedValue(startedTransitSession)
 
     renderWithProviders(<PlanTripPage />)
     await search()
 
     const card = await screen.findByTestId(`journey-card-${amtrakJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /record trip without charge/i }))
-
-    await waitFor(() => expect(confirm).toHaveBeenCalled())
-    await waitFor(() => expect(take).toHaveBeenCalledTimes(1))
-    expect(take.mock.calls[0][0].confirmUnknownFare).toBe(true)
-    expect(create).not.toHaveBeenCalled()
-    expect(navigate).toHaveBeenCalledWith('/trips')
+    expect((await screen.findAllByText('$1.30–$3.10')).length).toBeGreaterThan(0)
+    await userEvent.click(screen.getByRole('button', { name: /^start trip$/i }))
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
+    expect(start.mock.calls[0][0].journeyId).toBe(amtrakJourney.journeyId)
   })
 
-  it('records nothing when the rider declines an unknown fare', async () => {
+  it('ends an unboarded session with no payment or charge', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    const create = vi.spyOn(api.paymentsApi, 'create')
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const end = vi.spyOn(api.transitSessionsApi, 'end').mockResolvedValue(noChargeTransitSession)
+    const pay = vi.spyOn(api.transitSessionsApi, 'pay')
 
     renderWithProviders(<PlanTripPage />)
     await search()
 
-    const card = await screen.findByTestId(`journey-card-${amtrakJourney.journeyId}`)
+    const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
-
-    expect(create).not.toHaveBeenCalled()
-    expect(navigate).not.toHaveBeenCalled()
+    await userEvent.click(await screen.findByRole('button', { name: /^start trip$/i }))
+    await screen.findByText(/session active/i)
+    await userEvent.click(screen.getByRole('button', { name: /end trip/i }))
+    expect(await screen.findByText(/no fare charged/i)).toBeInTheDocument()
+    expect(end).toHaveBeenCalledTimes(1)
+    expect(pay).not.toHaveBeenCalled()
   })
 
   it('surfaces a server error rather than navigating away', async () => {
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
-    vi.spyOn(api.paymentsApi, 'create').mockRejectedValue(
+    vi.spyOn(api.transitSessionsApi, 'start').mockRejectedValue(
       new ApiError(404, { title: 'Resource not found', detail: 'That journey is no longer available.' }))
 
     renderWithProviders(<PlanTripPage />)
@@ -426,7 +487,7 @@ describe('PlanTripPage — taking a journey', () => {
 
     const card = await screen.findByTestId(`journey-card-${septaNjtJourney.journeyId}`)
     await userEvent.click(within(card).getByRole('button', { name: /choose/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pay \$27\.60/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^start trip$/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/no longer available/)
     expect(navigate).not.toHaveBeenCalled()
@@ -466,6 +527,30 @@ describe('PlanTripPage — location autocomplete', () => {
 
     await userEvent.click(await screen.findByRole('option', { name: /Philadelphia/ }))
     expect(screen.getByLabelText('From')).toHaveValue('Philadelphia, PA')
+  })
+
+  it('loads real nearby GTFS stops and focuses the map after choosing any place', async () => {
+    vi.spyOn(api.locationsApi, 'search').mockResolvedValue([
+      { providerPlaceId: 'denver-union', displayName: 'Denver Union Station',
+        locality: 'Denver', region: 'CO', country: 'US', latitude: 39.7527,
+        longitude: -105.0002, type: 'POI', source: 'TOMTOM' },
+    ])
+    const nearby = vi.spyOn(api.transitApi, 'nearbyStops').mockResolvedValue([
+      { id: 'gtfs:rtd:union', name: 'Union Station', regionCode: 'DEN',
+        regionName: 'Denver', publisherName: 'Regional Transportation District',
+        latitude: 39.7527, longitude: -105.0002, modes: ['RAIL', 'BUS'],
+        operators: ['Regional Transportation District'], lines: ['A', 'B'],
+        distanceMetres: 0, realtimeAvailable: false, source: 'GTFS' },
+    ])
+
+    renderWithProviders(<PlanTripPage />)
+    const from = await screen.findByLabelText('From')
+    await userEvent.clear(from)
+    await userEvent.type(from, 'Denver Union')
+    await userEvent.click(await screen.findByRole('option', { name: /Denver Union Station/ }))
+
+    await waitFor(() => expect(nearby).toHaveBeenCalledWith(39.7527, -105.0002))
+    expect(await screen.findByText('Denver Union Station')).toBeInTheDocument()
   })
 
   it('does not search for a single character', async () => {

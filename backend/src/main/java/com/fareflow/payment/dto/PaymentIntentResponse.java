@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public record PaymentIntentResponse(
         UUID id,
+        UUID transitSessionId,
         String status,
         String paymentMethod,
         long amountCents,
@@ -37,6 +38,7 @@ public record PaymentIntentResponse(
                                              List<PaymentEvent> events) {
         return new PaymentIntentResponse(
                 intent.getId(),
+                intent.getTransitSessionId(),
                 intent.getStatus().name(),
                 intent.getPaymentMethod().name(),
                 intent.getAmountCents(),

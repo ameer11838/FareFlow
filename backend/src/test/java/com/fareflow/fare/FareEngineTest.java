@@ -211,6 +211,24 @@ class FareEngineTest {
     }
 
     @Test
+    @DisplayName("a provider fare is comparison data and remains separate from usage pricing")
+    void providerFareIsUsedWhenAvailable() {
+        Journey base = journeyOf(ride("GOOGLE:BUS:62", "NJ TRANSIT", "62",
+                TransitMode.BUS, 15, 4_200));
+        Journey journey = new Journey(base.id(), base.originName(), base.destinationName(),
+                base.legs(), Journey.DataSource.GOOGLE_ROUTES,
+                new Journey.ProviderFare(250, "USD", "Google Maps"));
+
+        FareCalculation fare = engine().price(journey, UserFareContext.anonymous(), Map.of());
+
+        assertThat(fare.totalFareCents()).isEqualTo(250);
+        assertThat(fare.status()).isEqualTo(FareStatus.ESTIMATED);
+        assertThat(fare.source()).isEqualTo(FareSource.PROVIDER);
+        assertThat(fare.explanationLines()).containsExactly(
+                "Google Maps estimated transit fare  $2.50");
+    }
+
+    @Test
     @DisplayName("an agency's cap only discounts that agency's share of the journey")
     void capIsScopedToItsOwnAgency() {
         // $32.00 already spent against MTA's $34.00 weekly cap, so only $2.00 of

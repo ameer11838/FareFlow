@@ -87,7 +87,11 @@ public final class TransitGraph {
                     // Half the headway is the expected wait for a random arrival.
                     Math.max(0, line.getHeadwayMinutes() / 2),
                     metres,
-                    waypoints));
+                    waypoints,
+                    null,
+                    null,
+                    false,
+                    Math.abs(toIndex - fromIndex)));
         }
     }
 

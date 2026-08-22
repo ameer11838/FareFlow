@@ -1,5 +1,7 @@
 package com.fareflow.integration;
 
+import com.fareflow.discovery.JourneyPlanningService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +22,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class JourneyDiscoveryIntegrationTest extends IntegrationTestBase {
 
+    @Autowired
+    private JourneyPlanningService planningService;
+
     // ---------------- the acceptance case ----------------
+
+    @Test
+    @DisplayName("Google Routes is primary while GTFS and curated discovery remain fallbacks")
+    void googleRoutesIsPrimaryProvider() {
+        org.assertj.core.api.Assertions.assertThat(planningService.providerNames())
+                .startsWith("GOOGLE_ROUTES", "GTFS_SCHEDULE")
+                .contains("CURATED_NETWORK");
+    }
 
     @Test
     @DisplayName("Philadelphia to Manhattan resolves, discovers journeys, and ranks them")

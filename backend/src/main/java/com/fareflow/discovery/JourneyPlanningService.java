@@ -16,10 +16,11 @@ import java.util.Map;
 /**
  * Discovers journeys between two places and prices each one.
  *
- * <p>Providers are consulted in order and the first that returns anything wins, so
- * a future live-feed provider takes precedence simply by ordering ahead of the
- * curated network. Discovery and pricing stay separate: a provider produces
- * movement, the fare engine produces money.
+ * <p>Providers are consulted in order and the first that returns anything wins.
+ * Google Routes is the nationwide primary source; imported GTFS and the curated
+ * graph remain deterministic fallback/enrichment layers. Discovery and pricing
+ * stay separate: a provider produces movement, while FareFlow owns scoring and
+ * all usage-based charges.
  */
 @Service
 @Transactional(readOnly = true)

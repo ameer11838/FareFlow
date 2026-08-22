@@ -38,6 +38,10 @@ public class Trip {
     @Column(name = "journey_id", updatable = false)
     private Long journeyId;
 
+    /** Set only for trips completed through the usage-based session flow. */
+    @Column(name = "transit_session_id", updatable = false)
+    private java.util.UUID transitSessionId;
+
     /**
      * Deduplicates a double-submitted selection. A partial unique index on
      * (user_id, idempotency_key) makes "charged twice" impossible at the database
@@ -66,6 +70,15 @@ public class Trip {
 
     @Column(nullable = false, updatable = false)
     private int transfers;
+
+    @Column(name = "distance_metres", updatable = false)
+    private Long distanceMetres;
+
+    @Column(name = "stops_travelled", updatable = false)
+    private Integer stopsTravelled;
+
+    @Column(name = "fare_model", nullable = false, updatable = false)
+    private String fareModel;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "selected_label", nullable = false, updatable = false)
@@ -123,6 +136,21 @@ public class Trip {
         this.status = TripStatus.COMPLETED;
         this.takenAt = takenAt;
         this.idempotencyKey = idempotencyKey;
+        this.fareModel = "FIXED";
+    }
+
+    /** A completed trip charged from FareFlow's simulated usage model. */
+    public Trip(long userId, com.fareflow.session.TransitSession session,
+                long fareCents, Instant takenAt, String idempotencyKey) {
+        this(userId, session.getJourney(), fareCents, SelectedLabel.MANUAL,
+                null, takenAt, idempotencyKey);
+        this.transitSessionId = session.getId();
+        this.distanceMetres = session.getDistanceTravelledMetres();
+        this.stopsTravelled = session.getCompletedStopCount();
+        this.fareModel = session.getPricingVersion();
+        long elapsedSeconds = Math.max(0,
+                java.time.Duration.between(session.getStartedAt(), session.getEndedAt()).toSeconds());
+        this.durationMinutes = Math.max(1, (int) Math.ceil(elapsedSeconds / 60.0));
     }
 
     public Trip(long userId, TransitRoute route, SelectedLabel selectedLabel,
@@ -140,6 +168,7 @@ public class Trip {
         this.baselineFareCents = baselineFareCents;
         this.status = TripStatus.COMPLETED;
         this.takenAt = takenAt;
+        this.fareModel = "FIXED";
     }
 
     public void markCancelled() {
@@ -180,6 +209,8 @@ public class Trip {
         return journeyId;
     }
 
+    public java.util.UUID getTransitSessionId() { return transitSessionId; }
+
     public String getIdempotencyKey() {
         return idempotencyKey;
     }
@@ -215,6 +246,12 @@ public class Trip {
     public int getTransfers() {
         return transfers;
     }
+
+    public Long getDistanceMetres() { return distanceMetres; }
+
+    public Integer getStopsTravelled() { return stopsTravelled; }
+
+    public String getFareModel() { return fareModel; }
 
     public SelectedLabel getSelectedLabel() {
         return selectedLabel;

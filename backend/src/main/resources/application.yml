@@ -51,10 +51,26 @@ fareflow:
     default-transfer-priority: 0.10
     # Maximum fraction of the time weight shifted to cost at full budget pressure.
     budget-pressure-beta: 0.40
+
+  usage-pricing:
+    # FareFlow product simulation — these are not agency tariffs. Time is not an
+    # input, so service delays can never increase the rider's charge.
+    version: FAREFLOW_USAGE_V1
+    bus: { base-cents: 85, cents-per-mile: 8, cents-per-stop: 3 }
+    rail: { base-cents: 120, cents-per-mile: 10, cents-per-stop: 5 }
+    subway: { base-cents: 100, cents-per-mile: 8, cents-per-stop: 4 }
+    light-rail: { base-cents: 90, cents-per-mile: 8, cents-per-stop: 3 }
+    ferry: { base-cents: 175, cents-per-mile: 14, cents-per-stop: 6 }
   tomtom:
     # Used server-side for geocoding only. Optional: without it the built-in
     # gazetteer serves location search and the app still routes.
     api-key: ${TOMTOM_API_KEY:}
+
+  google-routes:
+    # Primary nationwide transit discovery. This must be a Google Maps Platform
+    # key with Routes API enabled; it is intentionally separate from Gemini keys.
+    # With no key, discovery falls through to imported GTFS and curated routes.
+    api-key: ${GOOGLE_MAPS_ROUTES_API_KEY:${GOOGLE_MAPS_API_KEY:}}
 
   assistant:
     # Optional. The rest of FareFlow boots normally without a model key and the
