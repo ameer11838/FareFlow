@@ -1,7 +1,7 @@
 /**
- * Inline stroke icons at a consistent 1.7px weight on a 24px grid.
- * Hand-drawn rather than pulled from a library: six icons do not justify a
- * dependency, and these stay visually consistent with the brand mark.
+ * FareFlow's compact product icon set. The slightly squared geometry echoes
+ * station signage and ticketing hardware instead of generic dashboard glyphs.
+ * Every icon shares the same optical weight and 24px grid.
  */
 interface IconProps {
   size?: number
@@ -14,7 +14,7 @@ const base = (size: number) => ({
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1.7,
+  strokeWidth: 1.8,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
   'aria-hidden': true,
@@ -22,46 +22,60 @@ const base = (size: number) => ({
 
 export const RouteIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <circle cx="6" cy="19" r="2.4" />
-    <circle cx="18" cy="5" r="2.4" />
-    <path d="M8.4 19h4.1a3 3 0 0 0 3-3V8a3 3 0 0 1 3-3" />
+    <circle cx="6" cy="18" r="2.25" />
+    <rect x="15.75" y="3.75" width="4.5" height="4.5" rx="1" />
+    <path d="M8.25 18h3.5a4 4 0 0 0 4-4V8.25" />
   </svg>
 )
 
 export const DashboardIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <path d="M4 13h5v7H4zM10.5 4h3v16h-3zM15 9h5v11h-5z" />
+    <path d="M4 18.5V14M10 18.5V9M16 18.5V5.5M3.5 20h17" />
+    <path d="m4 11 5-4 5 2 5-5" />
   </svg>
 )
 
 export const TripsIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <rect x="5" y="3" width="14" height="14" rx="3" />
-    <path d="M5 13h14M9 20l-1.5 1.5M15 20l1.5 1.5" />
-    <circle cx="8.5" cy="15.5" r=".9" fill="currentColor" stroke="none" />
-    <circle cx="15.5" cy="15.5" r=".9" fill="currentColor" stroke="none" />
+    <path d="M5 8.5A7.5 7.5 0 1 1 4.7 15" />
+    <path d="M5 4v4.5h4.5M12 8v4.25l3 1.75" />
   </svg>
 )
 
-export const LedgerIcon = ({ size = 18, className }: IconProps) => (
+export const PaymentHistoryIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <path d="M5 4h14v16H5zM9 4v16" />
-    <path d="M12 9h4M12 13h4" />
+    <path d="M6 3.5h12v17l-2-1.25L14 20.5l-2-1.25-2 1.25-2-1.25L6 20.5Z" />
+    <path d="M9 8h6M9 12h6M9 16h3.5" />
   </svg>
 )
 
 export const WalletIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5Z" />
-    <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h9.9" />
-    <circle cx="16.5" cy="12.5" r="1.2" fill="currentColor" stroke="none" />
+    <rect x="3.5" y="6" width="17" height="13" rx="3" />
+    <path d="M3.5 10h17M15.5 14h2" />
   </svg>
 )
 
-export const SparkleIcon = ({ size = 18, className }: IconProps) => (
+/** A route conversation, unique to the FareFlow assistant entry point. */
+export const FareFlowGuideIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <path d="M12 3.5 13.6 9 19 10.5 13.6 12 12 17.5 10.4 12 5 10.5 10.4 9Z" />
-    <path d="M18 16.5 18.7 18.8 21 19.5 18.7 20.2 18 22.5 17.3 20.2 15 19.5 17.3 18.8Z" />
+    <path d="M4 4.5h16v11H9l-5 4v-15Z" />
+    <circle cx="9" cy="10" r="1.35" />
+    <rect x="14" y="8.65" width="2.7" height="2.7" rx=".55" />
+    <path d="M10.35 10h2.3" />
+  </svg>
+)
+
+export const SendIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="m4 12 16-8-5.5 16-3-6.5L4 12Z" />
+    <path d="m11.5 13.5 4-4" />
+  </svg>
+)
+
+export const PlusIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 5v14M5 12h14" />
   </svg>
 )
 
@@ -73,8 +87,10 @@ export const CloseIcon = ({ size = 18, className }: IconProps) => (
 
 export const SettingsIcon = ({ size = 18, className }: IconProps) => (
   <svg {...base(size)} className={className}>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 3v2M12 19v2M21 12h-2M5 12H3M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4L17 17M7 7 5.6 5.6" />
+    <path d="M4 6h7M15 6h5M4 12h3M11 12h9M4 18h9M17 18h3" />
+    <circle cx="13" cy="6" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="15" cy="18" r="2" />
   </svg>
 )
 

@@ -74,7 +74,7 @@ describe('WalletPage', () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue({ ...wallet, recentActivity: [] })
     renderWithProviders(<WalletPage />)
 
-    expect(await screen.findByText(/no activity yet/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no payments yet/i)).toBeInTheDocument()
   })
 
   it('shows an error state when the wallet fails to load', async () => {

@@ -52,7 +52,8 @@ export function App() {
           <Route path="/wallet" element={<WalletPage />} />
           <Route path="/trips" element={<TripHistoryPage />} />
           <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/ledger" element={<LedgerPage />} />
+          <Route path="/payments" element={<LedgerPage />} />
+          <Route path="/ledger" element={<Navigate to="/payments" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Route>

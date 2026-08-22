@@ -32,13 +32,13 @@ describe('LedgerPage', () => {
     expect(within(refund).getByText('+$3.00')).toHaveClass('amount-in')
   })
 
-  it('keeps ledger terminology visible', async () => {
-    // This is a fintech project: the technical vocabulary is a feature, not jargon to hide.
+  it('uses rider-facing payment history language', async () => {
     vi.spyOn(api.ledgerApi, 'list').mockResolvedValue(page(ledgerEntries))
     renderWithProviders(<LedgerPage />)
 
-    expect(await screen.findByText(/append-only/i)).toBeInTheDocument()
-    expect(screen.getByText(/TRIP_CHARGE/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Payment history' })).toBeInTheDocument()
+    expect(screen.getAllByText('Trip charge').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/transportation ledger/i)).not.toBeInTheDocument()
   })
 
   it('groups entries by day with a net total', async () => {
@@ -57,15 +57,15 @@ describe('LedgerPage', () => {
     vi.spyOn(api.ledgerApi, 'list').mockResolvedValue(page(ledgerEntries))
     renderWithProviders(<LedgerPage />)
 
-    expect(await screen.findAllByText('Trip #1')).toHaveLength(2)
+    expect(await screen.findAllByText('View trip #1')).toHaveLength(2)
   })
 
   it('shows an empty state explaining what will appear', async () => {
     vi.spyOn(api.ledgerApi, 'list').mockResolvedValue(page([]))
     renderWithProviders(<LedgerPage />)
 
-    expect(await screen.findByText(/no ledger entries yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/leaving the original charge intact/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no payments yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/refunds, and fare adjustments/i)).toBeInTheDocument()
   })
 
   it('shows an error state when the ledger fails to load', async () => {

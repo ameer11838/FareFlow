@@ -154,9 +154,10 @@ describe('PlanTripPage — journey search', () => {
       reply: 'The SEPTA and NJ Transit option is the best fit for this request.',
       toolsUsed: ['get_travel_profile', 'plan_journey'],
       routes: journeySearch,
+      trips: [],
       followUps: ['Why did you recommend that one?'],
     })
-    renderWithProviders(<PlanTripPage />)
+    renderWithProviders(<PlanTripPage />, { route: '/plan' })
 
     await userEvent.click(await screen.findByRole('button', { name: /ask fareflow/i }))
     const input = await screen.findByLabelText('Ask FareFlow')
@@ -164,7 +165,10 @@ describe('PlanTripPage — journey search', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }))
 
     await waitFor(() => expect(ask).toHaveBeenCalledWith(
-      "What's the cheapest way to class?", []))
+      "What's the cheapest way to class?", [], expect.objectContaining({
+        pagePath: '/plan',
+        pageName: 'Plan',
+      })))
     expect(await screen.findByText(/best fit for this request/i)).toBeInTheDocument()
     expect(screen.getByTestId(`journey-card-${septaNjtJourney.journeyId}`)).toBeInTheDocument()
     expect(screen.getByTestId('route-drawer')).toHaveTextContent('Philadelphia, PA → Manhattan, NY')

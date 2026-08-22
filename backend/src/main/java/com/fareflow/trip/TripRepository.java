@@ -13,6 +13,9 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     Page<Trip> findByUserIdOrderByTakenAtDescIdDesc(long userId, Pageable pageable);
 
+    Page<Trip> findByUserIdAndStatusOrderByTakenAtDescIdDesc(
+            long userId, TripStatus status, Pageable pageable);
+
     List<Trip> findTop5ByUserIdOrderByTakenAtDescIdDesc(long userId);
 
     @Query("""

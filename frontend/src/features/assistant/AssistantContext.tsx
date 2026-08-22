@@ -43,7 +43,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/wallet': 'Wallet',
   '/trips': 'Trips',
   '/insights': 'Insights',
-  '/ledger': 'Ledger',
+  '/payments': 'Payment history',
+  '/ledger': 'Payment history',
   '/settings': 'Settings',
 }
 

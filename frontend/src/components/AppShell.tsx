@@ -2,18 +2,18 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { formatCents } from '../lib/format'
 import {
-  DashboardIcon, LedgerIcon, RouteIcon, SettingsIcon, TripsIcon, WalletIcon,
+  DashboardIcon, PaymentHistoryIcon, RouteIcon, SettingsIcon, TripsIcon, WalletIcon,
 } from './Icons'
 import { Logo } from './Logo'
 import { ThemeButton } from './ThemeToggle'
 
 export const NAV_ITEMS = [
-  { to: '/plan', label: 'Plan', Icon: RouteIcon },
-  { to: '/wallet', label: 'Wallet', Icon: WalletIcon },
-  { to: '/trips', label: 'Trips', Icon: TripsIcon },
-  { to: '/insights', label: 'Insights', Icon: DashboardIcon },
-  { to: '/ledger', label: 'Ledger', Icon: LedgerIcon },
-  { to: '/settings', label: 'Settings', Icon: SettingsIcon },
+  { to: '/plan', label: 'Plan', mobileLabel: 'Plan', Icon: RouteIcon },
+  { to: '/wallet', label: 'Wallet', mobileLabel: 'Wallet', Icon: WalletIcon },
+  { to: '/trips', label: 'Trips', mobileLabel: 'Trips', Icon: TripsIcon },
+  { to: '/insights', label: 'Insights', mobileLabel: 'Insights', Icon: DashboardIcon },
+  { to: '/payments', label: 'Payment history', mobileLabel: 'Payments', Icon: PaymentHistoryIcon },
+  { to: '/settings', label: 'Settings', mobileLabel: 'Settings', Icon: SettingsIcon },
 ]
 
 /**
@@ -84,10 +84,10 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
               </NavLink>
             ) : (
               <NavLink to="/wallet" className="topbar-budget" title="Weekly transportation budget">
+                <span className="topbar-budget-label">Weekly budget</span>
                 <span className="topbar-budget-value numeric">
                   {formatCents(user.weeklyBudgetCents)}
                 </span>
-                <span className="topbar-budget-unit">/ week</span>
               </NavLink>
             )}
 
@@ -114,14 +114,14 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
 export function BottomNav() {
   return (
     <nav className="bottom-nav" aria-label="Sections">
-      {NAV_ITEMS.map(({ to, label, Icon }) => (
+      {NAV_ITEMS.map(({ to, label, mobileLabel, Icon }) => (
         <NavLink
           key={to}
           to={to}
           className={({ isActive }) => `bottom-nav-link${isActive ? ' active' : ''}`}
         >
           <span className="bottom-nav-icon"><Icon size={19} /></span>
-          <span>{label}</span>
+          <span aria-label={label}>{mobileLabel}</span>
         </NavLink>
       ))}
     </nav>

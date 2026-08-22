@@ -5,7 +5,7 @@ import type {
   HistoryRange, Insights, InsightsPersonalization, PassRecommendation, SpendingHistory,
 } from '../../api/types'
 import { BarChart, ComparisonBars, seriesColor, TimeSeriesChart } from '../../components/charts'
-import { RouteIcon, SparkleIcon } from '../../components/Icons'
+import { RouteIcon, WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
@@ -71,7 +71,7 @@ export function InsightsPage() {
           <section className="band">
             <div className="band-head">
               <h2 className="band-title">This week</h2>
-              <span className="band-note">Derived from completed trips and ledger entries</span>
+              <span className="band-note">Calculated from completed trips and payments</span>
             </div>
             <div className="figures-row">
               <Metric label="Spent" value={formatCents(data.spentCents)}
@@ -521,7 +521,7 @@ function PassModule({ recommendation }: { recommendation: PassRecommendation }) 
       <div className="pass-card">
         <div className="pass-verdict">
           <span className={`pass-icon${worthwhile ? ' pass-icon-good' : ''}`} aria-hidden="true">
-            <SparkleIcon size={18} />
+            <WalletIcon size={18} />
           </span>
           <div>
             <p className="pass-text">{recommendation.verdict}</p>

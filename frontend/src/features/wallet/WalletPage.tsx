@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { insightsApi, walletApi } from '../../api'
 import type { Insights, LedgerEntry, PaymentIntent, PaymentMethod, Wallet } from '../../api/types'
 import { seriesColor } from '../../components/charts'
-import { CheckIcon, LedgerIcon, WalletIcon } from '../../components/Icons'
+import { CheckIcon, PaymentHistoryIcon, WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
@@ -55,7 +55,13 @@ export function WalletPage() {
       <PageHeader
         eyebrow="Wallet"
         title="FareFlow Wallet"
-        subtitle="Fares are charged against your weekly transportation budget. Every movement is recorded in the ledger."
+        subtitle="See what is available for transit this week, where it went, and what your current pace means for the days ahead."
+        actions={(
+          <div className="page-actions">
+            <Link className="btn" to="/payments">Payment history</Link>
+            <Link className="btn btn-primary" to="/plan">Plan a trip</Link>
+          </div>
+        )}
       />
 
       {/*
@@ -70,7 +76,7 @@ export function WalletPage() {
       <section className="band">
         <div className="band-head">
           <h2 className="band-title">This week</h2>
-          <span className="band-note">Derived from ledger entries, not a stored total</span>
+          <span className="band-note">Calculated from completed payments and refunds</span>
         </div>
 
         {/* One row, divided by rules: the figures sit on a shared baseline and
@@ -138,8 +144,8 @@ export function WalletPage() {
       {data.recentPayments.length > 0 && (
         <section className="band">
           <div className="band-head">
-            <h2 className="band-title">Payment activity</h2>
-            <span className="band-note">Intent status and authoritative settled fare</span>
+            <h2 className="band-title">Payment status</h2>
+            <span className="band-note">Authorization, settlement, and retry status</span>
           </div>
           <Card>
             <ul className="txn-list">
@@ -153,15 +159,15 @@ export function WalletPage() {
 
       <section className="band">
         <div className="band-head">
-          <h2 className="band-title">Recent activity</h2>
-          <Link className="btn btn-sm" to="/ledger">View ledger</Link>
+          <h2 className="band-title">Latest transactions</h2>
+          <Link className="btn btn-sm" to="/payments">View payment history</Link>
         </div>
         <Card>
           {data.recentActivity.length === 0 ? (
             <EmptyState
-              icon={<LedgerIcon size={22} />}
-              title="No activity yet"
-              description="Taking a trip records a charge here, and cancelling one records the refund beside it."
+              icon={<PaymentHistoryIcon size={22} />}
+              title="No payments yet"
+              description="A completed trip records its charge here. Refunds appear beside the original payment."
               action={<Link className="btn btn-primary" to="/plan">Plan a trip</Link>}
             />
           ) : (

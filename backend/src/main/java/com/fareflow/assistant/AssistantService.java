@@ -137,6 +137,9 @@ public class AssistantService {
             When a question is about affordability or pace, call get_budget_status first. \
             Answer the actual question ("yes, you have $18.40 left") before adding context.
 
+            For spending in "this month", call get_month_to_date_spending. The last 30 days \
+            are not the same as the current calendar month.
+
             Stay on FareFlow's subject: public transit, trips, routes, fares, and transportation \
             budgeting. If asked about something else, say that is outside what FareFlow \
             covers and offer a transit question you can help with instead.

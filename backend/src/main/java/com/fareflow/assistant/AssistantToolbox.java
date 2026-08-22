@@ -18,6 +18,7 @@ import com.fareflow.recommendation.optimization.ContextProfile;
 import com.fareflow.recommendation.optimization.PreferenceContext;
 import com.fareflow.trip.Trip;
 import com.fareflow.trip.TripRepository;
+import com.fareflow.trip.TripStatus;
 import com.fareflow.trip.dto.TripResponse;
 import com.fareflow.user.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,7 +28,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -146,6 +149,15 @@ public class AssistantToolbox {
                                 "description", "Window to summarise. Defaults to 30d.")),
                         List.of()),
 
+                tool("get_month_to_date_spending",
+                        """
+                        Exact transportation spending from the first day of the rider's current \
+                        calendar month through right now, in the rider's timezone. Returns the \
+                        real completed-trip count and sum in integer cents. Use this for "how much \
+                        have I spent this month?" rather than treating the last 30 days as the \
+                        current month.""",
+                        Map.of(), List.of()),
+
                 tool("get_travel_profile",
                         """
                         What the rider told FareFlow during onboarding: their default trip \
@@ -251,6 +263,7 @@ public class AssistantToolbox {
                 case "get_weekly_insights" -> Outcome.ok(json(insightsService.forCurrentWeek(user)));
                 case "get_spending_history" -> Outcome.ok(json(spendingHistoryService.history(
                         user, HistoryRange.parse(string(input, "range")).orElse(HistoryRange.defaultRange()))));
+                case "get_month_to_date_spending" -> Outcome.ok(json(monthToDateSpending(user)));
                 case "get_travel_profile" -> Outcome.ok(json(travelProfile(user)));
                 case "get_recent_trips" -> recentTripsOutcome(user, input);
                 case "get_pass_recommendation" -> Outcome.ok(json(passOptimizationService.recommendFor(user)));
@@ -301,10 +314,28 @@ public class AssistantToolbox {
                 "profile", TravelProfileResponse.from(profile, user.getWeeklyBudgetCents()));
     }
 
+    private Map<String, Object> monthToDateSpending(User user) {
+        ZonedDateTime now = clock.instant().atZone(user.zoneId());
+        Instant start = now.withDayOfMonth(1).toLocalDate().atStartOfDay(user.zoneId()).toInstant();
+        List<Trip> trips = tripRepository.findCompletedBetween(user.getId(), start, clock.instant());
+        long spentCents = trips.stream().mapToLong(Trip::getFareCents).sum();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("startDate", start.atZone(user.zoneId()).toLocalDate().toString());
+        payload.put("through", now.toString());
+        payload.put("tripCount", trips.size());
+        payload.put("spentCents", spentCents);
+        payload.put("hasData", !trips.isEmpty());
+        payload.put("currency", "USD");
+        payload.put("note", "spentCents is the sum of completed stored trips in this calendar month.");
+        return payload;
+    }
+
     private List<TripResponse> recentTrips(User user, int limit) {
         int bounded = Math.clamp(limit, 1, 20);
         return tripRepository
-                .findByUserIdOrderByTakenAtDescIdDesc(user.getId(), PageRequest.of(0, bounded))
+                .findByUserIdAndStatusOrderByTakenAtDescIdDesc(
+                        user.getId(), TripStatus.COMPLETED, PageRequest.of(0, bounded))
                 .getContent().stream()
                 .map(TripResponse::from)
                 .toList();
@@ -317,7 +348,7 @@ public class AssistantToolbox {
         if ("CHEAPEST".equalsIgnoreCase(sort)) {
             trips = new ArrayList<>(recentTrips(user, 20));
             trips.sort(Comparator.comparingLong(TripResponse::fareCents)
-                    .thenComparing(TripResponse::takenAt).reversed());
+                    .thenComparing(TripResponse::takenAt, Comparator.reverseOrder()));
             trips = trips.stream().limit(bounded).toList();
         } else {
             trips = recentTrips(user, bounded);
@@ -393,7 +424,7 @@ public class AssistantToolbox {
         return Outcome.ok(json(result), result);
     }
 
-    private static JourneySearchResponse applyFareLimit(JourneySearchResponse result, int maxFareCents) {
+    static JourneySearchResponse applyFareLimit(JourneySearchResponse result, int maxFareCents) {
         List<JourneyOptionDto> eligible = result.options().stream()
                 .filter(option -> option.fareCents() != null && option.fareCents() <= maxFareCents)
                 .toList();

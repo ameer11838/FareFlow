@@ -39,7 +39,7 @@ describe('TripHistoryPage', () => {
 
     const row = await screen.findByTestId('trip-2')
     expect(within(row).getByText('Cancelled')).toBeInTheDocument()
-    expect(within(row).getByText(/refunded \$3\.00 to your ledger/i)).toBeInTheDocument()
+    expect(within(row).getByText(/refunded \$3\.00 to your payment history/i)).toBeInTheDocument()
     // A cancelled trip cannot be cancelled again.
     expect(within(row).queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument()
   })
@@ -144,6 +144,17 @@ describe('TripHistoryPage — multi-leg journeys', () => {
     // And the figures a rider would check against the fare.
     expect(within(itinerary).getByText('Total duration')).toBeInTheDocument()
     expect(within(itinerary).getByText('2 hr 57 min')).toBeInTheDocument()
+  })
+
+  it('opens a trip linked from Ask FareFlow', async () => {
+    vi.spyOn(api.tripsApi, 'list').mockResolvedValue(page([journeyTrip]))
+    const detail = vi.spyOn(api.journeysApi, 'detail').mockResolvedValue(journeyDetail)
+
+    renderWithProviders(<TripHistoryPage />, { route: '/trips?trip=3' })
+
+    await waitFor(() => expect(detail).toHaveBeenCalledWith(9))
+    expect(await screen.findByTestId('itinerary-9')).toBeInTheDocument()
+    expect(screen.getByTestId('trip-3')).toHaveClass('trip-focused')
   })
 
   it('shows the fare breakdown that was frozen at selection time', async () => {

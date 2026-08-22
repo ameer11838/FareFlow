@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CloseIcon, SparkleIcon } from '../../components/Icons'
-import { Logo } from '../../components/Logo'
+import { CloseIcon, FareFlowGuideIcon, PlusIcon, SendIcon } from '../../components/Icons'
 import { formatCents, formatDateTime } from '../../lib/format'
 import { useAssistant } from './AssistantContext'
 
@@ -34,7 +33,7 @@ export function AssistantPanel() {
   }, [assistant.open, assistant.closeAssistant])
 
   useEffect(() => {
-    if (assistant.open) threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (assistant.open) threadEndRef.current?.scrollIntoView?.({ behavior: 'smooth' })
   }, [assistant.open, assistant.turns, assistant.asking])
 
   const submit = (text: string) => {
@@ -56,8 +55,11 @@ export function AssistantPanel() {
         aria-label={assistant.open ? 'Close Ask FareFlow' : 'Open Ask FareFlow'}
         aria-expanded={assistant.open}
       >
-        <span className="assistant-fab-icon"><SparkleIcon size={19} /></span>
-        <span>Ask FareFlow</span>
+        <span className="assistant-fab-icon"><FareFlowGuideIcon size={20} /></span>
+        <span className="assistant-fab-copy">
+          <strong>Ask FareFlow</strong>
+          <small>{assistant.pageName}</small>
+        </span>
       </button>
 
       {assistant.open && (
@@ -77,14 +79,16 @@ export function AssistantPanel() {
       >
         <header className="assistant-header">
           <div className="assistant-identity">
-            <span className="assistant-avatar"><Logo size={29} /></span>
+            <span className="assistant-avatar"><FareFlowGuideIcon size={21} /></span>
             <span>
               <strong>Ask FareFlow</strong>
-              <small><span className="assistant-live-dot" /> Context: {assistant.pageName}</small>
+              <small>Transit and spending assistant</small>
             </span>
           </div>
           <div className="assistant-header-actions">
-            <button type="button" onClick={assistant.clearConversation}>New chat</button>
+            <button type="button" className="assistant-new" onClick={assistant.clearConversation}>
+              <PlusIcon size={14} /> New
+            </button>
             <button type="button" className="icon-button" onClick={assistant.closeAssistant}
                     aria-label="Close Ask FareFlow">
               <CloseIcon size={18} />
@@ -95,18 +99,20 @@ export function AssistantPanel() {
         <div className="assistant-thread" aria-live="polite">
           {assistant.turns.length === 0 && (
             <div className="assistant-welcome">
-              <span className="assistant-welcome-mark"><SparkleIcon size={18} /></span>
-              <h2>Where can FareFlow help?</h2>
+              <div className="assistant-context-strip">
+                <span className="assistant-context-icon"><FareFlowGuideIcon size={16} /></span>
+                <span><small>Working with</small><strong>{assistant.pageName}</strong></span>
+              </div>
+              <h2>What would you like to adjust?</h2>
               <p>
-                I can work with the route on your screen, your transit preferences,
-                completed trips, and transportation budget.
+                Ask about the route on screen, compare a trade-off, or check a
+                number from your actual transit history.
               </p>
             </div>
           )}
 
           {assistant.turns.map((turn, index) => (
             <div key={`${turn.role}-${index}`} className={`assistant-turn assistant-turn-${turn.role}`}>
-              {turn.role === 'assistant' && <span className="assistant-mini-avatar"><Logo size={20} /></span>}
               <div>
                 <span className="assistant-turn-label">{turn.role === 'user' ? 'You' : 'FareFlow'}</span>
                 <p>{turn.content}</p>
@@ -116,7 +122,6 @@ export function AssistantPanel() {
 
           {assistant.asking && (
             <div className="assistant-turn assistant-turn-assistant">
-              <span className="assistant-mini-avatar"><Logo size={20} /></span>
               <div>
                 <span className="assistant-turn-label">FareFlow</span>
                 <div className="assistant-typing" aria-label="FareFlow is checking your data">
@@ -161,7 +166,9 @@ export function AssistantPanel() {
           {!assistant.asking && assistant.config?.available !== false && (
             <div className="assistant-prompts" aria-label="Suggested prompts">
               {prompts.map((prompt) => (
-                <button key={prompt} type="button" onClick={() => submit(prompt)}>{prompt}</button>
+                <button key={prompt} type="button" onClick={() => submit(prompt)}>
+                  <span>{prompt}</span><span aria-hidden="true">→</span>
+                </button>
               ))}
             </div>
           )}
@@ -185,7 +192,7 @@ export function AssistantPanel() {
             />
             <button type="button" onClick={() => submit(question)} aria-label="Send"
                     disabled={!question.trim() || assistant.asking || assistant.loadingConfig}>
-              <span aria-hidden="true">↑</span>
+              <SendIcon size={17} />
             </button>
           </div>
           <p className="assistant-safety">FareFlow uses verified route and account data. Payments always require your confirmation.</p>

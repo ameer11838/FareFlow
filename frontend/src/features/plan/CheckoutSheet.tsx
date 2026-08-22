@@ -88,7 +88,7 @@ export function CheckoutSheet({
           {option.fareCents === null ? (
             <>
               <span>No payment will be created</span>
-              <span>No ledger charge</span>
+              <span>No payment will be recorded</span>
               <span>Trip recorded as unpriced</span>
             </>
           ) : (

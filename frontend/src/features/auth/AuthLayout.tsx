@@ -29,7 +29,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
           <ul className="auth-points">
             <li><span className="auth-point-dot" />Cheapest, fastest, and best value on every route</li>
             <li><span className="auth-point-dot" />A weekly transportation budget that actually holds</li>
-            <li><span className="auth-point-dot" />An append-only ledger behind every fare</li>
+            <li><span className="auth-point-dot" />A complete payment history for every fare</li>
           </ul>
         </div>
 
@@ -47,25 +47,16 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 function AuthArtwork() {
   return (
     <svg className="auth-art" viewBox="0 0 520 260" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="authRoute" x1="40" y1="210" x2="400" y2="70"
-                        gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--ff-cyan)" />
-          <stop offset="55%" stopColor="var(--ff-violet)" />
-          <stop offset="100%" stopColor="var(--ff-magenta)" />
-        </linearGradient>
-      </defs>
-
       <path d="M40 210 L150 210 L250 130 L400 130" stroke="rgba(255,255,255,0.13)" strokeWidth="3"
             strokeLinecap="round" strokeDasharray="8 7" />
       <path d="M40 210 L130 160 L260 190 L400 130" stroke="rgba(255,255,255,0.13)" strokeWidth="3"
             strokeLinecap="round" strokeDasharray="8 7" />
-      <path d="M40 210 L170 100 L290 70 L400 130" stroke="url(#authRoute)" strokeWidth="3.5"
+      <path d="M40 210 L170 100 L290 70 L400 130" stroke="var(--color-accent)" strokeWidth="3.5"
             strokeLinecap="round" />
-      <circle cx="170" cy="100" r="5" fill="var(--ff-navy-950)" stroke="url(#authRoute)" strokeWidth="2.5" />
-      <circle cx="290" cy="70" r="5" fill="var(--ff-navy-950)" stroke="url(#authRoute)" strokeWidth="2.5" />
-      <circle cx="40" cy="210" r="9" fill="var(--ff-navy-950)" stroke="url(#authRoute)" strokeWidth="4" />
-      <rect x="392" y="122" width="16" height="16" rx="3" fill="url(#authRoute)" />
+      <circle cx="170" cy="100" r="5" fill="var(--ff-navy-950)" stroke="var(--color-accent)" strokeWidth="2.5" />
+      <circle cx="290" cy="70" r="5" fill="var(--ff-navy-950)" stroke="var(--color-accent)" strokeWidth="2.5" />
+      <circle cx="40" cy="210" r="9" fill="var(--ff-navy-950)" stroke="var(--color-accent)" strokeWidth="4" />
+      <rect x="392" y="122" width="16" height="16" rx="3" fill="var(--color-accent)" />
     </svg>
   )
 }

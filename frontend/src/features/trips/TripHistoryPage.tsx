@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { journeysApi, tripsApi } from '../../api'
 import { ApiError } from '../../api/client'
 import type { Page, PersistedJourneyDetail, Trip } from '../../api/types'
@@ -21,6 +21,8 @@ import { formatCents, formatDateTime, formatMinutes, labelText } from '../../lib
  */
 export function TripHistoryPage() {
   const user = useCurrentUser()
+  const [searchParams] = useSearchParams()
+  const focusedTripId = Number(searchParams.get('trip')) || null
   const [page, setPage] = useState(0)
   const [cancelling, setCancelling] = useState<number | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
@@ -51,6 +53,7 @@ export function TripHistoryPage() {
         eyebrow="Activity"
         title="Trips"
         subtitle="Every trip records the fare, duration, and operator exactly as they were at the time of travel."
+        actions={<Link className="btn btn-primary" to="/plan">Plan another trip</Link>}
       />
 
       {actionError && (
@@ -90,6 +93,7 @@ export function TripHistoryPage() {
                 onCancel={cancel}
                 cancelling={cancelling === trip.id}
                 disabled={cancelling !== null}
+                initiallyOpen={focusedTripId === trip.id}
               />
             ))}
           </div>
@@ -117,17 +121,29 @@ export function TripHistoryPage() {
   )
 }
 
-function TripCard({ trip, onCancel, cancelling, disabled }: {
+function TripCard({ trip, onCancel, cancelling, disabled, initiallyOpen }: {
   trip: Trip
   onCancel: (id: number) => void
   cancelling: boolean
   disabled: boolean
+  initiallyOpen: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initiallyOpen)
   const cancelled = trip.status === 'CANCELLED'
 
+  useEffect(() => {
+    if (!initiallyOpen) return
+    setOpen(true)
+    document.getElementById(`trip-record-${trip.id}`)
+      ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  }, [initiallyOpen, trip.id])
+
   return (
-    <Card className={`trip${cancelled ? ' trip-cancelled' : ''}`} data-testid={`trip-${trip.id}`}>
+    <Card
+      id={`trip-record-${trip.id}`}
+      className={`trip${cancelled ? ' trip-cancelled' : ''}${initiallyOpen ? ' trip-focused' : ''}`}
+      data-testid={`trip-${trip.id}`}
+    >
       <div className="trip-body">
         <div className="trip-main">
           {/* The arrow is decorative, so the heading carries a spoken label:
@@ -225,7 +241,7 @@ function Savings({ trip, cancelled }: { trip: Trip; cancelled: boolean }) {
   if (cancelled) {
     return (
       <span className="trip-savings muted">
-        Refunded {formatCents(trip.fareCents)} to your ledger
+        Refunded {formatCents(trip.fareCents)} to your payment history
       </span>
     )
   }

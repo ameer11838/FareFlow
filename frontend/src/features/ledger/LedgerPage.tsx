@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ledgerApi } from '../../api'
 import type { LedgerEntry, LedgerEntryType, Page } from '../../api/types'
-import { LedgerIcon, SearchIcon } from '../../components/Icons'
+import { PaymentHistoryIcon, SearchIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Section, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
@@ -11,7 +11,7 @@ import { useCurrentUser } from '../../hooks/useAuth'
 import { formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
 
 /**
- * The ledger, and deliberately the densest screen in the app.
+ * The payment history, and deliberately the densest screen in the app.
  *
  * <p>Everywhere else FareFlow rounds off the accounting and shows a rider what
  * they need. Here the technical vocabulary stays visible — TRIP_CHARGE, signed
@@ -63,9 +63,15 @@ export function LedgerPage() {
   return (
     <div className="page page-narrow">
       <PageHeader
-        eyebrow="Finance"
-        title="Transportation Ledger"
-        subtitle="Every charge, refund, and fare adjustment FareFlow has recorded. Entries are append-only — nothing is ever edited or deleted, and corrections are new entries."
+        eyebrow="Money"
+        title="Payment history"
+        subtitle="Review every transit charge, refund, and fare adjustment in one place. Corrections appear as new activity, so your history always remains complete."
+        actions={(
+          <div className="page-actions">
+            <Link className="btn" to="/wallet">Back to wallet</Link>
+            <Link className="btn btn-primary" to="/plan">Plan a trip</Link>
+          </div>
+        )}
       />
 
       <Section>
@@ -104,9 +110,9 @@ export function LedgerPage() {
 
         {data && data.content.length === 0 && (
           <EmptyState
-            icon={<LedgerIcon size={22} />}
-            title="No ledger entries yet"
-            description="Taking a trip writes a TRIP_CHARGE here. Cancelling one appends a REFUND alongside it, leaving the original charge intact."
+            icon={<PaymentHistoryIcon size={22} />}
+            title="No payments yet"
+            description="Completed trips, refunds, and fare adjustments will appear here as soon as they happen."
             action={<Link className="btn btn-primary" to="/plan">Plan a trip</Link>}
           />
         )}
@@ -114,7 +120,7 @@ export function LedgerPage() {
         {data && data.content.length > 0 && entries.length === 0 && (
           <EmptyState
             title="Nothing on this page matches"
-            description="This searches the entries currently loaded, not the whole ledger. Try another page, or clear the filter."
+            description="This searches the payments currently loaded. Try another page, or clear the filter."
             action={
               <button className="btn" onClick={() => { setFilter('ALL'); setQuery('') }}>
                 Clear filters
@@ -158,26 +164,25 @@ export function LedgerPage() {
         )}
       </Card>
 
-      <Section title="How to read this">
+      <Section title="About your payment history">
         <Card className="card-body legend">
           <dl className="legend-list">
             <div>
-              <dt><code className="entry-type">TRIP_CHARGE</code></dt>
-              <dd>A trip was taken. Always negative.</dd>
+              <dt><span className="entry-type">Trip charge</span></dt>
+              <dd>A public-transit trip was paid for. Shown as money out.</dd>
             </div>
             <div>
-              <dt><code className="entry-type">REFUND</code></dt>
-              <dd>A trip was cancelled. Always positive, and the original charge is left untouched.</dd>
+              <dt><span className="entry-type">Refund</span></dt>
+              <dd>Money was returned after a cancellation. Shown as money in.</dd>
             </div>
             <div>
-              <dt><code className="entry-type">FARE_ADJUSTMENT</code></dt>
-              <dd>A correction, surcharge, or promotion. Either sign, never zero.</dd>
+              <dt><span className="entry-type">Fare adjustment</span></dt>
+              <dd>A fare correction, surcharge, or promotion was recorded.</dd>
             </div>
           </dl>
           <p className="legend-note">
-            Amounts are signed integer cents: negative is money out, positive is money in.
-            Weekly spending on every other page is the sum of these rows — there is no
-            stored total anywhere in the system.
+            A minus sign means money out; a plus sign means money returned. Weekly
+            spending elsewhere in FareFlow is calculated directly from this activity.
           </p>
         </Card>
       </Section>
@@ -197,13 +202,15 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       <div className="ledger-main">
         <span className="ledger-desc">{entry.description}</span>
         <span className="ledger-meta">
-          <code className="entry-type">{ledgerTypeText(entry.type)}</code>
+          <span className="entry-type">{ledgerTypeText(entry.type)}</span>
           <span className="ledger-sep" aria-hidden="true">·</span>
           <span className="numeric">{formatTime(entry.occurredAt)}</span>
           {entry.tripId !== null && (
             <>
               <span className="ledger-sep" aria-hidden="true">·</span>
-              <Link className="ledger-trip-link numeric" to="/trips">Trip #{entry.tripId}</Link>
+              <Link className="ledger-trip-link numeric" to={`/trips?trip=${entry.tripId}`}>
+                View trip #{entry.tripId}
+              </Link>
             </>
           )}
         </span>
