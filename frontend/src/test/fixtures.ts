@@ -338,6 +338,7 @@ export const emptySpendingHistory: SpendingHistory = {
   byOperator: [],
   byMode: [],
   mostUsedRoutes: [],
+  observations: [],
 }
 
 export const spendingHistory: SpendingHistory = {
@@ -395,6 +396,38 @@ export const spendingHistory: SpendingHistory = {
     {
       origin: 'Newark', destination: 'Manhattan', provider: 'PATH',
       tripCount: 4, totalFareCents: 1200, averageFareCents: 300,
+    },
+  ],
+  observations: [
+    {
+      tripId: 101, takenAt: '2026-08-19T12:00:00Z', tripDate: '2026-08-19',
+      bucketDate: '2026-08-19', provider: 'PATH', providerName: 'PATH',
+      mode: 'RAIL', modeName: 'Rail', origin: 'Newark', destination: 'Manhattan',
+      fareCents: 300, durationMinutes: 34, savedCents: 90, distanceMetres: 3600,
+    },
+    {
+      tripId: 102, takenAt: '2026-08-19T21:00:00Z', tripDate: '2026-08-19',
+      bucketDate: '2026-08-19', provider: 'PATH', providerName: 'PATH',
+      mode: 'RAIL', modeName: 'Rail', origin: 'Manhattan', destination: 'Newark',
+      fareCents: 300, durationMinutes: 36, savedCents: 90, distanceMetres: 3600,
+    },
+    {
+      tripId: 103, takenAt: '2026-08-20T12:00:00Z', tripDate: '2026-08-20',
+      bucketDate: '2026-08-20', provider: 'PATH', providerName: 'PATH',
+      mode: 'RAIL', modeName: 'Rail', origin: 'Newark', destination: 'Manhattan',
+      fareCents: 300, durationMinutes: 39, savedCents: 120, distanceMetres: 3600,
+    },
+    {
+      tripId: 104, takenAt: '2026-08-20T16:00:00Z', tripDate: '2026-08-20',
+      bucketDate: '2026-08-20', provider: 'PATH', providerName: 'PATH',
+      mode: 'RAIL', modeName: 'Rail', origin: 'Manhattan', destination: 'Newark',
+      fareCents: 300, durationMinutes: 41, savedCents: 120, distanceMetres: 3600,
+    },
+    {
+      tripId: 105, takenAt: '2026-08-20T19:00:00Z', tripDate: '2026-08-20',
+      bucketDate: '2026-08-20', provider: 'NYC_BUS', providerName: 'NYC Bus',
+      mode: 'BUS', modeName: 'Bus', origin: 'Port Authority', destination: 'Chelsea',
+      fareCents: 365, durationMinutes: 40, savedCents: null, distanceMetres: null,
     },
   ],
 }

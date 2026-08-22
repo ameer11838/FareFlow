@@ -35,9 +35,6 @@ describe('InsightsPage', () => {
     const figures = document.querySelector('.figures-row') as HTMLElement
     expect(within(figures).getByText('$24.65')).toBeInTheDocument()   // spent
     expect(within(figures).getByText('$50.00')).toBeInTheDocument()   // budget
-    // Remaining moved into the budget band, on the shared baseline with the
-    // projection so the three can be compared.
-    expect(within(screen.getByTestId('compare-budget')).getByText('$50.00')).toBeInTheDocument()
   })
 
   it('breaks spending down by provider', async () => {
@@ -86,15 +83,40 @@ describe('InsightsPage', () => {
     vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
     renderWithProviders(<InsightsPage />)
 
-    expect(await screen.findByRole('heading', { name: /travel over time/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /transportation analytics/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '7 days' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '30 days' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '3 months' })).not.toBeInTheDocument()
     expect(screen.getByText(/spending is up \$2\.85/i)).toBeInTheDocument()
     expect(screen.getByText(/PATH accounts for 77%/i)).toBeInTheDocument()
+    expect(await screen.findByTestId('chart-spending', {}, { timeout: 10_000 }))
+      .toHaveAccessibleName(/spending over 30 days/i)
+    expect(screen.getByTestId('chart-trips')).toHaveAccessibleName(/trips over 30 days/i)
+    expect(screen.getByTestId('chart-savings')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-average-fare')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-average-duration')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-operators')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-modes')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-budget')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-fare-duration')).toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Trips' }))
-    expect(screen.getByRole('img', { name: /trips over 30 days/i })).toBeInTheDocument()
+  it('cross-filters all dashboard metrics by operator', async () => {
+    vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
+    renderWithProviders(<InsightsPage />)
+
+    await screen.findByRole('heading', { name: /transportation analytics/i })
+    await userEvent.selectOptions(screen.getByLabelText(/filter by operator/i), 'NYC_BUS')
+
+    expect(screen.getByText(/showing NYC Bus/i)).toBeInTheDocument()
+    const summary = document.querySelector('.analytics-summary') as HTMLElement
+    expect(within(summary).getAllByText('$3.65')).toHaveLength(2)
+    expect(within(summary).getByText('1 completed trip')).toBeInTheDocument()
+    expect(screen.getByTestId('history-sparse-state')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /clear filters/i }))
+    expect(screen.getByText(/showing all completed trips/i)).toBeInTheDocument()
   })
 
   it('invents nothing when there are no trips yet', async () => {
@@ -155,14 +177,13 @@ describe('InsightsPage — personalized from the profile', () => {
 
   it('shows the projection and buffer as figures, not just prose', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
     renderWithProviders(<InsightsPage />)
 
-    // The projection appears as a bar on the same baseline as spend and budget,
-    // so the three are directly comparable rather than three loose figures.
-    expect(await screen.findByTestId('compare-projected')).toBeInTheDocument()
-    expect(within(screen.getByTestId('compare-projected')).getByText('$18.48')).toBeInTheDocument()
-    expect(within(screen.getByTestId('compare-spent')).getByText('$24.65')).toBeInTheDocument()
-    expect(within(screen.getByTestId('compare-budget')).getByText('$50.00')).toBeInTheDocument()
+    // Actual, projection, and budget now share an Apache ECharts bullet comparison.
+    expect(await screen.findByTestId('chart-budget')).toHaveAccessibleName(
+      /weekly budget compared with actual and projected spending/i)
+    expect(screen.getByText('$31.52 projected buffer')).toBeInTheDocument()
   })
 
   it('links the saved commute straight into Plan', async () => {
@@ -175,11 +196,13 @@ describe('InsightsPage — personalized from the profile', () => {
 
   it('asks for a budget instead of reporting $0.00 when none is set', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(noBudgetInsights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
     renderWithProviders(<InsightsPage />)
 
     expect(await screen.findByRole('button', { name: /set a weekly budget/i })).toBeInTheDocument()
-    // And the adherence module asks for one rather than charting against nothing.
-    expect(screen.getByText(/no weekly budget set/i)).toBeInTheDocument()
+    // The analytics comparison explains why it cannot draw a budget reference.
+    expect(await screen.findByText(/no budget set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/set a weekly budget to unlock this comparison/i)).toBeInTheDocument()
 
     // The budget and remaining tiles read "Not set". Spent is genuinely $0.00
     // and still says so — an absent budget is not an absent ledger.

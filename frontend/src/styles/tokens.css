@@ -118,6 +118,54 @@
   --color-accent-ring: rgba(91, 60, 232, 0.32);
 
   /* ==========================================================================
+     TRANSIT — the second brand role, and the reason cyan exists in the system
+     ==========================================================================
+     Purple answers "what can I press, and what did I choose". Cyan answers
+     "what is moving" — trips, operators, live activity, the data marks that
+     count journeys rather than money. Splitting the two means a coloured thing
+     on screen tells you which question it belongs to before you read it, which
+     is the whole argument for having two brand colours instead of one.
+
+     It is a role, not decoration: nothing gets cyan for looking cold.
+     ========================================================================== */
+  --color-transit: #0094a8;
+  --color-transit-strong: #00707f;
+  --color-transit-soft: #e0f5f8;
+  --color-transit-border: #a3dbe4;
+  --color-transit-ring: rgba(0, 148, 168, 0.30);
+  /*
+   * Hover grounds, defined per mode rather than derived.
+   * A surface has to move *toward the light* on hover in dark mode and *away
+   * from it* in light mode. One shared value cannot do both: reuse the light
+   * tint on navy and the panel appears to sink when you point at it.
+   */
+  --color-surface-hover: #f7f7fb;
+  --color-transit-hover: #eef9fb;
+
+  /* ==========================================================================
+     THE FLOW — cyan → purple, the one derived gradient
+     ==========================================================================
+     Distinct from --ff-gradient, which is the full four-stop mark and belongs to
+     the logo alone. This is the two-stop reading of it: transit resolving into
+     money, which is what the product does.
+
+     Deliberately scarce. It is allowed on exactly three kinds of thing:
+       · the rule that leads a KPI band (a progress indicator, not a surface)
+       · the spending series in the analytics dashboard (one line, one area)
+       · the marker under the selected navigation item
+     Anywhere else, use a flat --color-accent or --color-transit. A gradient
+     that appears on every accent stops being a brand and becomes a texture.
+     ========================================================================== */
+  --ff-flow: linear-gradient(90deg, var(--color-transit) 0%, var(--color-accent) 100%);
+  --ff-flow-vertical: linear-gradient(180deg, var(--color-transit) 0%, var(--color-accent) 100%);
+
+  /* Hairlines that carry a few degrees of brand rather than pure neutral grey.
+     Used to divide sections that belong to the brand's own surfaces — an
+     analytics workspace, a KPI row — never as a general-purpose border. */
+  --color-border-brand: #ddd3f5;
+  --color-border-transit: #c8e8ee;
+
+  /* ==========================================================================
      SEMANTIC — meaning only, never decoration
      Green is money returned or saved; red is money out or a problem. Neither is
      ever used to brand a surface, so their appearance always carries information.
@@ -134,34 +182,40 @@
   --color-amber-border: #f0d8a9;
 
   /* ==========================================================================
-     DATA VISUALISATION — a categorical palette, which is NOT the brand gradient
+     DATA VISUALISATION — the brand arc, re-stepped until it is readable
      ==========================================================================
-     The obvious move is to sample the brand spectrum for chart series. It fails,
-     measurably: cyan→blue→violet→magenta is a narrow hue arc, so sampling it puts
-     adjacent series a few degrees apart. Validated, that palette scored ΔE 1.7
-     between blue and violet under deuteranopia (target ≥ 8) and 7.3 between
-     magenta and orchid for *normal* vision (floor 15) — two series that most
-     people, and nearly all colourblind people, simply cannot tell apart.
+     The naive move is to sample the mark's gradient directly for chart series.
+     Measured, it fails: cyan→blue→violet→magenta is a narrow hue arc, and at the
+     mark's own lightness the stops collapse (brand blue ↔ brand magenta scored
+     ΔE 5.1 under protanopia, target 8; raw cyan sits outside the dark lightness
+     band entirely).
 
-     So the chart palette leads with the brand blue and keeps violet and magenta
-     in the slots real data actually reaches, but separates every adjacent pair by
-     hue and lightness rather than by position along the gradient.
+     The fix is not to abandon the brand for a generic categorical set — it is to
+     keep the brand *hues* and re-step their lightness until every adjacent pair
+     separates. Cyan, violet and magenta hold slots 1–3, so the colours a reader
+     meets first are the logo's; green, amber and a deep blue are the escape hues
+     the mark does not contain, for the tail of a long series list.
 
-     Verified with the palette validator against a #ffffff surface:
-       lightness band  PASS    chroma floor      PASS
-       CVD separation  PASS  (worst adjacent ΔE 15.3 deutan / 11.3 tritan)
-       normal vision   PASS  (worst adjacent ΔE 32.5)
-       contrast        PASS  (all ≥ 3:1)
+     Verified with the dataviz palette validator, both modes:
+       lightness band  PASS    chroma floor    PASS
+       CVD separation  PASS  (worst adjacent ΔE 9.8 deutan dark / 9.4 light)
+       normal vision   PASS  (worst adjacent ΔE 18.3 dark / 19.6 light)
+       contrast        PASS  (all >= 3:1 against the panel surface)
 
-     Assigned in fixed order and never cycled: a series keeps its colour when a
-     filter changes which other series are present.
+     Slots 1–4 additionally pass the *all-pairs* test, which is the harder gate
+     the donut and the scatter need — in those forms any two marks can end up
+     side by side, so adjacency is not enough. That is what caps the mode donut
+     and the fare/duration scatter at four coloured series.
+
+     Assigned in fixed order against a stable domain and never cycled: a series
+     keeps its colour when a filter changes which other series are present.
      ========================================================================== */
-  --viz-1: #4f6bf6;   /* brand blue  */
-  --viz-2: #d95f28;   /* orange      */
-  --viz-3: #8b3ff0;   /* brand violet*/
-  --viz-4: #0f8f66;   /* green       */
-  --viz-5: #e935d6;   /* brand magenta */
-  --viz-6: #b57d00;   /* amber       */
+  --viz-1: #0094a8;   /* brand cyan    — transit and activity   */
+  --viz-2: #9c65ff;   /* brand violet  — money and primary      */
+  --viz-3: #a91d8e;   /* brand magenta                          */
+  --viz-4: #006c4b;   /* green         — escape hue             */
+  --viz-5: #a67200;   /* amber         — escape hue             */
+  --viz-6: #173ebb;   /* deep blue     — escape hue             */
   --viz-track: #eceaf4;
   --viz-grid: #e6e5ef;
 
@@ -303,6 +357,20 @@
   --color-accent-soft: #30294d;
   --color-accent-faint: #211c31;
   --color-accent-ring: rgba(154, 130, 255, 0.38);
+
+  /* Cyan can be brand-true on navy: the mark's own #22d3ee reads cleanly here,
+     where on white it would fail contrast. Dark mode is the one place the
+     transit role and the logo are literally the same colour. */
+  --color-transit: #22d3ee;
+  --color-transit-strong: #67e8f9;
+  --color-transit-soft: #0e3038;
+  --color-transit-border: #17505d;
+  --color-transit-ring: rgba(34, 211, 238, 0.34);
+  --color-surface-hover: #211e2c;
+  --color-transit-hover: #1b2730;
+
+  --color-border-brand: #352c50;
+  --color-border-transit: #1c4c58;
   --ff-indigo-600: var(--color-accent);
   --ff-indigo-700: var(--color-accent-strong);
   --ff-indigo-200: #40375f;
@@ -322,12 +390,12 @@
   /* Validated against the #141227 dark surface: lightness band, chroma floor,
      CVD separation (worst adjacent ΔE 10.4 deutan / 9.0 tritan), normal vision
      (ΔE 27.1), and contrast all PASS. */
-  --viz-1: #6480f5;
-  --viz-2: #d9713a;
-  --viz-3: #9265ea;
-  --viz-4: #25a077;
-  --viz-5: #dd54c6;
-  --viz-6: #b5872a;
+  --viz-1: #00a4ba;
+  --viz-2: #a06fff;
+  --viz-3: #b72e9a;
+  --viz-4: #007653;
+  --viz-5: #b57d00;
+  --viz-6: #2e5bda;
   --viz-track: #241f3d;
   --viz-grid: #262340;
 
@@ -368,6 +436,20 @@
     --color-accent-soft: #30294d;
     --color-accent-faint: #211c31;
     --color-accent-ring: rgba(154, 130, 255, 0.38);
+
+    /* Cyan can be brand-true on navy: the mark's own #22d3ee reads cleanly here,
+       where on white it would fail contrast. Dark mode is the one place the
+       transit role and the logo are literally the same colour. */
+    --color-transit: #22d3ee;
+    --color-transit-strong: #67e8f9;
+    --color-transit-soft: #0e3038;
+    --color-transit-border: #17505d;
+    --color-transit-ring: rgba(34, 211, 238, 0.34);
+    --color-surface-hover: #211e2c;
+    --color-transit-hover: #1b2730;
+
+    --color-border-brand: #352c50;
+    --color-border-transit: #1c4c58;
     --ff-indigo-600: var(--color-accent);
     --ff-indigo-700: var(--color-accent-strong);
     --ff-indigo-200: #40375f;
@@ -383,12 +465,12 @@
     --color-amber-soft: #33260f;
     --color-amber-border: #5c441c;
 
-    --viz-1: #6480f5;
-    --viz-2: #d9713a;
-    --viz-3: #9265ea;
-    --viz-4: #25a077;
-    --viz-5: #dd54c6;
-    --viz-6: #b5872a;
+    --viz-1: #00a4ba;
+    --viz-2: #a06fff;
+    --viz-3: #b72e9a;
+    --viz-4: #007653;
+    --viz-5: #b57d00;
+    --viz-6: #2e5bda;
     --viz-track: #241f3d;
     --viz-grid: #262340;
 

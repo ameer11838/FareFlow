@@ -128,6 +128,25 @@ class PersonalizedDemoIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    @DisplayName("history exposes only stored completed-trip facts for chart cross-filtering")
+    void historyIncludesRealChartObservations() throws Exception {
+        takeSeededTrip();
+
+        mockMvc.perform(get("/api/insights/history").param("range", "30d"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.observations.length()", is(1)))
+                .andExpect(jsonPath("$.observations[0].provider", is("PATH")))
+                .andExpect(jsonPath("$.observations[0].providerName", is("PATH")))
+                .andExpect(jsonPath("$.observations[0].mode", is("SUBWAY")))
+                .andExpect(jsonPath("$.observations[0].fareCents", is(300)))
+                .andExpect(jsonPath("$.observations[0].durationMinutes", greaterThan(0)))
+                .andExpect(jsonPath("$.observations[0].tripDate", is(notNullValue())))
+                .andExpect(jsonPath("$.observations[0].bucketDate", is(notNullValue())))
+                .andExpect(jsonPath("$.observations[0].savedCents", is(notNullValue())))
+                .andExpect(jsonPath("$.observations[0].distanceMetres", is(nullValue())));
+    }
+
+    @Test
     @DisplayName("a projection never comes in under what has already been spent")
     void projectionIsFlooredAtActualSpend() throws Exception {
         // Ten trips is well past a 3-day commute pattern; the projection has to

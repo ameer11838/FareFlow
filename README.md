@@ -61,7 +61,7 @@ Product boundary: [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md) · Design notes
 | -------- | ------------------------------------------------ |
 | Backend  | Java 21 (LTS), Spring Boot 3.5, Spring Security + JWT, Maven |
 | Database | PostgreSQL 17, schema owned by Flyway            |
-| Frontend | React 19, TypeScript, Vite, TomTom Maps SDK, Vitest + Testing Library |
+| Frontend | React 19, TypeScript, Vite, Apache ECharts, TomTom Maps SDK, Vitest + Testing Library |
 
 No Lombok, no MapStruct, no Tailwind, and no state-management library. Ask FareFlow
 uses Google's official Gen AI Java SDK with Gemini when configured; route ranking and every
@@ -189,8 +189,8 @@ curl "http://localhost:8080/api/recommendations?origin=Newark&destination=Manhat
 ## Tests
 
 ```bash
-cd backend  && mvn test          # 282 tests
-cd frontend && npm test          # 133 tests
+cd backend  && mvn test          # 285 tests
+cd frontend && npm test          # 137 tests
 cd frontend && npm run typecheck
 ```
 

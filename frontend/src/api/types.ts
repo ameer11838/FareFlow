@@ -335,6 +335,28 @@ export interface SpendingHistoryBucket {
   cumulativeSpentCents: number
 }
 
+/** One stored completed trip, exposed for dashboard cross-filtering. */
+export interface SpendingHistoryObservation {
+  tripId: number
+  takenAt: string
+  /** Rider-local date, calculated by the backend from the user's timezone. */
+  tripDate: string
+  /** Rider-local day/week/month bucket matching the response granularity. */
+  bucketDate: string
+  provider: string
+  providerName: string
+  mode: string
+  modeName: string
+  origin: string
+  destination: string
+  fareCents: number
+  durationMinutes: number
+  /** Null when the selected trip had no comparable fastest alternative. */
+  savedCents: number | null
+  /** Null for trips completed before distance tracking was available. */
+  distanceMetres: number | null
+}
+
 export interface SpendingHistory {
   range: HistoryRange
   rangeName: string
@@ -389,6 +411,7 @@ export interface SpendingHistory {
     totalFareCents: number
     averageFareCents: number
   }>
+  observations: SpendingHistoryObservation[]
 }
 
 export interface ApiUser {

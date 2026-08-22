@@ -3,11 +3,10 @@ import { useId, useState } from 'react'
 /**
  * FareFlow's charts.
  *
- * <p>Two forms, deliberately. Everything Insights has to say is either a magnitude
- * comparison across a handful of categories or a share of one total, and a third
- * chart type would be decoration. There is no time series here because the API
- * returns a single week — inventing a trend line from one data point would be
- * exactly the kind of fabricated figure the backend refuses to produce.
+ * <p>These compact, dependency-free forms remain useful for small comparisons
+ * outside the analytical dashboard. Insights uses Apache ECharts against the
+ * multi-period history API; it falls back to a factual sparse-data state when a
+ * rider has only one day instead of manufacturing a trend.
  *
  * <p>Series colours come from the validated categorical palette
  * (`--viz-1…6`), assigned in fixed order and never cycled, so a provider keeps

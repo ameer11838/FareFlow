@@ -81,19 +81,34 @@ svg { display: block; }
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .topbar-link svg { opacity: 0.8; transition: opacity var(--dur-fast) var(--ease); }
-.topbar-link:hover { color: var(--color-text); background: var(--color-surface-sunken); }
+/* Hover speaks cyan, selected speaks purple. Pointing at a tab and being on a
+   tab are different facts and must not share a colour. */
+.topbar-link:hover:not(.active) {
+  color: var(--color-transit-strong); background: var(--color-transit-hover);
+}
 .topbar-link:hover svg { opacity: 1; }
 
-/* The active marker: a lit rule under the label, sliding up from the bar's own
-   accent edge. Six filled pills in a row reads as a toolbar; one underline
-   reads as navigation. */
+/*
+ * The active marker: a lit rule under the label. Six filled pills in a row reads
+ * as a toolbar; one underline reads as navigation.
+ *
+ * This rule is the third and last place the cyan→purple flow is allowed. It
+ * earns it by being the single element on screen that says where you are, and
+ * by being 2px tall — the gradient registers as brand at a glance without ever
+ * becoming a surface.
+ */
 .topbar-link::after {
-  display: none;
+  content: ''; position: absolute; left: var(--space-3); right: var(--space-3); bottom: -1px;
+  height: 2px; border-radius: 2px 2px 0 0;
+  background: var(--ff-flow);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform var(--dur) var(--ease-out);
 }
 .topbar-link.active {
   color: var(--color-accent); font-weight: var(--weight-semibold);
   background: var(--color-accent-faint);
 }
+.topbar-link.active::after { transform: scaleX(1); }
 .topbar-link.active svg { opacity: 1; color: currentColor; }
 
 /* ---- Account cluster ---- */
@@ -2833,10 +2848,12 @@ a:hover > .ff-wordmark .ff-logo,
  * page and left the reader to work out which number mattered.
  */
 .headline { display: grid; gap: var(--space-5); }
+/* The notes describe travel patterns rather than money, so the rule beside them
+   is the transit cyan — the same distinction the charts make. */
 .headline-notes {
   display: grid; gap: var(--space-2);
   padding-left: var(--space-4);
-  border-left: 2px solid var(--color-accent);
+  border-left: 2px solid var(--color-transit);
   max-width: 74ch;
 }
 .headline-notes li {
@@ -2850,7 +2867,10 @@ a:hover > .ff-wordmark .ff-logo,
   font-size: var(--text-sm); font-weight: var(--weight-medium);
   transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.headline-commute:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.headline-commute:hover {
+  border-color: var(--color-transit); color: var(--color-transit-strong);
+  background: var(--color-transit-hover);
+}
 
 /* ---- Budget adherence ---- */
 .adherence { display: grid; gap: var(--space-6); max-width: 720px; }

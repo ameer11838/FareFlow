@@ -95,7 +95,8 @@ public class SpendingHistoryService {
                 buckets,
                 byOperator(trips),
                 byMode(trips),
-                mostUsedRoutes(trips));
+                mostUsedRoutes(trips),
+                observations(range, zone, trips));
     }
 
     // ---------------------------------------------------------------- buckets
@@ -291,6 +292,26 @@ public class SpendingHistoryService {
                         .reversed()
                         .thenComparing(SpendingHistoryResponse.RouteSlice::origin))
                 .limit(5)
+                .toList();
+    }
+
+    private static List<SpendingHistoryResponse.Observation> observations(
+            HistoryRange range, ZoneId zone, List<Trip> trips) {
+        return trips.stream().map(trip -> new SpendingHistoryResponse.Observation(
+                trip.getId(),
+                trip.getTakenAt(),
+                LocalDate.ofInstant(trip.getTakenAt(), zone),
+                range.bucketStart(LocalDate.ofInstant(trip.getTakenAt(), zone)),
+                trip.getProvider(),
+                displayNameOf(trip.getProvider()),
+                trip.getMode(),
+                titleCase(trip.getMode()),
+                trip.getOrigin(),
+                trip.getDestination(),
+                trip.getFareCents(),
+                trip.getDurationMinutes(),
+                trip.savedVersusFastestCents().orElse(null),
+                trip.getDistanceMetres()))
                 .toList();
     }
 

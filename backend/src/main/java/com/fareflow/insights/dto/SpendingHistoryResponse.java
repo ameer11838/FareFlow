@@ -1,6 +1,7 @@
 package com.fareflow.insights.dto;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -40,7 +41,8 @@ public record SpendingHistoryResponse(
         List<Bucket> buckets,
         List<OperatorSlice> byOperator,
         List<ModeSlice> byMode,
-        List<RouteSlice> mostUsedRoutes
+        List<RouteSlice> mostUsedRoutes,
+        List<Observation> observations
 ) {
 
     /**
@@ -121,6 +123,34 @@ public record SpendingHistoryResponse(
             long tripCount,
             long totalFareCents,
             long averageFareCents
+    ) {
+    }
+
+    /**
+     * One completed-trip observation for interactive, client-side cross-filtering.
+     * It contains only stored facts already visible in trip history. The client can
+     * regroup these facts, but does not estimate missing fares, savings, or distance.
+     *
+     * @param bucketDate the rider-timezone bucket used by {@link Bucket}; sending it
+     *                   avoids duplicating timezone boundary rules in JavaScript
+     * @param savedCents null when this trip had no comparable fastest alternative
+     * @param distanceMetres null when the completed trip did not record distance
+     */
+    public record Observation(
+            long tripId,
+            Instant takenAt,
+            LocalDate tripDate,
+            LocalDate bucketDate,
+            String provider,
+            String providerName,
+            String mode,
+            String modeName,
+            String origin,
+            String destination,
+            long fareCents,
+            int durationMinutes,
+            Long savedCents,
+            Long distanceMetres
     ) {
     }
 }

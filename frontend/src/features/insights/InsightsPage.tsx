@@ -1,17 +1,22 @@
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { insightsApi, passesApi, usersApi } from '../../api'
 import type {
   HistoryRange, Insights, InsightsPersonalization, PassRecommendation, SpendingHistory,
 } from '../../api/types'
-import { BarChart, ComparisonBars, seriesColor, TimeSeriesChart } from '../../components/charts'
+import { seriesColor } from '../../components/charts'
 import { RouteIcon, WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
-import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
+import { Card, Metric, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
 import { formatCents, formatMinutes, formatOptionalCents, formatPercent } from '../../lib/format'
+import { buildAnalyticsView, type AnalyticsFilters } from './analytics'
+
+const InsightsCharts = lazy(() => import('./InsightsCharts').then((module) => ({
+  default: module.InsightsCharts,
+})))
 
 /**
  * Transportation financial intelligence.
@@ -66,7 +71,7 @@ export function InsightsPage() {
         <>
           <Headline data={data} />
 
-          <HistoryModule />
+          <HistoryModule weekly={data} />
 
           <section className="band">
             <div className="band-head">
@@ -91,18 +96,6 @@ export function InsightsPage() {
                       tone={data.averageDurationMinutes === null ? 'muted' : 'default'}
                       caption="Door to door" />
             </div>
-          </section>
-
-          <section className="band">
-            <div className="band-head">
-              <h2 className="band-title">Budget</h2>
-              <span className="band-note">
-                {data.weeklyBudgetCents === null
-                  ? 'No weekly budget set'
-                  : 'Spend and projection against the budget you set'}
-              </span>
-            </div>
-            <BudgetAdherence data={data} />
           </section>
 
           <section className="band">
@@ -153,21 +146,23 @@ export function InsightsPage() {
   )
 }
 
-type HistoryMetric = 'spend' | 'trips' | 'fare' | 'duration' | 'savings'
-
 const RANGE_NAMES: Record<HistoryRange, string> = {
   '7d': '7 days', '30d': '30 days', '3m': '3 months', '1y': '1 year',
 }
 
-const METRIC_NAMES: Record<HistoryMetric, string> = {
-  spend: 'Spending', trips: 'Trips', fare: 'Average fare',
-  duration: 'Average commute', savings: 'Savings',
-}
+const EMPTY_FILTERS: AnalyticsFilters = { operator: null, mode: null, bucketDate: null }
 
-function HistoryModule() {
+function HistoryModule({ weekly }: { weekly: Insights }) {
   const [range, setRange] = useState<HistoryRange>('30d')
-  const [metric, setMetric] = useState<HistoryMetric>('spend')
+  const [filters, setFilters] = useState<AnalyticsFilters>(EMPTY_FILTERS)
   const history = useAsync<SpendingHistory>(() => insightsApi.history(range), [range])
+
+  useEffect(() => {
+    const available = history.data?.rangesWithData ?? []
+    if (available.length > 0 && !available.includes(range)) {
+      setRange(available.includes('30d') ? '30d' : available[0])
+    }
+  }, [history.data, range])
 
   if (history.loading && !history.data) {
     return <section className="band"><Skeleton height={250} /></section>
@@ -183,91 +178,109 @@ function HistoryModule() {
   if (!data || (!data.hasData && data.rangesWithData.length === 0)) return null
 
   const periods = data.rangesWithData
-  const series = data.buckets.map((bucket) => {
-    const value = metricValue(metric, bucket)
-    return {
-      id: bucket.date,
-      label: bucket.label,
-      value,
-      display: metricDisplay(metric, value),
-      details: [
-        `${bucket.tripCount} trip${bucket.tripCount === 1 ? '' : 's'}`,
-        bucket.averageFareCents === null ? 'No average fare' : `${formatCents(bucket.averageFareCents)} average fare`,
-        bucket.averageDurationMinutes === null ? 'No average duration' : `${formatMinutes(bucket.averageDurationMinutes)} average trip`,
-      ],
-    }
-  })
+  const view = buildAnalyticsView(data, filters)
+  const activeFilters = [
+    filters.operator
+      ? data.byOperator.find((operator) => operator.provider === filters.operator)?.providerName
+        ?? filters.operator : null,
+    filters.mode
+      ? data.byMode.find((mode) => mode.mode === filters.mode)?.modeName ?? filters.mode : null,
+    filters.bucketDate
+      ? data.buckets.find((bucket) => bucket.date === filters.bucketDate)?.label
+        ?? filters.bucketDate : null,
+  ].filter((value): value is string => Boolean(value))
+
+  const setOperator = (operator: string | null) =>
+    setFilters((current) => ({ ...current, operator }))
+  const setMode = (mode: string | null) =>
+    setFilters((current) => ({ ...current, mode }))
+  const setBucket = (bucketDate: string | null) =>
+    setFilters((current) => ({ ...current, bucketDate }))
 
   return (
     <section className="band history-module" data-testid="history-module">
       <div className="band-head history-head">
         <div>
-          <h2 className="band-title">Travel over time</h2>
-          <span className="band-note">Completed trips only · {data.startDate} to {data.endDate}</span>
+          <h2 className="band-title">Transportation analytics</h2>
+          <span className="band-note">
+            Completed trips only · {data.startDate} to {data.endDate} · click chart data to cross-filter
+          </span>
         </div>
         <div className="range-tabs" aria-label="History period">
           {periods.map((period) => (
             <button key={period} type="button" aria-pressed={range === period}
-                    onClick={() => setRange(period)}>{RANGE_NAMES[period]}</button>
+                    onClick={() => {
+                      setRange(period)
+                      setFilters((current) => ({ ...current, bucketDate: null }))
+                    }}>{RANGE_NAMES[period]}</button>
           ))}
         </div>
       </div>
 
-      <div className="history-metric-tabs" aria-label="Chart metric">
-        {(Object.keys(METRIC_NAMES) as HistoryMetric[]).map((key) => (
-          <button key={key} type="button" aria-pressed={metric === key}
-                  onClick={() => setMetric(key)}>{METRIC_NAMES[key]}</button>
-        ))}
+      <div className="analytics-toolbar" aria-label="Analytics filters">
+        <label>
+          <span>Operator</span>
+          <select aria-label="Filter by operator" value={filters.operator ?? ''}
+                  onChange={(event) => setOperator(event.target.value || null)}>
+            <option value="">All operators</option>
+            {data.byOperator.map((operator) => (
+              <option key={operator.provider} value={operator.provider}>{operator.providerName}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Mode</span>
+          <select aria-label="Filter by transit mode" value={filters.mode ?? ''}
+                  onChange={(event) => setMode(event.target.value || null)}>
+            <option value="">All public transit</option>
+            {data.byMode.map((mode) => (
+              <option key={mode.mode} value={mode.mode}>{mode.modeName}</option>
+            ))}
+          </select>
+        </label>
+        <div className="analytics-filter-status" aria-live="polite">
+          {activeFilters.length > 0 ? (
+            <>
+              <span>Showing {activeFilters.join(' · ')}</span>
+              <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button>
+            </>
+          ) : <span>Showing all completed trips in this period</span>}
+        </div>
       </div>
 
       {data.hasData ? (
         <>
-          <TimeSeriesChart data={series} ariaLabel={`${METRIC_NAMES[metric]} over ${data.rangeName}`} />
-          <div className="figures-row history-unit-metrics">
-            <Metric label="Cost per trip" value={formatOptionalCents(data.totals.averageFareCents, '—')}
-                    caption={`${data.totals.tripCount} completed trip${data.totals.tripCount === 1 ? '' : 's'}`} />
-            <Metric label="Cost per mile" value={formatOptionalCents(data.totals.costPerMileCents, '—')}
-                    caption={data.totals.costPerMileCents === null
-                      ? 'Available after a usage-priced trip'
-                      : `Across ${data.totals.usagePricedTripCount} tracked trip${data.totals.usagePricedTripCount === 1 ? '' : 's'}`} />
-            <Metric label="Average trip" value={data.totals.averageDurationMinutes === null
-                      ? '—' : formatMinutes(data.totals.averageDurationMinutes)}
-                    caption="Completed travel time" />
-            <Metric label="Savings" value={formatOptionalCents(data.totals.savedCents, '—')}
-                    caption="Where a comparison existed" />
+          <div className="figures-row analytics-summary">
+            <Metric label="Filtered spend" value={formatCents(view.totals.spentCents)}
+                    caption={`${view.totals.tripCount} completed trip${view.totals.tripCount === 1 ? '' : 's'}`} />
+            <Metric label="Average fare" value={formatOptionalCents(view.totals.averageFareCents, '—')}
+                    caption="Across the current dashboard view" />
+            <Metric label="Cost per mile" value={formatOptionalCents(view.totals.costPerMileCents, '—')}
+                    caption={view.totals.costPerMileCents === null
+                      ? 'Needs trips with recorded distance' : 'Usage-priced trips with distance'} />
+            <Metric label="Savings" value={formatOptionalCents(view.totals.savedCents, '—')}
+                    caption="Only where a comparison existed" />
           </div>
-          <HistoryDecision data={data} />
+          <HistoryDecision data={data} view={view} filtered={activeFilters.length > 0} />
+          <Suspense fallback={<Skeleton height={420} />}>
+            <InsightsCharts
+              history={data}
+              weekly={weekly}
+              view={view}
+              filters={filters}
+              onOperator={setOperator}
+              onMode={setMode}
+              onBucket={setBucket}
+            />
+          </Suspense>
 
-          <div className="history-breakdowns">
-            <div>
-              <h3>Spending by operator</h3>
-              <BarChart data={data.byOperator.map((operator) => ({
-                id: operator.provider,
-                label: operator.providerName,
-                value: operator.spentCents,
-                display: formatCents(operator.spentCents),
-                meta: `${operator.tripCount} trip${operator.tripCount === 1 ? '' : 's'}`,
-              }))} total={data.totals.spentCents} />
-            </div>
-            <div>
-              <h3>Spending by mode</h3>
-              <BarChart data={data.byMode.map((mode) => ({
-                id: mode.mode,
-                label: mode.modeName,
-                value: mode.spentCents,
-                display: formatCents(mode.spentCents),
-                meta: `${mode.tripCount} trip${mode.tripCount === 1 ? '' : 's'}`,
-              }))} total={data.totals.spentCents} />
-            </div>
-          </div>
-
-          {data.mostUsedRoutes.length > 0 && (
+          {view.routes.length > 0 && (
             <div className="history-routes">
-              <h3>Most-used routes</h3>
+              <h3>Most-used routes in this view</h3>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead><tr><th>Route</th><th>Operator</th><th className="col-num">Trips</th><th className="col-total">Average fare</th></tr></thead>
-                  <tbody>{data.mostUsedRoutes.map((route) => (
+                  <tbody>{view.routes.map((route) => (
                     <tr key={`${route.origin}|${route.destination}|${route.provider}`}>
                       <td className="col-name">{route.origin} → {route.destination}</td>
                       <td>{route.provider}</td>
@@ -287,36 +300,27 @@ function HistoryModule() {
   )
 }
 
-function metricValue(metric: HistoryMetric, bucket: SpendingHistory['buckets'][number]): number | null {
-  switch (metric) {
-    case 'spend': return bucket.spentCents
-    case 'trips': return bucket.tripCount
-    case 'fare': return bucket.averageFareCents
-    case 'duration': return bucket.averageDurationMinutes
-    case 'savings': return bucket.savedCents
-  }
-}
-
-function metricDisplay(metric: HistoryMetric, value: number | null): string {
-  if (value === null) return 'No data'
-  if (metric === 'spend' || metric === 'fare' || metric === 'savings') return formatCents(value)
-  if (metric === 'duration') return formatMinutes(value)
-  return String(value)
-}
-
-function HistoryDecision({ data }: { data: SpendingHistory }) {
+function HistoryDecision({ data, view, filtered }: {
+  data: SpendingHistory
+  view: ReturnType<typeof buildAnalyticsView>
+  filtered: boolean
+}) {
   const comparison = data.comparison
-  const topOperator = data.byOperator[0]
+  const topOperator = view.byOperator[0]
   return (
     <div className="history-decision">
       <div>
         <span>What changed</span>
-        <strong>{comparison ? changeSentence(comparison) : 'There is not enough earlier history for a fair comparison.'}</strong>
+        <strong>{!filtered && comparison
+          ? changeSentence(comparison)
+          : filtered
+            ? `The dashboard is cross-filtered to ${view.totals.tripCount} completed trip${view.totals.tripCount === 1 ? '' : 's'}.`
+            : 'There is not enough earlier history for a fair comparison.'}</strong>
       </div>
       <div>
         <span>Why it matters</span>
         <strong>{topOperator
-          ? `${topOperator.providerName} accounts for ${Math.round(topOperator.shareOfSpend * 100)}% of spending in this period.`
+          ? `${topOperator.name} accounts for ${view.totals.spentCents === 0 ? 0 : Math.round((topOperator.spentCents / view.totals.spentCents) * 100)}% of spending in this view.`
           : 'No operator accounts for recorded spending in this period.'}</strong>
       </div>
       <div>
@@ -387,50 +391,6 @@ function CommuteChip({ personal }: { personal: InsightsPersonalization }) {
     >
       {personal.typicalOriginName} → {personal.typicalDestinationName}
     </Link>
-  )
-}
-
-function BudgetAdherence({ data }: { data: Insights }) {
-  if (data.weeklyBudgetCents === null) {
-    return (
-      <div className="adherence-empty">
-        <p className="lede-sub">
-          Set a weekly budget and FareFlow will track this week against it, and lean
-          toward cheaper routes as you approach it.
-        </p>
-        <Link className="btn btn-primary" to="/settings">Set a budget</Link>
-      </div>
-    )
-  }
-
-  const budget = data.weeklyBudgetCents
-  const over = (data.remainingCents ?? 0) < 0
-  const projected = data.personalization?.projectedWeeklySpendCents ?? null
-
-  return (
-    <div className="adherence">
-      <div className="adherence-meter">
-        <Meter value={data.spentCents} max={budget} over={over}
-               label={`${formatCents(data.spentCents)} of ${formatCents(budget)} spent`} />
-        <div className="adherence-scale">
-          <span>{data.budgetUtilization === null ? '0%' : formatPercent(data.budgetUtilization)} used</span>
-          <span className="numeric">{formatCents(budget)}</span>
-        </div>
-      </div>
-
-      {/* Three bars on one baseline: spend, projection, and budget are only
-          meaningful against each other, and a shared scale is the whole point. */}
-      {projected !== null && (
-        <ComparisonBars rows={[
-          { id: 'spent', label: 'Spent so far', value: data.spentCents,
-            display: formatCents(data.spentCents), tone: 'brand' },
-          { id: 'projected', label: 'Projected by week end', value: projected,
-            display: formatCents(projected), tone: projected > budget ? 'muted' : 'positive' },
-          { id: 'budget', label: 'Your budget', value: budget,
-            display: formatCents(budget), tone: 'muted' },
-        ]} />
-      )}
-    </div>
   )
 }
 
