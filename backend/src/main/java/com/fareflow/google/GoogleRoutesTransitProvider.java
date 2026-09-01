@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fareflow.discovery.RouteDiscoveryProvider;
 import com.fareflow.journey.Journey;
 import com.fareflow.journey.JourneyLeg;
+import com.fareflow.journey.TransitStopGeometry;
 import com.fareflow.journey.TransitMode;
 import com.fareflow.location.LocationCandidate;
 import org.slf4j.Logger;
@@ -232,7 +233,8 @@ public final class GoogleRoutesTransitProvider implements RouteDiscoveryProvider
 
             List<JourneyLeg.Waypoint> geometry = new ArrayList<>(geometry(
                     step, departure.waypoint(), arrival.waypoint()));
-            labelEndpoints(geometry, departure.name(), arrival.name());
+            geometry = new ArrayList<>(TransitStopGeometry.ensureStopBoundaries(
+                    geometry, departure.name(), arrival.name(), baseLineName, stopCount));
             double distance = nonNegativeDistance(step);
             if (distance == 0) {
                 distance = pathDistance(geometry);

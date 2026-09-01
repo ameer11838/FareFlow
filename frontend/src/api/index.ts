@@ -171,8 +171,8 @@ export const transitSessionsApi = {
     '/api/transit-sessions', body, { 'Idempotency-Key': idempotencyKey }),
   active: () => api.get<TransitSession | null>('/api/transit-sessions/active'),
   get: (id: string) => api.get<TransitSession>(`/api/transit-sessions/${id}`),
-  advance: (id: string) =>
-    api.post<TransitSession>(`/api/transit-sessions/${id}/advance`),
+  advance: (id: string, outcome: 'REACHED' | 'SKIPPED' | 'DIVERTED' = 'REACHED') =>
+    api.post<TransitSession>(`/api/transit-sessions/${id}/advance`, { outcome }),
   end: (id: string) =>
     api.post<TransitSession>(`/api/transit-sessions/${id}/end`),
   pay: (

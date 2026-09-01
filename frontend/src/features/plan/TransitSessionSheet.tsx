@@ -3,8 +3,9 @@ import type {
   JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, TransitSession,
 } from '../../api/types'
 import {
-  CheckIcon, ClockIcon, CloseIcon, InfoIcon, ModeIcon, WalletIcon,
+  CheckIcon, ClockIcon, CloseIcon, InfoIcon, WalletIcon,
 } from '../../components/Icons'
+import { ModeTile } from '../../components/Tile'
 import { formatCents, formatMinutes } from '../../lib/format'
 
 /**
@@ -26,7 +27,7 @@ export function TransitSessionSheet({
   error: string | null
   onClose: () => void
   onStart: () => void
-  onAdvance: () => void
+  onAdvance: (outcome?: 'REACHED' | 'SKIPPED' | 'DIVERTED') => void
   onEnd: () => void
   onPay: (method: PaymentRail) => void
 }) {
@@ -53,10 +54,11 @@ export function TransitSessionSheet({
         : 'checkout'
 
   return (
-    <div className="checkout-backdrop session-backdrop" role="presentation" onMouseDown={(event) => {
+    <div className={`checkout-backdrop session-backdrop session-backdrop-${phase}`}
+         role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget && !processing && phase !== 'active') onClose()
     }}>
-      <section className="checkout-sheet session-sheet" role="dialog" aria-modal="true"
+      <section className="checkout-sheet session-sheet" role="dialog" aria-modal={phase !== 'active'}
                aria-labelledby={titleId} data-testid="transit-session-sheet">
         <header className="checkout-head session-head">
           <div>
@@ -118,10 +120,14 @@ function ReadyToRide({ option, result, processing, onStart }: {
       <div className="session-facts">
         <Fact label="Expected arrival"
               value={scheduledArrival ? formatClock(scheduledArrival) : 'Not provided'} />
-        <Fact label="Estimated usage fare"
-              value={formatFareRange(option.usageFareMinCents, option.usageFareMaxCents)} />
+        <Fact label={option.fareSource === 'PROVIDER' ? 'Provider fare estimate' : 'Published fare'}
+              value={option.fareCents === null ? 'Unavailable' : formatCents(option.fareCents)} />
         <Fact label="Charged now" value="$0.00" tone="positive" />
       </div>
+
+      <p className="session-usage-preview">
+        FareFlow usage simulation: {formatFareRange(option.usageFareMinCents, option.usageFareMaxCents)}
+      </p>
 
       <div className="session-source-note">
         <InfoIcon size={16} />
@@ -146,7 +152,7 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
   session: TransitSession
   elapsedSeconds: number
   processing: boolean
-  onAdvance: () => void
+  onAdvance: (outcome?: 'REACHED' | 'SKIPPED' | 'DIVERTED') => void
   onEnd: () => void
 }) {
   const progress = session.progressUnitsTotal > 0
@@ -164,22 +170,39 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
       <RouteIdentity origin={session.origin} destination={session.destination}
                      summary={session.currentLine} mode={session.currentMode} />
 
-      <section className="session-current-fare" aria-label="Current fare">
+      <section className="session-current-fare" aria-label="Current fare — FareFlow usage simulation">
         <div>
-          <span>Current Fare</span>
+          <span>FareFlow usage simulation</span>
           <small>Locked to {session.completedStops} completed stop{session.completedStops === 1 ? '' : 's'}</small>
         </div>
         <strong className="numeric">{formatCents(session.currentFareCents)}</strong>
-        <p>Waiting time and delays never increase this amount.</p>
+        <p>
+          Waiting time and delays never increase this amount.
+          {session.publishedFareCents != null
+            ? ` Published route ${session.publishedFareStatus === 'EXACT' ? 'fare' : 'estimate'}: ${formatCents(session.publishedFareCents)}.`
+            : ' The route provider did not return a complete published fare.'}
+        </p>
+        <div className="session-fare-policy">
+          <span>{session.fareCategoryName}</span>
+          <span>{formatCents(session.dailyCapRemainingCents)} until today’s cap</span>
+          {(session.transferDiscountCents + session.concessionDiscountCents
+            + session.capDiscountCents) > 0 && (
+            <span>{formatCents(session.transferDiscountCents + session.concessionDiscountCents
+              + session.capDiscountCents)} saved by fare rules</span>
+          )}
+        </div>
       </section>
 
       <div className="session-stop-board">
         <span className="session-stop-kicker">Current stop</span>
-        <strong>{session.currentStop ?? 'Stop detail not provided'}</strong>
+        <strong>{stopDisplayName(session.currentStop, session.progressUnitsCompleted, session.plannedStops)}</strong>
         <div className="session-next-stop">
           <span>Next</span>
           <span>
-            <b>{session.nextStop ?? (session.canAdvance ? 'Stop name not provided' : session.destination)}</b>
+            <b>{session.nextStop
+              ?? (session.canAdvance
+                ? stopDisplayName(null, session.progressUnitsCompleted + 1, session.plannedStops)
+                : session.destination)}</b>
             {session.canAdvance && (
               <small>+{formatCents(session.nextStopFareIncreaseCents)} when reached</small>
             )}
@@ -190,7 +213,7 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
       <div className="session-progress" aria-label={`${Math.round(progress * 100)}% trip progress`}>
         <div className="session-progress-head">
           <span>Trip progress</span>
-          <b>{session.completedStops} of {session.plannedStops} stops</b>
+          <b>{session.progressUnitsCompleted} of {session.progressUnitsTotal} route stops</b>
         </div>
         <span className="session-progress-track"><span style={{ width: `${progress * 100}%` }} /></span>
       </div>
@@ -214,7 +237,7 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
       </div>
 
       <div className="session-actions">
-        <button className="btn btn-primary" type="button" onClick={onAdvance}
+        <button className="btn btn-primary" type="button" onClick={() => onAdvance('REACHED')}
                 disabled={processing || !session.canAdvance}>
           {processing ? 'Updating…' : session.canAdvance ? 'Complete next stop' : 'Route completed'}
         </button>
@@ -222,6 +245,18 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
           End trip
         </button>
       </div>
+      {session.canAdvance && (
+        <details className="session-service-exception">
+          <summary>Did the vehicle skip this stop or divert?</summary>
+          <p>Service exceptions advance the route without adding a stop charge.</p>
+          <div>
+            <button className="btn btn-ghost" type="button" disabled={processing}
+                    onClick={() => onAdvance('SKIPPED')}>Stop was skipped</button>
+            <button className="btn btn-ghost" type="button" disabled={processing}
+                    onClick={() => onAdvance('DIVERTED')}>Route diverted</button>
+          </div>
+        </details>
+      )}
     </>
   )
 }
@@ -231,10 +266,10 @@ function StopFareTimeline({ session }: { session: TransitSession }) {
     <section className="session-stop-fares" aria-labelledby="stop-fare-title">
       <div className="session-stop-fares-head">
         <div>
-          <strong id="stop-fare-title">Fare by stop</strong>
-          <span>Charges post only as stops are completed</span>
+          <strong id="stop-fare-title">Simulated fare by stop</strong>
+          <span>FareFlow usage charges post at completed stops</span>
         </div>
-        <span>{session.completedStops}/{session.plannedStops}</span>
+        <span>{session.progressUnitsCompleted}/{session.progressUnitsTotal}</span>
       </div>
       <ol className="session-stop-list">
         {session.stopFareProgress.map((stop) => (
@@ -242,14 +277,19 @@ function StopFareTimeline({ session }: { session: TransitSession }) {
               aria-current={stop.state === 'CURRENT' ? 'step' : undefined}>
             <span className="session-stop-rail" aria-hidden="true"><span /></span>
             <span className="session-stop-copy">
-              <b>{stop.stopName ?? 'Stop name not provided'}</b>
+              <b>{stopDisplayName(stop.stopName, stop.sequence, session.plannedStops)}</b>
               <small>{stop.sequence === 0
                 ? 'Boarding point · no charge'
                 : `${stop.lineName} · ${stopStateLabel(stop.state)}`}</small>
             </span>
             <span className="session-stop-charge numeric">
-              <b>{stop.sequence === 0 ? '$0.00' : `+${formatCents(stop.fareIncrementCents)}`}</b>
-              <small>{stop.sequence === 0 ? 'No charge' : `${formatCents(stop.cumulativeFareCents)} total`}</small>
+              <b>{stop.sequence === 0 ? '$0.00'
+                : stop.state === 'SKIPPED' || stop.state === 'DIVERTED' ? '$0.00'
+                  : `+${formatCents(stop.fareIncrementCents)}`}</b>
+              <small>{stop.sequence === 0 ? 'No charge'
+                : stop.totalDiscountCents > 0
+                  ? `${formatCents(stop.totalDiscountCents)} discount`
+                  : `${formatCents(stop.cumulativeFareCents)} total`}</small>
             </span>
           </li>
         ))}
@@ -350,7 +390,7 @@ function RouteIdentity({ origin, destination, summary, mode }: {
 }) {
   return (
     <div className="session-route-identity">
-      <span className="session-mode"><ModeIcon mode={mode} size={20} /></span>
+      <span className="session-mode"><ModeTile mode={mode.toLowerCase()} size={42} /></span>
       <div><strong>{origin} → {destination}</strong><span>{summary}</span></div>
     </div>
   )
@@ -378,6 +418,12 @@ function formatFareRange(min: number, max: number): string {
   return min === max ? formatCents(max) : `${formatCents(min)}–${formatCents(max)}`
 }
 
+function stopDisplayName(name: string | null, sequence: number, total: number): string {
+  if (name?.trim()) return name
+  if (sequence <= 0) return 'Boarding point'
+  return `Route stop ${sequence} of ${total}`
+}
+
 function formatDistance(metres: number): string {
   return `${(metres / 1_609.344).toFixed(metres < 1_609 ? 2 : 1)} mi`
 }
@@ -399,5 +445,7 @@ function stopStateLabel(state: TransitSession['stopFareProgress'][number]['state
   if (state === 'COMPLETED') return 'charged'
   if (state === 'CURRENT') return 'current · charged'
   if (state === 'NEXT') return 'next stop'
+  if (state === 'SKIPPED') return 'skipped · no charge'
+  if (state === 'DIVERTED') return 'diverted · no charge'
   return 'upcoming'
 }

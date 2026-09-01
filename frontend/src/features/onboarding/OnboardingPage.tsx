@@ -350,6 +350,7 @@ export function toInput(answers: Answers): TravelProfileInput {
     typicalOrigin: hasCommute ? answers.typicalOrigin : null,
     typicalDestination: hasCommute ? answers.typicalDestination : null,
     passPreference: answers.passPreference as TravelProfileInput['passPreference'],
+    fareCategory: 'REGULAR',
     preferredModes: answers.preferredModes,
   }
 }

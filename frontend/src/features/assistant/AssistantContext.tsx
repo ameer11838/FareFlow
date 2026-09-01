@@ -33,6 +33,8 @@ interface AssistantValue {
   toggleAssistant: () => void
   ask: (question: string) => Promise<void>
   clearConversation: () => void
+  /** Loads a saved conversation back into the live thread. */
+  restoreConversation: (turns: AssistantTurn[]) => void
   setActiveRouteContext: (context: ActiveRouteContext | null) => void
 }
 
@@ -147,6 +149,17 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     if (storageKey) sessionStorage.removeItem(storageKey)
   }, [storageKey])
 
+  // Revisiting a saved conversation replaces the thread wholesale. Follow-ups and
+  // suggested trips are cleared rather than restored: they were generated against
+  // a page and a moment that have both moved on, and offering a stale "book this
+  // route" action is worse than offering none.
+  const restoreConversation = useCallback((restored: AssistantTurn[]) => {
+    setTurns(restored)
+    setFollowUps([])
+    setSuggestedTrips([])
+    setError(null)
+  }, [])
+
   const value = useMemo<AssistantValue>(() => ({
     open,
     config,
@@ -164,11 +177,12 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     toggleAssistant: open ? closeAssistant : openAssistant,
     ask,
     clearConversation,
+    restoreConversation,
     setActiveRouteContext,
   }), [
     open, config, loadingConfig, turns, followUps, asking, error, latestRoutes,
     routeRevision, suggestedTrips, pageName, openAssistant, closeAssistant, ask,
-    clearConversation,
+    clearConversation, restoreConversation,
   ])
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>

@@ -1,6 +1,7 @@
 import type { RecommendedRoute } from '../../api/types'
 import { LabelBadge } from '../../components/Badge'
-import { ClockIcon, ModeIcon, TransferIcon } from '../../components/Icons'
+import { ClockIcon, TransferIcon } from '../../components/Icons'
+import { ModeTile } from '../../components/Tile'
 import { formatCents, formatMinutes } from '../../lib/format'
 
 /**
@@ -32,11 +33,18 @@ export function RouteOptionCard({ route, onChoose, choosing, disabled }: {
             {route.labels.map((label) => <LabelBadge key={label} label={label} />)}
           </div>
 
-          <h3 className="option-provider">
-            <span className="mode-icon" style={{ width: 34, height: 34 }}>
-              <ModeIcon mode={route.mode} size={17} />
+          {/* The plate is the first thing read on the row: at a glance the list
+              separates into rail, bus and ferry before a single operator name
+              is parsed. The mode is still written out beside it, because colour
+              and artwork are never the only carrier of a fact. */}
+          <h3 className={`option-provider mode-${route.mode.toLowerCase()}`}>
+            <span className="tile-plate">
+              <ModeTile mode={route.mode.toLowerCase()} size={38} />
             </span>
-            {route.providerName}
+            <span className="option-provider-text">
+              <span className="option-provider-name">{route.providerName}</span>
+              <span className="option-provider-mode">{modeName(route.mode)}</span>
+            </span>
           </h3>
 
           <div className="option-facts numeric">
@@ -93,6 +101,16 @@ export function RouteOptionCard({ route, onChoose, choosing, disabled }: {
 interface Tradeoff {
   text: string
   good: boolean
+}
+
+/** Rider-facing name for a mode, so the plate is never the only thing saying it. */
+function modeName(mode: string): string {
+  const names: Record<string, string> = {
+    RAIL: 'Rail', TRAIN: 'Train', SUBWAY: 'Subway', METRO: 'Subway',
+    BUS: 'Bus', TRAM: 'Light rail', LIGHT_RAIL: 'Light rail',
+    FERRY: 'Ferry', WALK: 'Walking',
+  }
+  return names[mode?.toUpperCase()] ?? 'Transit'
 }
 
 /**

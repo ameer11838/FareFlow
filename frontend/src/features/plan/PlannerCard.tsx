@@ -60,14 +60,14 @@ export function PlannerCard({
         </span>
 
         <div className="planner-inputs">
-          {/* Type-ahead over the geocoder: any place, not just seeded names. */}
+          {/* Type-ahead over the geocoder: full addresses and places, not seeded pairs. */}
           <LocationInput
             id="origin"
             label="From"
             value={origin}
             onChange={onOriginChange}
             onSelectCandidate={onOriginSelect}
-            placeholder="Station, stop, or address"
+            placeholder="123 Main St, Newark, NJ"
           />
           <span className="planner-divider" />
           <LocationInput
@@ -76,7 +76,7 @@ export function PlannerCard({
             value={destination}
             onChange={onDestinationChange}
             onSelectCandidate={onDestinationSelect}
-            placeholder="Station, stop, or destination"
+            placeholder="350 5th Ave, New York, NY"
           />
         </div>
 
@@ -90,6 +90,10 @@ export function PlannerCard({
           <SwapIcon size={14} />
         </button>
       </div>
+
+      <p className="planner-address-note">
+        Enter any U.S. street address, landmark, station, or stop.
+      </p>
 
       <div className="planner-stance">
         <span className="planner-stance-label">What matters right now?</span>

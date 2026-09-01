@@ -115,6 +115,7 @@ public class TravelProfileService {
         profile.setWeeklyCommuteFrequency(parseFrequency(request.weeklyCommuteFrequency()));
         profile.setCommuteKind(parseCommuteKind(request.commuteKind()));
         profile.setPassPreference(parsePassPreference(request.passPreference()));
+        profile.setFareCategory(parseFareCategory(request.fareCategory()));
         profile.setPreferredModes(parseModes(request.preferredModes()));
 
         CommuteKind kind = profile.getCommuteKind();
@@ -178,6 +179,13 @@ public class TravelProfileService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown payment style '%s'. Valid values are: %s"
                                 .formatted(raw, PassPreference.validNames())));
+    }
+
+    private static FareCategory parseFareCategory(String raw) {
+        return FareCategory.parse(raw)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Unknown fare category '%s'. Valid values are: %s"
+                                .formatted(raw, FareCategory.validNames())));
     }
 
     private static List<PreferredTravelMode> parseModes(List<String> raw) {

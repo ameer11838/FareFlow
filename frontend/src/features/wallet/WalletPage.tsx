@@ -2,14 +2,15 @@ import { Link } from 'react-router-dom'
 import { insightsApi, walletApi } from '../../api'
 import type { Insights, LedgerEntry, PaymentIntent, PaymentMethod, Wallet } from '../../api/types'
 import { seriesColor } from '../../components/charts'
-import { CheckIcon, ModeIcon, PaymentHistoryIcon, WalletIcon } from '../../components/Icons'
+import { ModeIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
-import { Card, Metric, Meter, Skeleton } from '../../components/Surface'
+import { BudgetLede, NoBudgetLede } from '../../components/BudgetLede'
+import { Card, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
+import { Tile } from '../../components/Tile'
+import type { TileName } from '../../components/tileNames'
 import { useAsync } from '../../hooks/useAsync'
-import {
-  formatCents, formatOptionalCents, formatPercent, formatSignedCents, formatTime, ledgerTypeText,
-} from '../../lib/format'
+import { formatCents, formatOptionalCents, formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
 
 /**
  * The wallet is a read-only projection of the ledger.
@@ -49,11 +50,13 @@ export function WalletPage() {
   const pastUsualPace = projected !== null && projected === data.spentThisWeekCents
   const savedCents = insights.data?.savedVersusFastestCents ?? null
   const hasBudget = data.weeklyBudgetCents !== null
+  const projectedRemaining = projected === null || data.weeklyBudgetCents === null
+    ? null : data.weeklyBudgetCents - projected
 
   return (
     <div className="page">
       <PageHeader
-        eyebrow="Wallet"
+        tile="payments-wallet/wallet"
         title="FareFlow Wallet"
         subtitle="See what is available for transit this week, where it went, and what your current pace means for the days ahead."
         actions={(
@@ -70,9 +73,40 @@ export function WalletPage() {
         their wallet before a trip is asking "can I afford this", and 56px of
         tightly tracked type answers that better than a box does.
       */}
-      {hasBudget
-        ? <BudgetLede wallet={data} projectedCents={projected} pastUsualPace={pastUsualPace} />
-        : <NoBudgetLede />}
+      {hasBudget ? (
+        <BudgetLede
+          lead="remaining"
+          spentCents={data.spentThisWeekCents}
+          budgetCents={data.weeklyBudgetCents}
+          remainingCents={data.availableBalanceCents}
+          projectedCents={projected}
+          detail={projected === null ? undefined : pastUsualPace
+            ? 'Already past your usual weekly pace.'
+            : `${formatCents(projected)} projected by week end at your usual commute rate.`}
+          aside={(
+            <>
+              <span className="lede-aside-label">Saved vs the fastest route</span>
+              <span className={`lede-aside-value numeric${savedCents !== null && savedCents > 0 ? ' is-positive' : ''}`}>
+                {formatOptionalCents(savedCents, '—')}
+              </span>
+              <span className="lede-aside-note">
+                {savedCents === null ? 'No comparable route this week' : 'This week'}
+              </span>
+            </>
+          )}
+          footer={projectedRemaining !== null && projectedRemaining < 0 ? (
+            <p className="lede-warn">
+              At this pace the week ends {formatCents(-projectedRemaining)} over budget.
+            </p>
+          ) : undefined}
+        />
+      ) : (
+        <NoBudgetLede action={(
+          <Link className="btn btn-primary" to="/settings" style={{ justifySelf: 'start' }}>
+            Set a budget
+          </Link>
+        )} />
+      )}
 
       {data.openTransitSession && (
         <section className="band wallet-pending" data-testid="pending-transit-session">
@@ -84,8 +118,8 @@ export function WalletPage() {
             <span className="activity-icon"><ModeIcon mode={data.openTransitSession.currentMode} /></span>
             <span>
               <strong>{data.openTransitSession.origin} → {data.openTransitSession.destination}</strong>
-              <small>{data.openTransitSession.summary} · {data.openTransitSession.completedStops}
-                {' '}of {data.openTransitSession.plannedStops} stops recorded</small>
+              <small>{data.openTransitSession.summary} · {data.openTransitSession.progressUnitsCompleted}
+                {' '}of {data.openTransitSession.progressUnitsTotal} route stops recorded</small>
             </span>
             <span className="wallet-pending-amount numeric">
               {data.openTransitSession.finalFareCents === null
@@ -95,47 +129,6 @@ export function WalletPage() {
           </Link>
         </section>
       )}
-
-      <section className="band">
-        <div className="band-head">
-          <h2 className="band-title">This week</h2>
-          <span className="band-note">Calculated from completed payments and refunds</span>
-        </div>
-
-        {/* One row, divided by rules: the figures sit on a shared baseline and
-            are directly comparable, which four separate tiles never are. */}
-        <div className="figures-row">
-          <Metric
-            label="Spent"
-            value={formatCents(data.spentThisWeekCents)}
-            caption={`${chargeCount(data)} charge${chargeCount(data) === 1 ? '' : 's'}`}
-          />
-          <Metric
-            label="Remaining"
-            value={formatOptionalCents(data.availableBalanceCents)}
-            tone={data.availableBalanceCents === null
-              ? 'muted'
-              : data.availableBalanceCents < 0 ? 'negative' : 'positive'}
-            caption={data.availableBalanceCents === null
-              ? 'No budget set'
-              : data.availableBalanceCents < 0 ? 'Over budget' : 'Left to spend'}
-          />
-          <Metric
-            label="Projected"
-            value={formatOptionalCents(projected, '—')}
-            tone={projected === null ? 'muted' : 'default'}
-            caption={projected === null
-              ? 'Needs a completed trip'
-              : pastUsualPace ? 'Past your usual pace' : 'At your usual commute rate'}
-          />
-          <Metric
-            label="Saved"
-            value={formatOptionalCents(savedCents, '—')}
-            tone={savedCents !== null && savedCents > 0 ? 'positive' : 'muted'}
-            caption={savedCents === null ? 'No comparable route' : 'vs the fastest route'}
-          />
-        </div>
-      </section>
 
       {insights.data && insights.data.spendingByProvider.length > 0 && (
         <section className="band">
@@ -188,7 +181,7 @@ export function WalletPage() {
         <Card>
           {data.recentActivity.length === 0 ? (
             <EmptyState
-              icon={<PaymentHistoryIcon size={22} />}
+              tile="payments-wallet/wallet"
               title="No payments yet"
               description="A completed trip records its charge here. Refunds appear beside the original payment."
               action={<Link className="btn btn-primary" to="/plan">Plan a trip</Link>}
@@ -206,9 +199,6 @@ export function WalletPage() {
   )
 }
 
-function chargeCount(wallet: Wallet): number {
-  return wallet.recentActivity.filter((entry) => entry.type === 'TRIP_CHARGE').length
-}
 
 /**
  * Spend by operator as a table.
@@ -267,128 +257,32 @@ function OperatorTable({ rows, total }: {
   )
 }
 
-/**
- * The one figure the page exists to show.
- *
- * <p>Remaining leads because it is the number that changes a decision: a rider
- * checking their wallet before a trip is asking "can I afford this", not "what
- * have I spent". Spent, the meter, and the projection are all support for it.
- */
-function BudgetLede({ wallet, projectedCents, pastUsualPace }: {
-  wallet: Wallet
-  projectedCents: number | null
-  pastUsualPace: boolean
-}) {
-  const budget = wallet.weeklyBudgetCents ?? 0
-  const remaining = wallet.availableBalanceCents ?? 0
-  const over = remaining < 0
-  const projectedRemaining = projectedCents === null ? null : budget - projectedCents
 
-  return (
-    <section className="budget-lede">
-      <div className="lede">
-        <span className="lede-eyebrow">Weekly transportation</span>
-        <div className="lede-figure">
-          <span className="lede-value">{formatCents(remaining)}</span>
-          <span className="lede-unit">{over ? 'over budget' : 'remaining'}</span>
-        </div>
-        <span className="lede-sub numeric">
-          {formatCents(wallet.spentThisWeekCents)} spent of {formatCents(budget)}
-          {projectedCents !== null && !pastUsualPace && (
-            <> · {formatCents(projectedCents)} projected by week end</>
-          )}
-          {pastUsualPace && <> · already past your usual weekly pace</>}
-        </span>
-      </div>
 
-      <div className="budget-lede-track">
-        <Meter
-          value={wallet.spentThisWeekCents}
-          max={budget}
-          over={over}
-          label={`${formatCents(wallet.spentThisWeekCents)} spent of ${formatCents(budget)}`}
-        />
-        <BudgetVerdict
-          spent={wallet.spentThisWeekCents}
-          budget={budget}
-          projected={projectedCents}
-          utilization={wallet.budgetUtilization}
-        />
-      </div>
-
-      {projectedRemaining !== null && projectedRemaining < 0 && (
-        <p className="budget-lede-warn">
-          At this pace the week ends {formatCents(-projectedRemaining)} over budget.
-        </p>
-      )}
-    </section>
-  )
-}
 
 /**
- * A one-word read on the week.
+ * The plate for a funding source, by id.
  *
- * <p>Deliberately conservative: it says "on track" only when the *projection*
- * fits the budget, not merely when today's spend does. A verdict that flips to
- * "over" on the last day of the week would have been useless all week.
+ * <p>Falls back to the generic card rather than to the wallet: an unknown method
+ * is much more likely to be a card FareFlow has not been taught about than a
+ * second FareFlow balance, and showing the balance plate for it would be a
+ * small lie about where the money comes from.
  */
-function BudgetVerdict({ spent, budget, projected, utilization }: {
-  spent: number
-  budget: number
-  projected: number | null
-  utilization: number | null
-}) {
-  if (budget <= 0) return null
-
-  const reference = projected ?? spent
-  const over = reference > budget
-  const tight = !over && reference > budget * 0.9
-
-  const tone = over ? 'negative' : tight ? 'neutral' : 'positive'
-  const text = over ? 'Over budget' : tight ? 'Running close' : 'On track'
-
-  return (
-    <div className="budget-verdict">
-      <span className={`verdict verdict-${tone}`}>
-        {!over && !tight && <CheckIcon size={13} />}
-        {text}
-      </span>
-      {utilization !== null && (
-        <span className="budget-verdict-note numeric">
-          {formatPercent(utilization)} of budget used
-          {projected !== null && ` · projected ${formatPercent(projected / budget)}`}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function NoBudgetLede() {
-  return (
-    <section className="budget-lede">
-      <div className="lede">
-        <span className="lede-eyebrow">Weekly transportation</span>
-        <div className="lede-figure">
-          <span className="lede-value lede-value-unset">Set a weekly budget</span>
-        </div>
-        <span className="lede-sub">
-          FareFlow tracks spending against a weekly transportation budget, and leans
-          toward cheaper routes as you approach it. Until you set one there is no
-          balance to show.
-        </span>
-      </div>
-      <Link className="btn btn-primary" to="/settings" style={{ justifySelf: 'start' }}>
-        Set a budget
-      </Link>
-    </section>
-  )
+const METHOD_TILE: Record<string, TileName> = {
+  FAREFLOW_BALANCE: 'payments-wallet/wallet',
+  FAREFLOW_WALLET: 'payments-wallet/wallet',
+  SIMULATED_CARD: 'payments-wallet/credit-card',
+  APPLE_PAY: 'payments-wallet/apple-pay',
+  GOOGLE_PAY: 'payments-wallet/google-pay',
 }
 
 function PaymentMethodRow({ method }: { method: PaymentMethod }) {
   const available = method.status === 'AVAILABLE'
   return (
     <div className={`method${available ? ' method-available' : ''}`} data-testid={`payment-${method.id}`}>
-      <span className="method-icon"><WalletIcon size={18} /></span>
+      <span className="tile-plate method-plate">
+        <Tile name={METHOD_TILE[method.id] ?? 'payments-wallet/credit-card'} size={34} />
+      </span>
       <div className="method-text">
         <span className="method-name">{method.name}</span>
         <span className="method-desc">{method.description}</span>

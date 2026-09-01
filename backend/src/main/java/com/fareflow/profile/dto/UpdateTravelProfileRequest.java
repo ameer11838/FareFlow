@@ -42,6 +42,8 @@ public record UpdateTravelProfileRequest(
 
         String passPreference,
 
+        String fareCategory,
+
         List<String> preferredModes
 ) {
 }

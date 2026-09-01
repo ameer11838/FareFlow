@@ -7,7 +7,7 @@ import * as api from '../../../api'
 import { ApiError } from '../../../api/client'
 import {
   demoConfig, emptyInsights, emptySpendingHistory, insights, noBudgetInsights, passRecommendation,
-  spendingHistory, user,
+  spendingHistory, spendingHistoryThreeDays, user,
 } from '../../../test/fixtures'
 
 describe('InsightsPage', () => {
@@ -18,23 +18,27 @@ describe('InsightsPage', () => {
     vi.spyOn(api.insightsApi, 'history').mockResolvedValue(emptySpendingHistory)
   })
 
-  it('shows the headline weekly figures', async () => {
+  it('leads with budget status, and states each figure once', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
     renderWithProviders(<InsightsPage />)
 
-    // Savings leads: it is the only figure that answers "was FareFlow worth it".
-    expect(await screen.findByText(/saved this week/i)).toBeInTheDocument()
-    const headline = document.querySelector('.headline') as HTMLElement
-    expect(headline.querySelector('.lede-value')).toHaveTextContent('$13.40')
-    expect(within(headline).getByText(/across 8 trips/i)).toBeInTheDocument()
+    // Budget status leads: spend on its own is a number, spend against a budget
+    // is a verdict, and the verdict is the reason to open this page.
+    const lede = await screen.findByTestId('budget-lede')
+    expect(lede.querySelector('.lede-value')).toHaveTextContent('$24.65')
+    expect(within(lede).getByText('of $50.00')).toBeInTheDocument()
+    expect(within(lede).getByText(/\$25\.35 left this week/i)).toBeInTheDocument()
+    expect(lede).toHaveClass('lede-under')
 
-    // Spend and budget are support, in the adherence module. Each figure appears
-    // twice there by design — once as a metric, once as a bar on the shared
-    // baseline that makes the three directly comparable.
-    // Spend and budget are support, in the divided figure row beneath the lede.
-    const figures = document.querySelector('.figures-row') as HTMLElement
-    expect(within(figures).getByText('$24.65')).toBeInTheDocument()   // spent
-    expect(within(figures).getByText('$50.00')).toBeInTheDocument()   // budget
+    // Savings is the second question, so it is the secondary figure.
+    expect(within(lede).getByText(/saved vs the fastest route/i)).toBeInTheDocument()
+    expect(lede.querySelector('.lede-aside-value')).toHaveTextContent('$13.40')
+
+    // And each of those figures appears exactly once on the page. The old
+    // layout printed spend in the lede and again in a figure row, and savings
+    // in the lede and again under "Trade-offs".
+    expect(screen.getAllByText('$24.65')).toHaveLength(1)
+    expect(screen.getAllByText('$13.40')).toHaveLength(1)
   })
 
   it('breaks spending down by provider', async () => {
@@ -87,19 +91,50 @@ describe('InsightsPage', () => {
     expect(screen.getByRole('button', { name: '7 days' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '30 days' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '3 months' })).not.toBeInTheDocument()
+
+    // The period comparison survives as a plain sentence. The "PATH accounts
+    // for 77%" line beside it does not: it was the "Why it matters" cell of a
+    // self-narrating strip, and the operator breakdown already carries it.
     expect(screen.getByText(/spending is up \$2\.85/i)).toBeInTheDocument()
-    expect(screen.getByText(/PATH accounts for 77%/i)).toBeInTheDocument()
+    expect(screen.queryByText(/why it matters/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/what you can do/i)).not.toBeInTheDocument()
+  })
+
+  it('shows a stat comparison, not chart chrome, for a two-day history', async () => {
+    vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
+    renderWithProviders(<InsightsPage />)
+
+    // Two active days. A gridded, axis-bearing line chart over two points
+    // asserts a trend that two points cannot support, so the figures are shown
+    // side by side instead.
+    // Generous timeout: InsightsCharts is lazy-loaded, and under a full parallel
+    // suite the Suspense boundary can take longer than the 1s default.
+    expect(await screen.findAllByTestId('sparse-series', {}, { timeout: 10_000 }))
+      .not.toHaveLength(0)
+    expect(screen.queryByTestId('chart-spending')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-average-duration')).not.toBeInTheDocument()
+
+    // Two operators and two modes still divide, so those keep their donuts.
+    expect(screen.getByTestId('chart-operators')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-modes')).toBeInTheDocument()
+  }, 15_000)
+
+  it('draws the full time series once there are three active days', async () => {
+    vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
+    vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistoryThreeDays)
+    renderWithProviders(<InsightsPage />)
+
     expect(await screen.findByTestId('chart-spending', {}, { timeout: 10_000 }))
       .toHaveAccessibleName(/spending over 30 days/i)
     expect(screen.getByTestId('chart-trips')).toHaveAccessibleName(/trips over 30 days/i)
     expect(screen.getByTestId('chart-savings')).toBeInTheDocument()
     expect(screen.getByTestId('chart-average-fare')).toBeInTheDocument()
     expect(screen.getByTestId('chart-average-duration')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-operators')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-modes')).toBeInTheDocument()
     expect(screen.getByTestId('chart-budget')).toBeInTheDocument()
     expect(screen.getByTestId('chart-fare-duration')).toBeInTheDocument()
-  })
+    expect(screen.queryByTestId('sparse-series')).not.toBeInTheDocument()
+  }, 15_000)
 
   it('cross-filters all dashboard metrics by operator', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
@@ -109,10 +144,11 @@ describe('InsightsPage', () => {
     await screen.findByRole('heading', { name: /transportation analytics/i })
     await userEvent.selectOptions(screen.getByLabelText(/filter by operator/i), 'NYC_BUS')
 
-    expect(screen.getByText(/showing NYC Bus/i)).toBeInTheDocument()
-    const summary = document.querySelector('.analytics-summary') as HTMLElement
-    expect(within(summary).getAllByText('$3.65')).toHaveLength(2)
-    expect(within(summary).getByText('1 completed trip')).toBeInTheDocument()
+    // The dashboard's totals are one line now, not a row of four metric cards
+    // repeating figures the lede and the charts already carry.
+    const scope = document.querySelector('.analytics-filter-status') as HTMLElement
+    expect(within(scope).getByText(/showing NYC Bus/i)).toBeInTheDocument()
+    expect(within(scope).getByText(/\$3\.65 · 1 trip/)).toBeInTheDocument()
     expect(screen.getByTestId('history-sparse-state')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /clear filters/i }))

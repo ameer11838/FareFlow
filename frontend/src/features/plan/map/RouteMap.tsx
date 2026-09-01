@@ -15,6 +15,7 @@ import { SchematicMap } from './SchematicMap'
  */
 export function RouteMap({
   journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
+  activeStopSequence, activeStopName,
   onSelectJourney, onSelectLeg, focus, focusLocations = [], nearbyStops = [],
 }: {
   journeys: JourneyOption[]
@@ -22,6 +23,9 @@ export function RouteMap({
   /** Hovered in the drawer; emphasised without changing the selection. */
   highlightedJourneyId?: string | null
   activeLegIndex?: number | null
+  /** Rider-confirmed position within the selected journey's ordered stop markers. */
+  activeStopSequence?: number | null
+  activeStopName?: string | null
   onSelectJourney: (journeyId: string) => void
   onSelectLeg?: (journeyId: string, legIndex: number) => void
   /**
@@ -271,23 +275,30 @@ export function RouteMap({
           .addTo(map),
       )
 
-      // Intermediate provider-named stops only. Google shape points deliberately
-      // have blank names and must not turn into hundreds of fictional stop markers.
-      const namedStops = points.slice(1, -1)
-        .filter((point) => point.name.trim().length > 0)
-        .filter((point, index, all) => index === all.findIndex((candidate) =>
-          candidate.name === point.name
-          && candidate.latitude === point.latitude
-          && candidate.longitude === point.longitude))
-      for (const point of namedStops) {
+      // One marker per transit stop boundary. Intermediate Google markers are
+      // explicitly numbered route positions; GTFS markers retain agency names.
+      for (const point of selected ? transitStopMarkers(selected) : []) {
+        const state = activeStopSequence == null ? 'upcoming'
+          : point.sequence < activeStopSequence ? 'completed'
+            : point.sequence === activeStopSequence ? 'current' : 'upcoming'
         markersRef.current.push(
-          new tt.Marker({ element: stopMarker(point.name) })
+          new tt.Marker({
+            element: stopMarker(
+              point.name,
+              point.marker,
+              state,
+              state === 'current' ? activeStopName : null,
+            ),
+          })
             .setLngLat([point.longitude, point.latitude])
             .addTo(map),
         )
       }
     })
-  }, [ready, journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex, onSelectJourney, onSelectLeg])
+  }, [
+    ready, journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
+    activeStopSequence, activeStopName, onSelectJourney, onSelectLeg,
+  ])
 
   // Before planning, make a chosen station/place immediately tangible on the map
   // and surround it with stops from imported GTFS. These are not generic POI dots:
@@ -402,6 +413,8 @@ export function RouteMap({
       selectedJourneyId={selectedJourneyId}
       highlightedJourneyId={highlightedJourneyId}
       activeLegIndex={activeLegIndex}
+      activeStopSequence={activeStopSequence}
+      activeStopName={activeStopName}
       onSelectJourney={onSelectJourney}
       onSelectLeg={onSelectLeg}
       reason={failed ?? 'missing-key'}
@@ -456,11 +469,45 @@ function endpointMarker(kind: 'origin' | 'destination', label: string): HTMLElem
   return element
 }
 
-function stopMarker(label: string): HTMLElement {
+function stopMarker(
+  label: string,
+  marker: string,
+  state: 'completed' | 'current' | 'upcoming' = 'upcoming',
+  currentName: string | null = null,
+): HTMLElement {
   const element = document.createElement('div')
-  element.className = 'map-stop'
+  element.className = `map-stop is-${state}`
   element.title = label
+  const accessibleLabel = state === 'current'
+    ? `You are here · ${currentName ?? label}`
+    : label
+  element.dataset.label = accessibleLabel
+  element.setAttribute('aria-label', accessibleLabel)
+  if (state === 'current') element.setAttribute('aria-current', 'location')
+  const number = document.createElement('span')
+  number.textContent = marker
+  element.append(number)
   return element
+}
+
+function transitStopMarkers(journey: JourneyOption) {
+  let reached = 0
+  const markers: Array<JourneyOption['legs'][number]['waypoints'][number] & {
+    marker: string
+    sequence: number
+  }> = []
+  for (const leg of journey.legs) {
+    if (leg.mode === 'WALK') continue
+    const named = leg.waypoints.filter((point) => point.name.trim().length > 0)
+    named.forEach((point, index) => {
+      if (markers.some((candidate) => candidate.name === point.name
+        && candidate.latitude === point.latitude && candidate.longitude === point.longitude)) return
+      const sequence = index === 0 && markers.length === 0 ? 0 : ++reached
+      const marker = sequence === 0 ? 'B' : String(sequence)
+      markers.push({ ...point, marker, sequence })
+    })
+  }
+  return markers
 }
 
 function placeMarker(label: string): HTMLElement {

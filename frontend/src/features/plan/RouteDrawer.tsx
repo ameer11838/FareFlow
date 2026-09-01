@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ApiError } from '../../api/client'
 import type { JourneyOption, JourneySearchResponse } from '../../api/types'
-import { InfoIcon, ModeIcon, TransferIcon } from '../../components/Icons'
+import { InfoIcon, ModeRun, TransferIcon } from '../../components/Icons'
 import { formatCents, formatMinutes, labelText } from '../../lib/format'
 import { JourneyLegs } from './JourneyLegs'
 
@@ -172,15 +172,8 @@ function JourneyTile({
         before they read a word of it, so the modes are drawn as connected nodes
         rather than described in a sentence.
       */}
-      <div className="line-strip" aria-hidden="true">
-        {rides.slice(0, 4).map((leg, index) => (
-          <span key={index} className="line-strip-item">
-            {index > 0 && <span className="line-strip-link" />}
-            <span className={`line-strip-node mode-${leg.mode.toLowerCase()}`}>
-              <ModeIcon mode={leg.mode} size={13} />
-            </span>
-          </span>
-        ))}
+      <div className="line-strip">
+        <ModeRun modes={rides.map((leg) => leg.mode)} max={4} />
         {rides.length > 4 && <span className="line-strip-more">+{rides.length - 4}</span>}
       </div>
 

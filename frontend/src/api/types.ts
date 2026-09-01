@@ -91,9 +91,30 @@ export interface StopFareProgress {
   stopName: string | null
   lineName: string
   mode: JourneyLeg['mode']
-  state: 'CURRENT' | 'COMPLETED' | 'NEXT' | 'UPCOMING'
+  state: 'CURRENT' | 'COMPLETED' | 'NEXT' | 'UPCOMING' | 'SKIPPED' | 'DIVERTED'
   fareIncrementCents: number
   cumulativeFareCents: number
+  grossCents: number
+  totalDiscountCents: number
+  description: string
+}
+
+export interface TransitFareEvent {
+  id: number
+  sequence: number
+  eventType: 'STOP_COMPLETED' | 'STOP_SKIPPED' | 'ROUTE_DIVERSION'
+  stopName: string | null
+  lineName: string
+  mode: JourneyLeg['mode']
+  agency: string | null
+  grossCents: number
+  transferDiscountCents: number
+  concessionDiscountCents: number
+  capDiscountCents: number
+  amountCents: number
+  cumulativeFareCents: number
+  description: string
+  occurredAt: string
 }
 
 export interface TransitSession {
@@ -127,12 +148,26 @@ export interface TransitSession {
   progressSource: 'RIDER_CONFIRMED' | 'LOCATION_VERIFIED' | 'AGENCY_VERIFIED'
   estimatedFareMinCents: number
   estimatedFareMaxCents: number
+  /** Published/provider route fare captured when the journey was selected. */
+  publishedFareCents?: number | null
+  publishedFareStatus?: FareStatus
+  publishedFareSource?: string
   /** Exact server-owned fare at the latest completed stop. */
   currentFareCents: number
   /** Compatibility alias retained for older clients. */
   currentEstimatedFareCents: number
   finalFareCents: number | null
+  fareCategory: FareCategoryId
+  fareCategoryName: string
+  dailyCapCents: number
+  weeklyCapCents: number
+  dailyCapRemainingCents: number
+  weeklyCapRemainingCents: number
+  transferDiscountCents: number
+  concessionDiscountCents: number
+  capDiscountCents: number
   fareBreakdown: string[]
+  fareEvents: TransitFareEvent[]
   stopFareProgress: StopFareProgress[]
   pricingVersion: string
   canAdvance: boolean
@@ -438,6 +473,7 @@ export type CommuteFrequencyId =
 export type CommuteKindId = 'WORK' | 'SCHOOL' | 'BOTH' | 'NONE'
 export type PassPreferenceId = 'PAY_PER_RIDE' | 'WEEKLY_PASS' | 'MONTHLY_PASS' | 'NOT_SURE'
 export type TravelModeId = 'TRAIN' | 'SUBWAY' | 'BUS' | 'FERRY'
+export type FareCategoryId = 'REGULAR' | 'STUDENT' | 'SENIOR' | 'REDUCED'
 
 export interface ModeOption {
   id: TravelModeId
@@ -466,6 +502,8 @@ export interface TravelProfile {
   hasTypicalCommute: boolean
   passPreference: PassPreferenceId | null
   passPreferenceName: string | null
+  fareCategory: FareCategoryId
+  fareCategoryName: string
   preferredModes: ModeOption[]
 }
 
@@ -479,6 +517,7 @@ export interface TravelProfileInput {
   typicalOrigin: TypicalPlace | null
   typicalDestination: TypicalPlace | null
   passPreference: PassPreferenceId | null
+  fareCategory: FareCategoryId
   preferredModes: TravelModeId[]
 }
 
@@ -494,6 +533,7 @@ export interface ProfileOptions {
   commuteFrequencies: ProfileOption[]
   commuteKinds: ProfileOption[]
   passPreferences: ProfileOption[]
+  fareCategories: ProfileOption[]
   travelModes: ModeOption[]
 }
 
@@ -608,7 +648,7 @@ export interface Trip {
   transfers: number
   distanceMetres?: number | null
   stopsTravelled?: number | null
-  fareModel?: 'FIXED' | 'FAREFLOW_USAGE_V1'
+  fareModel?: 'FIXED' | 'FAREFLOW_USAGE_V1' | 'FAREFLOW_USAGE_V2'
   selectedLabel: string
   baselineFareCents: number | null
   /** Null means "not computable", which is different from a computed zero. */

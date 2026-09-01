@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ledgerApi, paymentsApi } from '../../api'
 import type { LedgerEntry, LedgerEntryType, Page, PaymentIntent } from '../../api/types'
-import { PaymentHistoryIcon, SearchIcon } from '../../components/Icons'
+import { ChevronDownIcon, SearchIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Section, Skeleton } from '../../components/Surface'
+import { Tile } from '../../components/Tile'
+import type { TileName } from '../../components/tileNames'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useCurrentUser } from '../../hooks/useAuth'
@@ -27,6 +29,12 @@ const FILTERS: { id: 'ALL' | LedgerEntryType; label: string }[] = [
   { id: 'REFUND', label: 'Refunds' },
   { id: 'FARE_ADJUSTMENT', label: 'Adjustments' },
 ]
+
+const LEDGER_TILES: Record<LedgerEntryType, TileName> = {
+  TRIP_CHARGE: 'payments-wallet/receipt',
+  REFUND: 'notifications/success',
+  FARE_ADJUSTMENT: 'trip-states/fare-update',
+}
 
 export function LedgerPage() {
   const user = useCurrentUser()
@@ -67,9 +75,9 @@ export function LedgerPage() {
   if (!user) return null
 
   return (
-    <div className="page page-narrow">
+    <div className="page">
       <PageHeader
-        eyebrow="Money"
+        tile="financial-analytics/history"
         title="Payment history"
         subtitle="Review every transit charge, refund, and fare adjustment in one place. Corrections appear as new activity, so your history always remains complete."
         actions={(
@@ -80,11 +88,10 @@ export function LedgerPage() {
         )}
       />
 
-      <Section
-        title="Receipts"
-        caption="Trip, payment method, status, and provider reference stay together for review."
-      >
-        <Card className="receipt-list">
+      {/* Receipts are the supporting half of this page: most visits are looking
+          for a charge in the activity list below, not for a provider reference. */}
+      <Section title="Receipts">
+        <Card className="receipt-list payment-history-panel">
           {paymentsLoading && <div className="card-body"><Skeleton height={120} /></div>}
           {paymentsError && (
             <div className="card-body"><ErrorState error={paymentsError} onRetry={refetchPayments} /></div>
@@ -128,15 +135,14 @@ export function LedgerPage() {
             />
           </label>
         </div>
-      </Section>
 
-      <Card className="ledger">
+        <Card className="ledger payment-history-panel">
         {loading && <div className="card-body"><Skeleton height={220} /></div>}
         {error && <div className="card-body"><ErrorState error={error} onRetry={refetch} /></div>}
 
         {data && data.content.length === 0 && (
           <EmptyState
-            icon={<PaymentHistoryIcon size={22} />}
+            tile="financial-analytics/history"
             title="No payments yet"
             description="Completed trips, refunds, and fare adjustments will appear here as soon as they happen."
             action={<Link className="btn btn-primary" to="/plan">Plan a trip</Link>}
@@ -145,6 +151,7 @@ export function LedgerPage() {
 
         {data && data.content.length > 0 && entries.length === 0 && (
           <EmptyState
+            tile="actions-ui/filter"
             title="Nothing on this page matches"
             description="This searches the payments currently loaded. Try another page, or clear the filter."
             action={
@@ -188,21 +195,32 @@ export function LedgerPage() {
             </div>
           </div>
         )}
-      </Card>
+        </Card>
+      </Section>
 
+      {/* The legend is reference material, not content, and stays last on the page. */}
       <Section title="About your payment history">
-        <Card className="card-body legend">
+        <Card className="card-body legend payment-history-panel">
           <dl className="legend-list">
             <div>
-              <dt><span className="entry-type">Trip charge</span></dt>
+              <dt>
+                <span className="tile-plate legend-tile"><Tile name={LEDGER_TILES.TRIP_CHARGE} size={30} /></span>
+                <span className="entry-type">Trip charge</span>
+              </dt>
               <dd>A public-transit trip was paid for. Shown as money out.</dd>
             </div>
             <div>
-              <dt><span className="entry-type">Refund</span></dt>
+              <dt>
+                <span className="tile-plate legend-tile"><Tile name={LEDGER_TILES.REFUND} size={30} /></span>
+                <span className="entry-type">Refund</span>
+              </dt>
               <dd>Money was returned after a cancellation. Shown as money in.</dd>
             </div>
             <div>
-              <dt><span className="entry-type">Fare adjustment</span></dt>
+              <dt>
+                <span className="tile-plate legend-tile"><Tile name={LEDGER_TILES.FARE_ADJUSTMENT} size={30} /></span>
+                <span className="entry-type">Fare adjustment</span>
+              </dt>
               <dd>A fare correction, surcharge, or promotion was recorded.</dd>
             </div>
           </dl>
@@ -227,7 +245,10 @@ function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
   return (
     <details className="payment-receipt" data-testid={`receipt-${payment.id}`}>
       <summary>
-        <span className={`payment-state-dot state-${payment.status.toLowerCase()}`} aria-hidden="true" />
+        <span className="tile-plate receipt-icon" aria-hidden="true">
+          <Tile name={paymentTile(payment)} size={38} />
+          <span className={`payment-state-dot state-${payment.status.toLowerCase()}`} />
+        </span>
         <span className="receipt-trip">
           <strong>{payment.origin} → {payment.destination}</strong>
           <small>{operator} · {formatDateTime(date)}</small>
@@ -237,6 +258,7 @@ function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
           {refunded ? 'Refunded' : payment.status.toLowerCase()}
         </span>
         <strong className="receipt-fare numeric">{formatCents(payment.amountCents)}</strong>
+        <ChevronDownIcon className="receipt-chevron" size={17} />
       </summary>
       <div className="receipt-detail">
         <dl>
@@ -274,8 +296,8 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
 
   return (
     <div className="ledger-row" data-testid={`ledger-${entry.id}`}>
-      <span className={`ledger-glyph${credit ? ' ledger-glyph-in' : ''}`} aria-hidden="true">
-        {credit ? '↓' : '↑'}
+      <span className={`tile-plate ledger-glyph ledger-glyph-${entry.type.toLowerCase()}`} aria-hidden="true">
+        <Tile name={LEDGER_TILES[entry.type]} size={34} />
       </span>
 
       <div className="ledger-main">
@@ -300,6 +322,14 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       </span>
     </div>
   )
+}
+
+function paymentTile(payment: PaymentIntent): TileName {
+  if (payment.status === 'FAILED') return 'notifications/error'
+  if (payment.status === 'REFUNDED') return 'notifications/success'
+  return payment.paymentMethod === 'FAREFLOW_WALLET'
+    ? 'payments-wallet/wallet'
+    : 'payments-wallet/credit-card'
 }
 
 interface LedgerDay {

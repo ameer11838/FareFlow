@@ -120,19 +120,25 @@
   /* ==========================================================================
      TRANSIT — the second brand role, and the reason cyan exists in the system
      ==========================================================================
-     Purple answers "what can I press, and what did I choose". Cyan answers
-     "what is moving" — trips, operators, live activity, the data marks that
-     count journeys rather than money. Splitting the two means a coloured thing
-     on screen tells you which question it belongs to before you read it, which
-     is the whole argument for having two brand colours instead of one.
+     Violet answers "what can I press, and what did I choose". Blue answers
+     "what is this telling me" — live state, links, trip and operator chrome,
+     anything informational that carries no verdict. Splitting the two means a
+     coloured thing on screen tells you which question it belongs to before you
+     read it.
 
-     It is a role, not decoration: nothing gets cyan for looking cold.
+     This role used to be cyan. It moved to blue for two reasons: the
+     categorical palette now leads with blue and teal, so a cyan chrome colour
+     sat a few degrees from series 2 and read as a fifth data colour; and a
+     product needs one unambiguous "information" hue, distinct from the brand,
+     or a link and a primary button look like the same offer.
+
+     It is a role, not decoration: nothing gets blue for looking cool.
      ========================================================================== */
-  --color-transit: #0094a8;
-  --color-transit-strong: #00707f;
-  --color-transit-soft: #e0f5f8;
-  --color-transit-border: #a3dbe4;
-  --color-transit-ring: rgba(0, 148, 168, 0.30);
+  --color-transit: #1e6ff5;
+  --color-transit-strong: #1557c9;
+  --color-transit-soft: #e6effe;
+  --color-transit-border: #b3ccfb;
+  --color-transit-ring: rgba(30, 111, 245, 0.30);
   /*
    * Hover grounds, defined per mode rather than derived.
    * A surface has to move *toward the light* on hover in dark mode and *away
@@ -140,82 +146,155 @@
    * tint on navy and the panel appears to sink when you point at it.
    */
   --color-surface-hover: #f7f7fb;
-  --color-transit-hover: #eef9fb;
+  --color-transit-hover: #eff5fe;
 
   /* ==========================================================================
-     THE FLOW — cyan → purple, the one derived gradient
+     THE FLOW — a flat application accent
      ==========================================================================
-     Distinct from --ff-gradient, which is the full four-stop mark and belongs to
-     the logo alone. This is the two-stop reading of it: transit resolving into
-     money, which is what the product does.
-
-     Deliberately scarce. It is allowed on exactly three kinds of thing:
-       · the rule that leads a KPI band (a progress indicator, not a surface)
-       · the spending series in the analytics dashboard (one line, one area)
-       · the marker under the selected navigation item
-     Anywhere else, use a flat --color-accent or --color-transit. A gradient
-     that appears on every accent stops being a brand and becomes a texture.
+     The full spectrum belongs to the FareFlow mark and expressive icon tiles.
+     Product chrome, progress, charts, and selection indicators stay a single
+     violet so the interface remains calm and the data is easier to scan.
+     These aliases remain because direction-specific consumers still use them.
      ========================================================================== */
-  --ff-flow: linear-gradient(90deg, var(--color-transit) 0%, var(--color-accent) 100%);
-  --ff-flow-vertical: linear-gradient(180deg, var(--color-transit) 0%, var(--color-accent) 100%);
+  --ff-flow: var(--color-accent);
+  --ff-flow-vertical: var(--color-accent);
 
   /* Hairlines that carry a few degrees of brand rather than pure neutral grey.
      Used to divide sections that belong to the brand's own surfaces — an
      analytics workspace, a KPI row — never as a general-purpose border. */
   --color-border-brand: #ddd3f5;
-  --color-border-transit: #c8e8ee;
+  --color-border-transit: #cbdcfb;
 
   /* ==========================================================================
      SEMANTIC — meaning only, never decoration
      Green is money returned or saved; red is money out or a problem. Neither is
      ever used to brand a surface, so their appearance always carries information.
      ========================================================================== */
-  --color-positive: #0f7a4f;
-  --color-positive-strong: #0a5c3b;
-  --color-positive-soft: #e3f6ec;
-  --color-positive-border: #adddc4;
-  --color-negative: #b3261e;
-  --color-negative-soft: #fdecea;
-  --color-negative-border: #f3c2be;
-  --color-amber: #96590a;
-  --color-amber-soft: #fdf3e3;
-  --color-amber-border: #f0d8a9;
+  --color-positive: #0c875e;
+  --color-positive-strong: #076046;
+  --color-positive-soft: #e0f6ef;
+  --color-positive-border: #a5e0c8;
+  --color-negative: #eb0d33;
+  --color-negative-strong: #b8082a;
+  --color-negative-soft: #fee6ea;
+  --color-negative-border: #f7bcc6;
+  --color-amber: #a56a07;
+  --color-amber-strong: #7d4f05;
+  --color-amber-soft: #fef2df;
+  --color-amber-border: #f3d5a1;
+
+  /* Information: the fourth semantic role, and the reason a link and a primary
+     button stop looking like the same offer. Blue is deliberately far from the
+     brand violet — if "just information" and "the action" share a hue, the
+     reader has to read to find out which is which. */
+  --color-info: #1e6ff5;
+  --color-info-strong: #1557c9;
+  --color-info-soft: #e6effe;
+  --color-info-border: #b3ccfb;
 
   /* ==========================================================================
-     DATA VISUALISATION — the brand arc, re-stepped until it is readable
+     DATA VISUALISATION — its own palette, not the brand's
      ==========================================================================
-     The naive move is to sample the mark's gradient directly for chart series.
-     Measured, it fails: cyan→blue→violet→magenta is a narrow hue arc, and at the
-     mark's own lightness the stops collapse (brand blue ↔ brand magenta scored
-     ΔE 5.1 under protanopia, target 8; raw cyan sits outside the dark lightness
-     band entirely).
+     Charts do not use the brand violet. When every bar, line and donut segment
+     is the accent colour, colour stops encoding anything and the chart reads as
+     decoration; and the accent loses the one job it should keep, which is
+     marking what you can press.
 
-     The fix is not to abandon the brand for a generic categorical set — it is to
-     keep the brand *hues* and re-step their lightness until every adjacent pair
-     separates. Cyan, violet and magenta hold slots 1–3, so the colours a reader
-     meets first are the logo's; green, amber and a deep blue are the escape hues
-     the mark does not contain, for the tail of a long series list.
+     The set runs blue → teal → amber → coral, with magenta and green as the
+     tail. Hues chosen for separation rather than for brand resemblance, then
+     each one stepped in lightness until it clears the gates in both themes.
+     The two that needed moving were teal and amber: at their nominal values
+     they sit above the dark mode's lightness band and under 3:1 on white.
 
-     Verified with the dataviz palette validator, both modes:
-       lightness band  PASS    chroma floor    PASS
-       CVD separation  PASS  (worst adjacent ΔE 9.8 deutan dark / 9.4 light)
-       normal vision   PASS  (worst adjacent ΔE 18.3 dark / 19.6 light)
-       contrast        PASS  (all >= 3:1 against the panel surface)
+     Verified with the dataviz palette validator against #ffffff and #191722:
 
-     Slots 1–4 additionally pass the *all-pairs* test, which is the harder gate
-     the donut and the scatter need — in those forms any two marks can end up
-     side by side, so adjacency is not enough. That is what caps the mode donut
-     and the fare/duration scatter at four coloured series.
+       slots 1-4, all-pairs   PASS both modes   worst ΔE 10.1 deutan
+       all six, adjacent      PASS both modes   worst ΔE  8.1 deutan
+       lightness band         PASS   chroma floor   PASS   contrast   PASS
+
+     All-pairs for the first four because the donut can place any two segments
+     side by side; adjacency is sufficient for the tail, which only ever appears
+     in an ordered bar list.
 
      Assigned in fixed order against a stable domain and never cycled: a series
      keeps its colour when a filter changes which other series are present.
      ========================================================================== */
-  --viz-1: #0094a8;   /* brand cyan    — transit and activity   */
-  --viz-2: #9c65ff;   /* brand violet  — money and primary      */
-  --viz-3: #a91d8e;   /* brand magenta                          */
-  --viz-4: #006c4b;   /* green         — escape hue             */
-  --viz-5: #a67200;   /* amber         — escape hue             */
-  --viz-6: #173ebb;   /* deep blue     — escape hue             */
+  --viz-1: #3b82f6;   /* blue     — informational, the default first series */
+  --viz-2: #12a695;   /* teal                                               */
+  --viz-3: #a86c07;   /* amber                                              */
+  --viz-4: #f43f5e;   /* coral                                              */
+  --viz-5: #b5309b;   /* magenta  — tail                                    */
+  --viz-6: #2f7d4f;   /* green    — tail                                    */
+  /* ==========================================================================
+     TRANSIT MODE COLOUR
+     ==========================================================================
+     Each mode gets a fixed hue, and it is the *same* hue the charts use for that
+     mode — see `modeColor()` in features/insights/InsightsCharts.tsx, which now
+     resolves a series by mode identity instead of by its rank in the list. A bus
+     is the same green in a route chip, a trip row, and the "spending by mode"
+     donut, so a reader who learns the palette once can read it everywhere.
+
+     These alias the validated categorical slots rather than introducing new
+     colours, so mode colour inherits the CVD separation and contrast guarantees
+     already proven for --viz-*. Picking six fresh brand-ish hues here would have
+     quietly broken both — measured, the raster tiles' own plate colours score
+     ΔE 1.9 (deutan) between rail and subway, which is no separation at all.
+
+     Which slot each mode points at *is* chosen from the artwork, though. The
+     tiles paint rail violet, subway blue, light-rail orange and ferry teal, so
+     each mode takes the validated slot nearest its plate. Measured all-pairs
+     (the mode donut can put any two segments side by side):
+
+       rail=viz-5 subway=viz-1 ferry=viz-2 tram=viz-3 bus=viz-4
+         light, all-pairs   PASS   worst ΔE 8.1 deutan
+         dark,  all-pairs   PASS   worst ΔE 8.1 deutan
+
+     Bus is coral rather than the green its plate wants, and this is the one
+     place the artwork had to lose. Green sits between teal and amber on the
+     wheel, and this palette leads with both: green↔teal scores ΔE 13.4 to
+     normal vision (floor is 15) and green↔amber ΔE 5.7 under protanopia. There
+     is no lightness step that fixes either without breaking the other, so green
+     stays out of the mode set and lives only in slot 6, where it is a tail
+     colour that never has to sit beside teal.
+
+     Note the semantic overlap this creates: coral also means "money out". It is
+     survivable because the two never appear in the same role — a mode is always
+     labelled and usually carries its tile, while a negative figure carries an
+     icon and a soft background — but it is a real cost, and if the mode palette
+     ever needs a sixth colour this is the constraint to revisit.
+
+     Walking is deliberately neutral: it is the one mode nobody is charged for,
+     and giving it a hue would imply it belongs in the same set as the others.
+     It is also below the palette validator's chroma floor, which is the formal
+     way of saying it is not a series.
+     ========================================================================== */
+  --mode-rail: var(--viz-5);     /* magenta — nearest slot to the violet rail plate */
+  --mode-subway: var(--viz-1);   /* blue                                            */
+  --mode-ferry: var(--viz-2);    /* teal — matches the ferry plate exactly          */
+  --mode-tram: var(--viz-3);     /* amber, for the orange light-rail plate          */
+  --mode-bus: var(--viz-4);      /* coral — see the note above on why not green     */
+  --mode-walk: var(--color-text-muted);
+
+  /* ==========================================================================
+     MODE PLATES — the raster tiles' own colours
+     ==========================================================================
+     Sampled straight out of the artwork in `src/assets/tiles/transit-modes`.
+     These are *not* interchangeable with --mode-* above: they are the vivid
+     plate colours, several of which sit under 3:1 on white and are therefore
+     illegal for a mark that has to be read on its own.
+
+     They exist for one job — the halo, ring or wash placed directly behind a
+     tile, where the surrounding colour has to agree with the artwork it frames
+     and the tile itself is what carries the meaning. Never use one for a chart
+     series, a border that must be seen, or text.
+     ========================================================================== */
+  --plate-rail: #7838e8;
+  --plate-subway: #2868e0;
+  --plate-bus: #48a068;
+  --plate-tram: #e07838;
+  --plate-ferry: #50b0c0;
+  --plate-walk: #4a5478;
+
   --viz-track: #eceaf4;
   --viz-grid: #e6e5ef;
 
@@ -242,24 +321,41 @@
      is why money never uses the proportional face. */
   --font-numeric: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --text-2xs: 11px;
-  --text-xs: 12px;
-  --text-sm: 13px;
-  --text-base: 14px;
-  --text-md: 15px;
-  --text-lg: 18px;
-  --text-xl: 22px;
-  --text-2xl: 28px;
-  --text-3xl: 34px;
-  --text-4xl: 42px;
-  --text-5xl: 54px;
+  /*
+   * Rebuilt as a real scale rather than eleven arbitrary sizes.
+   *
+   * The old set ran a 14px body under 10–11px labels: a density that suits an
+   * internal tool and asks a reader to lean in. It also had almost no *usable*
+   * mid-range — 15, 18, 22 in a row — so a section heading and a card title
+   * looked the same weight and every screen flattened out.
+   *
+   * This scale is 15px body with a 12px floor, and it steps ~1.25× so adjacent
+   * levels are visibly different. Fewer sizes, further apart, is what produces
+   * hierarchy you can read across a room.
+   */
+  --text-2xs: 12px;   /* the floor — table meta, never body copy      */
+  --text-xs: 13px;    /* captions, secondary table cells             */
+  --text-sm: 14px;    /* dense UI: controls, table body              */
+  --text-base: 15px;  /* body copy                                   */
+  --text-md: 16px;    /* emphasised body, row titles                 */
+  --text-lg: 19px;    /* section headings                            */
+  --text-xl: 24px;    /* page headings                               */
+  --text-2xl: 30px;   /* screen title                                */
+  --text-3xl: 38px;   /* the one figure a screen is about            */
+  --text-4xl: 48px;
+  --text-5xl: 60px;
 
-  /* Display sizes tighten as they grow, which is what stops a large number from
-     reading as loose lettering. */
-  --tracking-display: -0.035em;
-  --tracking-title: -0.025em;
+  --tracking-display: -0.03em;
+  --tracking-title: -0.018em;
   --tracking-flat: 0;
-  --tracking-label: 0.07em;
+  --tracking-label: 0.055em;
+
+  /* Named line heights, because a 1.5 body and a 1.5 display are not the same
+     instruction — which is why headings used to look airy and copy cramped. */
+  --leading-display: 1.06;
+  --leading-title: 1.22;
+  --leading-body: 1.55;
+  --leading-tight: 1.35;
 
   --weight-regular: 400;
   --weight-medium: 550;
@@ -271,10 +367,13 @@
      ========================================================================== */
   /* Tighter than before. Large radii read as consumer-app friendliness; a
      product that shows people their money reads better slightly squarer. */
-  --radius-sm: 6px;
-  --radius: 8px;
+  /* Tighter and fewer. Large radii read as consumer-app friendliness; a product
+     that shows people their money reads better slightly squarer, and three steps
+     is enough to distinguish a control from a panel from a sheet. */
+  --radius-sm: 5px;
+  --radius: 7px;
   --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
 
   /* ==========================================================================
@@ -311,9 +410,24 @@
   /* ==========================================================================
      LAYOUT
      ========================================================================== */
-  --topbar-height: 68px;
-  --content-max: 1240px;
-  --content-narrow: 940px;
+  /* ==========================================================================
+     CONTROLS — one height ladder
+     ==========================================================================
+     Every interactive control snaps to one of three heights. Before this, a
+     button was 38px, a select 34px, a filter pill 30px and a tab 42px, so a
+     toolbar never sat on a single baseline. Rows of controls only look
+     engineered when they share a ladder.
+     ========================================================================== */
+  --control-sm: 28px;
+  --control: 34px;
+  --control-lg: 40px;
+
+  --topbar-height: 56px;
+  /* Wider. A 1240px cap on a 1600px display leaves two 180px dead margins, which
+     is what forced every screen into one narrow centred column. */
+  --content-max: 1520px;
+  --content-reading: 1080px;
+  --content-narrow: 720px;
   --sidebar-width: 248px;
 }
 
@@ -361,41 +475,48 @@
   /* Cyan can be brand-true on navy: the mark's own #22d3ee reads cleanly here,
      where on white it would fail contrast. Dark mode is the one place the
      transit role and the logo are literally the same colour. */
-  --color-transit: #22d3ee;
-  --color-transit-strong: #67e8f9;
-  --color-transit-soft: #0e3038;
-  --color-transit-border: #17505d;
-  --color-transit-ring: rgba(34, 211, 238, 0.34);
+  --color-transit: #3b82f6;
+  --color-transit-strong: #60a5fa;
+  --color-transit-soft: #202c4c;
+  --color-transit-border: #2f4778;
+  --color-transit-ring: rgba(59, 130, 246, 0.34);
   --color-surface-hover: #211e2c;
-  --color-transit-hover: #1b2730;
+  --color-transit-hover: #1c2438;
 
   --color-border-brand: #352c50;
-  --color-border-transit: #1c4c58;
+  --color-border-transit: #2b3f68;
   --ff-indigo-600: var(--color-accent);
   --ff-indigo-700: var(--color-accent-strong);
   --ff-indigo-200: #40375f;
 
   /* Semantic colours re-picked for a dark ground, not lightened mechanically. */
-  --color-positive: #3ddc9a;
-  --color-positive-strong: #6ee7b6;
-  --color-positive-soft: #10301f;
-  --color-positive-border: #1d5a3c;
-  --color-negative: #ff8a80;
-  --color-negative-soft: #35161a;
-  --color-negative-border: #5f2b2b;
-  --color-amber: #f0b866;
-  --color-amber-soft: #33260f;
-  --color-amber-border: #5c441c;
+  --color-positive: #10b981;
+  --color-positive-strong: #34d8a0;
+  --color-positive-soft: #173735;
+  --color-positive-border: #1c5a4a;
+  --color-negative: #f43f5e;
+  --color-negative-strong: #fb7185;
+  --color-negative-soft: #451f2e;
+  --color-negative-border: #6d2f42;
+  --color-amber: #f59e0b;
+  --color-amber-strong: #fbbf24;
+  --color-amber-soft: #45321d;
+  --color-amber-border: #6b4d20;
+
+  --color-info: #3b82f6;
+  --color-info-strong: #60a5fa;
+  --color-info-soft: #202c4c;
+  --color-info-border: #2f4778;
 
   /* Validated against the #141227 dark surface: lightness band, chroma floor,
      CVD separation (worst adjacent ΔE 10.4 deutan / 9.0 tritan), normal vision
      (ΔE 27.1), and contrast all PASS. */
-  --viz-1: #00a4ba;
-  --viz-2: #a06fff;
-  --viz-3: #b72e9a;
-  --viz-4: #007653;
-  --viz-5: #b57d00;
-  --viz-6: #2e5bda;
+  --viz-1: #3b82f6;
+  --viz-2: #12a695;
+  --viz-3: #a86c07;
+  --viz-4: #f43f5e;
+  --viz-5: #b5309b;
+  --viz-6: #2f7d4f;
   --viz-track: #241f3d;
   --viz-grid: #262340;
 
@@ -440,37 +561,44 @@
     /* Cyan can be brand-true on navy: the mark's own #22d3ee reads cleanly here,
        where on white it would fail contrast. Dark mode is the one place the
        transit role and the logo are literally the same colour. */
-    --color-transit: #22d3ee;
-    --color-transit-strong: #67e8f9;
-    --color-transit-soft: #0e3038;
-    --color-transit-border: #17505d;
-    --color-transit-ring: rgba(34, 211, 238, 0.34);
+    --color-transit: #3b82f6;
+    --color-transit-strong: #60a5fa;
+    --color-transit-soft: #202c4c;
+    --color-transit-border: #2f4778;
+    --color-transit-ring: rgba(59, 130, 246, 0.34);
     --color-surface-hover: #211e2c;
-    --color-transit-hover: #1b2730;
+    --color-transit-hover: #1c2438;
 
     --color-border-brand: #352c50;
-    --color-border-transit: #1c4c58;
+    --color-border-transit: #2b3f68;
     --ff-indigo-600: var(--color-accent);
     --ff-indigo-700: var(--color-accent-strong);
     --ff-indigo-200: #40375f;
 
-    --color-positive: #3ddc9a;
-    --color-positive-strong: #6ee7b6;
-    --color-positive-soft: #10301f;
-    --color-positive-border: #1d5a3c;
-    --color-negative: #ff8a80;
-    --color-negative-soft: #35161a;
-    --color-negative-border: #5f2b2b;
-    --color-amber: #f0b866;
-    --color-amber-soft: #33260f;
-    --color-amber-border: #5c441c;
+    --color-positive: #10b981;
+    --color-positive-strong: #34d8a0;
+    --color-positive-soft: #173735;
+    --color-positive-border: #1c5a4a;
+    --color-negative: #f43f5e;
+  --color-negative-strong: #fb7185;
+    --color-negative-soft: #451f2e;
+    --color-negative-border: #6d2f42;
+    --color-amber: #f59e0b;
+  --color-amber-strong: #fbbf24;
+    --color-amber-soft: #45321d;
+    --color-amber-border: #6b4d20;
 
-    --viz-1: #00a4ba;
-    --viz-2: #a06fff;
-    --viz-3: #b72e9a;
-    --viz-4: #007653;
-    --viz-5: #b57d00;
-    --viz-6: #2e5bda;
+  --color-info: #3b82f6;
+  --color-info-strong: #60a5fa;
+  --color-info-soft: #202c4c;
+  --color-info-border: #2f4778;
+
+    --viz-1: #3b82f6;
+    --viz-2: #12a695;
+    --viz-3: #a86c07;
+    --viz-4: #f43f5e;
+    --viz-5: #b5309b;
+    --viz-6: #2f7d4f;
     --viz-track: #241f3d;
     --viz-grid: #262340;
 

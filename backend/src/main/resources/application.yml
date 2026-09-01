@@ -2,6 +2,15 @@ spring:
   application:
     name: fareflow
 
+  config:
+    # Local development keeps the browser map key in frontend/.env. Importing it
+    # as an optional property source lets the server use the same public TomTom
+    # key for street-address geocoding without requiring developers to duplicate
+    # the key. Deployed environments should continue to set TOMTOM_API_KEY.
+    import:
+      - "optional:file:../frontend/.env[.properties]"
+      - "optional:file:frontend/.env[.properties]"
+
   datasource:
     # Non-secret values get sensible local defaults so the app is easy to run.
     # DB_PASSWORD deliberately has NO default: if it is missing, startup fails
@@ -55,16 +64,27 @@ fareflow:
   usage-pricing:
     # FareFlow product simulation — these are not agency tariffs. Time is not an
     # input, so service delays can never increase the rider's charge.
-    version: FAREFLOW_USAGE_V1
+    version: FAREFLOW_USAGE_V2
     bus: { base-cents: 85, cents-per-mile: 8, cents-per-stop: 3 }
+    # Applied when the route provider explicitly labels a bus service "Express".
+    express: { base-cents: 150, cents-per-mile: 12, cents-per-stop: 5 }
     rail: { base-cents: 120, cents-per-mile: 10, cents-per-stop: 5 }
     subway: { base-cents: 100, cents-per-mile: 8, cents-per-stop: 4 }
     light-rail: { base-cents: 90, cents-per-mile: 8, cents-per-stop: 3 }
     ferry: { base-cents: 175, cents-per-mile: 14, cents-per-stop: 6 }
+    # A transfer discounts the new leg's boarding charge. Same-operator rides
+    # receive a full boarding credit; inter-operator agreements receive half.
+    transfers: { same-operator-credit-percent: 100, cross-operator-credit-percent: 50 }
+    # Caps are applied after transfer and rider discounts. Values are product
+    # simulation rules and can be replaced by agency-specific configuration.
+    caps: { daily-cents: 1200, weekly-cents: 6000 }
+    # Percent of the standard net fare paid by each verified rider category.
+    rider-discounts: { student-percent: 75, senior-percent: 50, reduced-percent: 50 }
   tomtom:
-    # Used server-side for geocoding only. Optional: without it the built-in
-    # gazetteer serves location search and the app still routes.
-    api-key: ${TOMTOM_API_KEY:}
+    # TOMTOM_API_KEY is preferred in deployed environments. Local development
+    # may reuse the browser's public map key imported above so full U.S. street
+    # addresses work out of the box whenever the map is configured.
+    api-key: ${TOMTOM_API_KEY:${VITE_TOMTOM_API_KEY:}}
 
   google-routes:
     # Primary nationwide transit discovery. This must be a Google Maps Platform

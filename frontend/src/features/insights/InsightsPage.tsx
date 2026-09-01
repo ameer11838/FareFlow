@@ -5,13 +5,14 @@ import type {
   HistoryRange, Insights, InsightsPersonalization, PassRecommendation, SpendingHistory,
 } from '../../api/types'
 import { seriesColor } from '../../components/charts'
-import { RouteIcon, WalletIcon } from '../../components/Icons'
+import { WalletIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
+import { BudgetLede } from '../../components/BudgetLede'
 import { Card, Metric, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useAuth } from '../../hooks/useAuth'
-import { formatCents, formatMinutes, formatOptionalCents, formatPercent } from '../../lib/format'
+import { formatCents, formatMinutes, formatOptionalCents } from '../../lib/format'
 import { buildAnalyticsView, type AnalyticsFilters } from './analytics'
 
 const InsightsCharts = lazy(() => import('./InsightsCharts').then((module) => ({
@@ -50,7 +51,7 @@ export function InsightsPage() {
   return (
     <div className="page">
       <PageHeader
-        eyebrow="Insights"
+        tile="insights-charts/bar-chart"
         title={user ? `${greeting()}, ${user.name.split(' ')[0]}` : 'Insights'}
         subtitle="How your transportation spending is tracking this week."
         actions={<BudgetEditor current={data.weeklyBudgetCents} onSaved={() => { refresh(); refetch() }} />}
@@ -60,7 +61,7 @@ export function InsightsPage() {
         <>
           <Card>
             <EmptyState
-              icon={<RouteIcon size={26} />}
+              tile="insights-charts/line-chart"
               title="Your insights are getting ready"
               description="Complete a few trips and FareFlow will start identifying spending patterns, the operators you rely on, and opportunities to save. Nothing here is simulated — it fills in from real trips."
               action={<Link className="btn btn-primary btn-lg" to="/plan">Plan a trip</Link>}
@@ -69,23 +70,20 @@ export function InsightsPage() {
         </>
       ) : (
         <>
-          <Headline data={data} />
+          <InsightsLede data={data} />
 
           <HistoryModule weekly={data} />
 
-          <section className="band">
+          <section className="band band-quiet">
             <div className="band-head">
-              <h2 className="band-title">This week</h2>
-              <span className="band-note">Calculated from completed trips and payments</span>
+              <h2 className="band-title">Supporting figures</h2>
             </div>
-            <div className="figures-row">
-              <Metric label="Spent" value={formatCents(data.spentCents)}
-                      caption={`${data.tripCount} completed trip${data.tripCount === 1 ? '' : 's'}`} />
-              <Metric label="Budget"
-                      value={formatOptionalCents(data.weeklyBudgetCents)}
-                      tone={data.weeklyBudgetCents === null ? 'muted' : 'default'}
-                      caption={data.budgetUtilization === null
-                        ? 'Not set' : `${formatPercent(data.budgetUtilization)} used`} />
+            {/* Deliberately the quiet row. None of these is the reason anyone
+                opens this page, and giving them the same weight as the budget
+                figure above was most of why the screen read as undifferentiated.
+                Spend and savings are absent here because the lede already
+                carries both — printing them twice was the page's worst habit. */}
+            <div className="figures-open figures-open-quiet">
               <Metric label="Average fare"
                       value={formatOptionalCents(data.averageFareCents, '—')}
                       tone={data.averageFareCents === null ? 'muted' : 'default'}
@@ -95,6 +93,17 @@ export function InsightsPage() {
                         ? '—' : formatMinutes(data.averageDurationMinutes)}
                       tone={data.averageDurationMinutes === null ? 'muted' : 'default'}
                       caption="Door to door" />
+              <Metric label="Extra time traded"
+                      value={data.minutesTradedForSavings === null
+                        ? '—' : formatMinutes(data.minutesTradedForSavings)}
+                      tone={data.minutesTradedForSavings === null ? 'muted' : 'default'}
+                      caption="The time those savings cost" />
+              <Metric label="Projected monthly"
+                      value={formatOptionalCents(data.projectedMonthlyCents, '—')}
+                      tone={data.projectedMonthlyCents === null ? 'muted' : 'default'}
+                      caption={data.projectedMonthlyCents === null
+                        ? 'Needs a week with spending'
+                        : 'Straight-line from this week alone'} />
             </div>
           </section>
 
@@ -104,39 +113,6 @@ export function InsightsPage() {
               <span className="band-note">Where this week's fares went</span>
             </div>
             <OperatorTable data={data} />
-          </section>
-
-          <section className="band">
-            <div className="band-head">
-              <h2 className="band-title">Trade-offs</h2>
-              <span className="band-note">What choosing value instead of speed cost and saved</span>
-            </div>
-            <div className="figures-open">
-              <Metric
-                label="Saved vs the fastest route"
-                value={formatOptionalCents(data.savedVersusFastestCents, '—')}
-                tone={data.savedVersusFastestCents !== null && data.savedVersusFastestCents > 0
-                  ? 'positive' : 'muted'}
-                caption={data.savedVersusFastestCents === null
-                  ? 'Needs a comparable alternative route'
-                  : 'Across this week\u2019s completed trips'}
-              />
-              <Metric
-                label="Extra time spent"
-                value={data.minutesTradedForSavings === null
-                  ? '—' : formatMinutes(data.minutesTradedForSavings)}
-                tone={data.minutesTradedForSavings === null ? 'muted' : 'default'}
-                caption="The time cost of those savings"
-              />
-              <Metric
-                label="Projected monthly"
-                value={formatOptionalCents(data.projectedMonthlyCents, '—')}
-                tone={data.projectedMonthlyCents === null ? 'muted' : 'default'}
-                caption={data.projectedMonthlyCents === null
-                  ? 'Needs a week with spending'
-                  : 'Straight-line from this week alone'}
-              />
-            </div>
           </section>
 
           {passes.data && <PassModule recommendation={passes.data} />}
@@ -203,8 +179,11 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
         <div>
           <h2 className="band-title">Transportation analytics</h2>
           <span className="band-note">
-            Completed trips only · {data.startDate} to {data.endDate} · click chart data to cross-filter
+            {data.startDate} to {data.endDate} · completed trips only
           </span>
+          {data.comparison && (
+            <p className="band-comparison">{changeSentence(data.comparison)}</p>
+          )}
         </div>
         <div className="range-tabs" aria-label="History period">
           {periods.map((period) => (
@@ -238,30 +217,32 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
             ))}
           </select>
         </label>
+        {/* The dashboard's totals live here, on one line, rather than in a row of
+            four metric cards above the charts. Three of those four figures were
+            already on the page — spend in the lede, average fare in the
+            supporting row, savings in the lede's aside — and the charts below
+            draw them again. Only cost per mile was unique, so only it and the
+            filter context survive, stated once. */}
         <div className="analytics-filter-status" aria-live="polite">
-          {activeFilters.length > 0 ? (
-            <>
-              <span>Showing {activeFilters.join(' · ')}</span>
-              <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button>
-            </>
-          ) : <span>Showing all completed trips in this period</span>}
+          <span className="analytics-scope">
+            {activeFilters.length > 0
+              ? `Showing ${activeFilters.join(' · ')}`
+              : 'Showing all completed trips in this period'}
+          </span>
+          <span className="analytics-scope-totals numeric">
+            {formatCents(view.totals.spentCents)} · {view.totals.tripCount} trip
+            {view.totals.tripCount === 1 ? '' : 's'}
+            {view.totals.costPerMileCents !== null
+              && ` · ${formatCents(view.totals.costPerMileCents)}/mile`}
+          </span>
+          {activeFilters.length > 0 && (
+            <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button>
+          )}
         </div>
       </div>
 
       {data.hasData ? (
         <>
-          <div className="figures-row analytics-summary">
-            <Metric label="Filtered spend" value={formatCents(view.totals.spentCents)}
-                    caption={`${view.totals.tripCount} completed trip${view.totals.tripCount === 1 ? '' : 's'}`} />
-            <Metric label="Average fare" value={formatOptionalCents(view.totals.averageFareCents, '—')}
-                    caption="Across the current dashboard view" />
-            <Metric label="Cost per mile" value={formatOptionalCents(view.totals.costPerMileCents, '—')}
-                    caption={view.totals.costPerMileCents === null
-                      ? 'Needs trips with recorded distance' : 'Usage-priced trips with distance'} />
-            <Metric label="Savings" value={formatOptionalCents(view.totals.savedCents, '—')}
-                    caption="Only where a comparison existed" />
-          </div>
-          <HistoryDecision data={data} view={view} filtered={activeFilters.length > 0} />
           <Suspense fallback={<Skeleton height={420} />}>
             <InsightsCharts
               history={data}
@@ -300,37 +281,8 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
   )
 }
 
-function HistoryDecision({ data, view, filtered }: {
-  data: SpendingHistory
-  view: ReturnType<typeof buildAnalyticsView>
-  filtered: boolean
-}) {
-  const comparison = data.comparison
-  const topOperator = view.byOperator[0]
-  return (
-    <div className="history-decision">
-      <div>
-        <span>What changed</span>
-        <strong>{!filtered && comparison
-          ? changeSentence(comparison)
-          : filtered
-            ? `The dashboard is cross-filtered to ${view.totals.tripCount} completed trip${view.totals.tripCount === 1 ? '' : 's'}.`
-            : 'There is not enough earlier history for a fair comparison.'}</strong>
-      </div>
-      <div>
-        <span>Why it matters</span>
-        <strong>{topOperator
-          ? `${topOperator.name} accounts for ${view.totals.spentCents === 0 ? 0 : Math.round((topOperator.spentCents / view.totals.spentCents) * 100)}% of spending in this view.`
-          : 'No operator accounts for recorded spending in this period.'}</strong>
-      </div>
-      <div>
-        <span>What you can do</span>
-        <strong><Link to="/plan?profile=SAVE_MONEY">Compare a cheaper route for your next trip →</Link></strong>
-      </div>
-    </div>
-  )
-}
 
+/** How this period compares with the one before it — the only period-over-period fact on the page. */
 function changeSentence(comparison: NonNullable<SpendingHistory['comparison']>): string {
   const change = comparison.spentChangeCents
   const direction = change === 0 ? 'unchanged' : change > 0 ? 'up' : 'down'
@@ -339,45 +291,40 @@ function changeSentence(comparison: NonNullable<SpendingHistory['comparison']>):
 }
 
 /**
- * The one thing worth knowing this week.
- *
- * <p>Savings leads because it is the only figure on the page that answers "was
- * FareFlow worth using". When it cannot be computed the card says so and leads
- * with spend instead, rather than printing a confident $0.00.
+ * Insights' lede: the shared budget-status block, with savings alongside it and
+ * the backend's derived sentences beneath.
  */
-function Headline({ data }: { data: Insights }) {
+function InsightsLede({ data }: { data: Insights }) {
   const saved = data.savedVersusFastestCents
   const personal = data.personalization
 
   return (
-    <section className="headline">
-      <div className="lede">
-        <span className="lede-eyebrow">
-          {saved !== null && saved > 0 ? 'Saved this week' : 'Spent this week'}
-        </span>
-        <div className="lede-figure">
-          <span className="lede-value">
-            {saved !== null && saved > 0 ? formatCents(saved) : formatCents(data.spentCents)}
+    <BudgetLede
+      spentCents={data.spentCents}
+      budgetCents={data.weeklyBudgetCents}
+      projectedCents={data.personalization?.projectedWeeklySpendCents ?? null}
+      aside={(
+        <>
+          <span className="lede-aside-label">Saved vs the fastest route</span>
+          <span className={`lede-aside-value numeric${saved !== null && saved > 0 ? ' is-positive' : ''}`}>
+            {formatOptionalCents(saved, '—')}
+          </span>
+          <span className="lede-aside-note">
+            {saved === null
+              ? 'Needs a comparable alternative route'
+              : saved > 0
+                ? `Across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}`
+                : 'You took the fastest route each time'}
           </span>
           {personal && <CommuteChip personal={personal} />}
-        </div>
-        <span className="lede-sub">
-          {saved !== null && saved > 0
-            ? `By not always taking the fastest route, across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}.`
-            : saved === null
-              ? `Across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}. Savings need at least one comparable alternative route.`
-              : `Across ${data.tripCount} trip${data.tripCount === 1 ? '' : 's'}. You took the fastest route each time.`}
-        </span>
-      </div>
-
-      {personal && personal.notes.length > 0 && (
-        <ul className="headline-notes">
-          {personal.notes.slice(0, 3).map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
+        </>
       )}
-    </section>
+      footer={personal && personal.notes.length > 0 ? (
+        <ul className="lede-notes">
+          {personal.notes.slice(0, 3).map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      ) : undefined}
+    />
   )
 }
 

@@ -2,9 +2,11 @@ package com.fareflow.session.dto;
 
 import com.fareflow.journey.JourneyLeg;
 import com.fareflow.journey.PersistedJourneyLeg;
+import com.fareflow.journey.TransitStopGeometry;
 import com.fareflow.session.TransitSession;
 import com.fareflow.session.TransitSessionStatus;
-import com.fareflow.session.UsageFareCalculation;
+import com.fareflow.session.TransitFareEvent;
+import com.fareflow.session.UsageFareContext;
 import com.fareflow.session.UsageFareEngine;
 
 import java.time.Duration;
@@ -44,11 +46,24 @@ public record TransitSessionResponse(
         String progressSource,
         long estimatedFareMinCents,
         long estimatedFareMaxCents,
+        Long publishedFareCents,
+        String publishedFareStatus,
+        String publishedFareSource,
         long currentFareCents,
         /** Compatibility alias for existing clients; active-trip fare is exact server state. */
         long currentEstimatedFareCents,
         Long finalFareCents,
+        String fareCategory,
+        String fareCategoryName,
+        long dailyCapCents,
+        long weeklyCapCents,
+        long dailyCapRemainingCents,
+        long weeklyCapRemainingCents,
+        long transferDiscountCents,
+        long concessionDiscountCents,
+        long capDiscountCents,
         List<String> fareBreakdown,
+        List<FareEvent> fareEvents,
         List<StopFareProgress> stopFareProgress,
         String pricingVersion,
         boolean canAdvance,
@@ -85,16 +100,39 @@ public record TransitSessionResponse(
             String mode,
             String state,
             long fareIncrementCents,
-            long cumulativeFareCents
+            long cumulativeFareCents,
+            long grossCents,
+            long totalDiscountCents,
+            String description
+    ) {
+    }
+
+    public record FareEvent(
+            long id,
+            int sequence,
+            String eventType,
+            String stopName,
+            String lineName,
+            String mode,
+            String agency,
+            long grossCents,
+            long transferDiscountCents,
+            long concessionDiscountCents,
+            long capDiscountCents,
+            long amountCents,
+            long cumulativeFareCents,
+            String description,
+            Instant occurredAt
     ) {
     }
 
     public static TransitSessionResponse from(TransitSession session,
                                               UsageFareEngine fareEngine,
+                                              List<TransitFareEvent> events,
                                               Instant now) {
         var journey = session.getJourney();
-        UsageFareCalculation fare = fareEngine.calculate(
-                journey, session.getProgressUnitsCompleted());
+        UsageFareContext fareContext = new UsageFareContext(session.getFareCategory(),
+                session.getSpentTodayBeforeCents(), session.getSpentWeekBeforeCents());
         ProgressPosition position = position(journey.getLegs(), session.getProgressUnitsCompleted());
         List<PersistedJourneyLeg> transit = journey.getLegs().stream()
                 .filter(UsageFareEngine::isTransit)
@@ -111,21 +149,45 @@ public record TransitSessionResponse(
         Instant timerEnd = session.getEndedAt() == null ? now : session.getEndedAt();
         long elapsed = Math.max(0, Duration.between(session.getStartedAt(), timerEnd).toSeconds());
         boolean active = session.getStatus().isActive();
-        List<UsageFareEngine.StopFarePoint> farePoints = fareEngine.stopFareProgress(journey);
         int completed = session.getProgressUnitsCompleted();
-        long nextIncrease = active && completed < farePoints.size()
-                ? farePoints.get(completed).fareIncrementCents() : 0;
+        List<UsageFareEngine.StopFarePoint> futurePoints = fareEngine.stopFareProgress(
+                journey, fareContext, completed, session.getCurrentFareCents());
+        long nextIncrease = active && !futurePoints.isEmpty()
+                ? futurePoints.getFirst().fareIncrementCents() : 0;
         List<StopFareProgress> stopProgress = new java.util.ArrayList<>();
         PersistedJourneyLeg firstTransit = transit.getFirst();
         stopProgress.add(new StopFareProgress(0, firstTransit.getFromName(),
                 firstTransit.getLineName(), firstTransit.getMode(),
-                completed == 0 ? "CURRENT" : "COMPLETED", 0, 0));
-        farePoints.forEach(point -> stopProgress.add(new StopFareProgress(
+                completed == 0 ? "CURRENT" : "COMPLETED", 0, 0,
+                0, 0, "Boarding point · charges begin only after a stop is reached"));
+        events.forEach(event -> stopProgress.add(new StopFareProgress(
+                event.getSequence(), event.getStopName(), event.getLineName(), event.getMode(),
+                event.getEventType() == com.fareflow.session.TransitFareEventType.STOP_SKIPPED
+                        ? "SKIPPED"
+                        : event.getEventType() == com.fareflow.session.TransitFareEventType.ROUTE_DIVERSION
+                        ? "DIVERTED"
+                        : active && event.getSequence() == completed ? "CURRENT" : "COMPLETED",
+                event.getAmountCents(), event.getCumulativeFareCents(), event.getGrossCents(),
+                event.getTransferDiscountCents() + event.getConcessionDiscountCents()
+                        + event.getCapDiscountCents(), event.getDescription())));
+        futurePoints.forEach(point -> stopProgress.add(new StopFareProgress(
                 point.sequence(), point.stopName(), point.lineName(), point.mode(),
-                active && completed > 0 && point.sequence() == completed ? "CURRENT"
-                        : point.sequence() <= completed ? "COMPLETED"
-                        : active && point.sequence() == completed + 1 ? "NEXT" : "UPCOMING",
-                point.fareIncrementCents(), point.cumulativeFareCents())));
+                active && point.sequence() == completed + 1 ? "NEXT" : "UPCOMING",
+                point.fareIncrementCents(), point.cumulativeFareCents(), point.grossCents(),
+                point.transferDiscountCents() + point.concessionDiscountCents()
+                        + point.capDiscountCents(), point.description())));
+
+        long dailyRemaining = Math.max(0, fareEngine.dailyCapCents()
+                - session.getSpentTodayBeforeCents() - session.getCurrentFareCents());
+        long weeklyRemaining = Math.max(0, fareEngine.weeklyCapCents()
+                - session.getSpentWeekBeforeCents() - session.getCurrentFareCents());
+        List<FareEvent> responseEvents = events.stream().map(event -> new FareEvent(
+                event.getId(), event.getSequence(), event.getEventType().name(),
+                event.getStopName(), event.getLineName(), event.getMode(), event.getAgency(),
+                event.getGrossCents(), event.getTransferDiscountCents(),
+                event.getConcessionDiscountCents(), event.getCapDiscountCents(),
+                event.getAmountCents(), event.getCumulativeFareCents(), event.getDescription(),
+                event.getOccurredAt())).toList();
 
         return new TransitSessionResponse(
                 session.getId(),
@@ -159,10 +221,24 @@ public record TransitSessionResponse(
                 session.getProgressSource(),
                 session.getEstimatedFareMinCents(),
                 session.getEstimatedFareMaxCents(),
-                fare.totalCents(),
+                journey.getTotalFareCents(),
+                journey.getFareStatus(),
+                journey.getFareSource(),
+                session.getCurrentFareCents(),
                 session.getCurrentFareCents(),
                 session.getFinalFareCents(),
-                fare.breakdown(),
+                session.getFareCategory().name(),
+                session.getFareCategory().displayName(),
+                fareEngine.dailyCapCents(),
+                fareEngine.weeklyCapCents(),
+                dailyRemaining,
+                weeklyRemaining,
+                session.getTransferDiscountCents(),
+                session.getConcessionDiscountCents(),
+                session.getCapDiscountCents(),
+                events.isEmpty() ? List.of("No transit progress recorded · no charge")
+                        : events.stream().map(TransitFareEvent::getDescription).toList(),
+                responseEvents,
                 List.copyOf(stopProgress),
                 session.getPricingVersion(),
                 active && session.getProgressUnitsCompleted() < session.getProgressUnitsTotal(),
@@ -177,7 +253,9 @@ public record TransitSessionResponse(
                 leg.getSequence(), leg.getMode(), leg.getAgency(), leg.getLineName(),
                 leg.getFromName(), leg.getToName(), leg.getDurationMinutes(), leg.getWaitMinutes(),
                 leg.getDistanceMetres(), leg.getStopCount(), leg.getDepartureTime(),
-                leg.getArrivalTime(), leg.isRealtime(), leg.decodedWaypoints().stream()
+                leg.getArrivalTime(), leg.isRealtime(), TransitStopGeometry.ensureStopBoundaries(
+                        leg.decodedWaypoints(), leg.getFromName(), leg.getToName(),
+                        leg.getLineName(), leg.getStopCount()).stream()
                         .map(point -> new Waypoint(point.name(), point.latitude(), point.longitude()))
                         .toList());
     }
@@ -207,7 +285,11 @@ public record TransitSessionResponse(
     }
 
     private static String stopName(PersistedJourneyLeg leg, int index, boolean next) {
-        List<JourneyLeg.Waypoint> points = leg.decodedWaypoints();
+        List<JourneyLeg.Waypoint> points = TransitStopGeometry.ensureStopBoundaries(
+                        leg.decodedWaypoints(), leg.getFromName(), leg.getToName(),
+                        leg.getLineName(), leg.getStopCount()).stream()
+                .filter(point -> point.name() != null && !point.name().isBlank())
+                .toList();
         if (index >= 0 && index < points.size()) {
             String name = points.get(index).name();
             if (name != null && !name.isBlank()) {

@@ -4,6 +4,7 @@ import com.fareflow.auth.CurrentUserService;
 import com.fareflow.payment.PaymentService;
 import com.fareflow.payment.dto.PaymentIntentResponse;
 import com.fareflow.session.dto.PayTransitSessionRequest;
+import com.fareflow.session.dto.AdvanceTransitSessionRequest;
 import com.fareflow.session.dto.StartTransitSessionRequest;
 import com.fareflow.session.dto.TransitSessionResponse;
 import jakarta.validation.Valid;
@@ -53,8 +54,12 @@ public class TransitSessionController {
     }
 
     @PostMapping("/{id}/advance")
-    public TransitSessionResponse advance(@PathVariable UUID id) {
-        return sessionService.advance(currentUserService.require(), id);
+    public TransitSessionResponse advance(
+            @PathVariable UUID id,
+            @RequestBody(required = false) AdvanceTransitSessionRequest request) {
+        String outcome = request == null ? null : request.outcome();
+        return sessionService.advance(currentUserService.require(), id,
+                TransitProgressOutcome.parse(outcome));
     }
 
     @PostMapping("/{id}/end")

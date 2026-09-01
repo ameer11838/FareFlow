@@ -46,6 +46,9 @@ public record TravelProfileResponse(
         String passPreference,
         String passPreferenceName,
 
+        String fareCategory,
+        String fareCategoryName,
+
         List<ModeOption> preferredModes
 ) {
 
@@ -80,6 +83,9 @@ public record TravelProfileResponse(
 
                 pass == null ? null : pass.name(),
                 pass == null ? null : pass.displayName(),
+
+                profile.getFareCategory().name(),
+                profile.getFareCategory().displayName(),
 
                 profile.getPreferredModes().stream()
                         // Declaration order, so the answers read back in the order

@@ -6,7 +6,8 @@ import { renderWithProviders } from '../../../test/renderWith'
 import * as api from '../../../api'
 import { ApiError, tokenStore } from '../../../api/client'
 import {
-  authConfig, demoConfig, emptyInsights, profileOptions, travelProfile, user,
+  authConfig, demoConfig, emptyInsights, emptySpendingHistory, passRecommendation,
+  profileOptions, travelProfile, user,
 } from '../../../test/fixtures'
 
 function stubAppData() {
@@ -15,6 +16,11 @@ function stubAppData() {
   })
   vi.spyOn(api.recommendationsApi, 'profiles').mockResolvedValue([])
   vi.spyOn(api.insightsApi, 'get').mockResolvedValue(emptyInsights)
+  // Both were unstubbed, so they fell through to a real request that 401s — and
+  // a 401 anywhere drops the session. The old test clicked sign-out before the
+  // rejection landed, which hid it; any extra await exposes it.
+  vi.spyOn(api.insightsApi, 'history').mockResolvedValue(emptySpendingHistory)
+  vi.spyOn(api.passesApi, 'recommendation').mockResolvedValue(passRecommendation)
   vi.spyOn(api.profileApi, 'get').mockResolvedValue(travelProfile)
   vi.spyOn(api.profileApi, 'options').mockResolvedValue(profileOptions)
 }
@@ -66,6 +72,22 @@ describe('auth mode', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password')
     expect(tokenStore.get()).toBeNull()
+  })
+
+  it('lets the rider reveal and hide the password without changing it', async () => {
+    vi.spyOn(api.authApi, 'me').mockRejectedValue(new ApiError(401, { title: 'Authentication required' }))
+    renderWithProviders(<App />, { route: '/login' })
+
+    const password = await screen.findByLabelText('Password')
+    await userEvent.type(password, 'still-my-password')
+    expect(password).toHaveAttribute('type', 'password')
+
+    await userEvent.click(screen.getByRole('button', { name: /show password/i }))
+    expect(password).toHaveAttribute('type', 'text')
+    expect(password).toHaveValue('still-my-password')
+
+    await userEvent.click(screen.getByRole('button', { name: /hide password/i }))
+    expect(password).toHaveAttribute('type', 'password')
   })
 
   it('registers with just a name, email, and password', async () => {
@@ -123,7 +145,11 @@ describe('auth mode', () => {
 
     renderWithProviders(<App />, { route: '/insights' })
 
-    await userEvent.click(await screen.findByRole('button', { name: /sign out/i }))
+    // Sign-out moved into the account menu with everything else that is about
+    // the person rather than about travel. The assertion is unchanged; only the
+    // path to the control is.
+    await userEvent.click(await screen.findByRole('button', { name: /account:/i }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /sign out/i }))
 
     expect(tokenStore.get()).toBeNull()
     expect(await screen.findByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
@@ -166,7 +192,10 @@ describe('demo mode', () => {
     renderWithProviders(<App />, { route: '/insights' })
 
     await screen.findByText(/demo mode/i)
-    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: /account:/i }))
+
+    expect(screen.queryByRole('menuitem', { name: /sign out/i })).not.toBeInTheDocument()
+    expect(await screen.findByText(/no session to sign out of/i)).toBeInTheDocument()
   })
 
   it('never sends a token', async () => {

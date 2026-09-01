@@ -71,6 +71,16 @@ class GoogleRoutesTransitProviderTest {
         assertThat(ride.stopCount()).isEqualTo(5);
         assertThat(ride.realtime()).isFalse();
         assertThat(ride.waypoints()).hasSizeGreaterThan(2);
+        assertThat(ride.waypoints().stream()
+                .filter(point -> point.name() != null && !point.name().isBlank())
+                .map(com.fareflow.journey.JourneyLeg.Waypoint::name))
+                .containsExactly(
+                        "NJIT",
+                        "62 · stop 1 of 5",
+                        "62 · stop 2 of 5",
+                        "62 · stop 3 of 5",
+                        "62 · stop 4 of 5",
+                        "Newark Penn Station");
         server.verify();
     }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts'
+import { BarChart, LineChart, ScatterChart } from 'echarts/charts'
 import {
   AriaComponent, AxisPointerComponent, DataZoomComponent, GridComponent,
   LegendComponent, MarkLineComponent, TooltipComponent,
@@ -9,7 +9,7 @@ import { SVGRenderer } from 'echarts/renderers'
 import { useTheme } from '../hooks/useTheme'
 
 use([
-  BarChart, LineChart, PieChart, ScatterChart,
+  BarChart, LineChart, ScatterChart,
   AriaComponent, AxisPointerComponent, DataZoomComponent, GridComponent,
   LegendComponent, MarkLineComponent, TooltipComponent, SVGRenderer,
 ])

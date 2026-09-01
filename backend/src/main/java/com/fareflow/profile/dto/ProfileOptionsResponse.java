@@ -3,6 +3,7 @@ package com.fareflow.profile.dto;
 import com.fareflow.profile.CommuteFrequency;
 import com.fareflow.profile.CommuteKind;
 import com.fareflow.profile.PassPreference;
+import com.fareflow.profile.FareCategory;
 import com.fareflow.recommendation.dto.ProfileDto;
 
 import java.util.Arrays;
@@ -21,6 +22,7 @@ public record ProfileOptionsResponse(
         List<Option> commuteFrequencies,
         List<Option> commuteKinds,
         List<Option> passPreferences,
+        List<Option> fareCategories,
         List<TravelProfileResponse.ModeOption> travelModes
 ) {
 
@@ -58,6 +60,10 @@ public record ProfileOptionsResponse(
                         .toList(),
                 Arrays.stream(PassPreference.values())
                         .map(preference -> new Option(preference.name(), preference.displayName(), null))
+                        .toList(),
+                Arrays.stream(FareCategory.values())
+                        .map(category -> new Option(category.name(), category.displayName(),
+                                category.detail()))
                         .toList(),
                 TravelProfileResponse.allModes());
     }

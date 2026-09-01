@@ -72,6 +72,7 @@ export function SettingsPage() {
         typicalOrigin: hasCommute ? draft.typicalOrigin : null,
         typicalDestination: hasCommute ? draft.typicalDestination : null,
         passPreference: draft.passPreference as never,
+        fareCategory: draft.fareCategory,
         preferredModes: draft.preferredModes,
       })
       // The budget shown in the top bar comes from the user record, so it has to
@@ -88,19 +89,10 @@ export function SettingsPage() {
   return (
     <div className="page">
       <PageHeader
-        eyebrow="Settings"
+        tile="navigation-tabs/settings"
         title="Your travel profile"
         subtitle="FareFlow uses these to rank routes and track your spending. Change anything, any time."
       />
-
-      <section className="section">
-        <SettingsBlock
-          title="Appearance"
-          caption="Follows your system by default. A choice here is remembered on this device."
-        >
-          <ThemeToggle />
-        </SettingsBlock>
-      </section>
 
       <section className="section">
         <SettingsBlock
@@ -117,6 +109,7 @@ export function SettingsPage() {
 
       <section className="section">
         <SettingsBlock
+          emphasis="lead"
           title="Weekly transportation budget"
           caption="Leave it unset and FareFlow simply will not track against one."
         >
@@ -155,6 +148,25 @@ export function SettingsPage() {
       </section>
 
       <section className="section">
+        <SettingsBlock
+          title="Fare eligibility"
+          caption="Used by the stop-based engine. Discounted categories may require verification in a production system."
+        >
+          <div className="choice-list">
+            {catalogue.fareCategories.map((category) => (
+              <ChoiceCard
+                key={category.id}
+                selected={draft.fareCategory === category.id}
+                onSelect={() => set('fareCategory', category.id as Draft['fareCategory'])}
+                title={category.displayName}
+                detail={category.detail}
+              />
+            ))}
+          </div>
+        </SettingsBlock>
+      </section>
+
+      <section className="section">
         <SettingsBlock title="How you travel and pay" caption="Modes you use, and how you buy fares.">
           <HabitsStep
             modes={catalogue.travelModes}
@@ -170,6 +182,18 @@ export function SettingsPage() {
         </SettingsBlock>
       </section>
 
+      {/* Last, and quiet: this is the only setting on the page that does not
+          change how FareFlow plans or prices anything. */}
+      <section className="section">
+        <SettingsBlock
+          emphasis="quiet"
+          title="Appearance"
+          caption="Follows your system by default. A choice here is remembered on this device."
+        >
+          <ThemeToggle />
+        </SettingsBlock>
+      </section>
+
       {error && <p className="auth-error" role="alert">{error.problem.detail ?? error.message}</p>}
 
       <div className="settings-actions">
@@ -182,13 +206,25 @@ export function SettingsPage() {
   )
 }
 
-function SettingsBlock({ title, caption, children }: {
+/**
+ * One setting.
+ *
+ * <p>`emphasis` exists because these are not equally consequential and the page
+ * used to pretend they were: six identical cards, same border, same padding,
+ * same heading weight, in the order they happened to be written. The budget is
+ * the setting that changes what the product does on every other screen; the
+ * theme is a device preference. They should not look the same.
+ */
+function SettingsBlock({ title, caption, emphasis = 'default', children }: {
   title: string
   caption: string
+  emphasis?: 'lead' | 'default' | 'quiet'
   children: React.ReactNode
 }) {
+  const tone = emphasis === 'lead' ? ' surface-lead'
+    : emphasis === 'quiet' ? ' surface-quiet-flat surface-dense' : ''
   return (
-    <div className="card card-body settings-block">
+    <div className={`card card-body settings-block settings-block-${emphasis}${tone}`}>
       <div className="settings-block-head">
         <h2 className="section-title">{title}</h2>
         <p className="section-sub">{caption}</p>
@@ -206,6 +242,7 @@ interface Draft {
   typicalOrigin: TypicalPlace | null
   typicalDestination: TypicalPlace | null
   passPreference: string | null
+  fareCategory: 'REGULAR' | 'STUDENT' | 'SENIOR' | 'REDUCED'
   preferredModes: TravelModeId[]
 }
 
@@ -218,6 +255,7 @@ function toDraft(profile: TravelProfile): Draft {
     typicalOrigin: profile.typicalOrigin,
     typicalDestination: profile.typicalDestination,
     passPreference: profile.passPreference,
+    fareCategory: profile.fareCategory,
     preferredModes: profile.preferredModes.map((mode) => mode.id),
   }
 }

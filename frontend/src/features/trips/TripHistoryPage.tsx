@@ -3,9 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { journeysApi, tripsApi } from '../../api'
 import { ApiError } from '../../api/client'
 import type { Page, PersistedJourneyDetail, Trip } from '../../api/types'
-import { ClockIcon, ModeIcon, RouteIcon, TransferIcon } from '../../components/Icons'
+import { ClockIcon, ModeBadge, TransferIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Section, Skeleton } from '../../components/Surface'
+import { Tile } from '../../components/Tile'
 import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useCurrentUser } from '../../hooks/useAuth'
@@ -50,7 +51,7 @@ export function TripHistoryPage() {
   return (
     <div className="page">
       <PageHeader
-        eyebrow="Activity"
+        tile="navigation-tabs/trips"
         title="Trips"
         subtitle="Every trip records the fare, duration, and operator exactly as they were at the time of travel."
         actions={<Link className="btn btn-primary" to="/plan">Plan another trip</Link>}
@@ -75,7 +76,7 @@ export function TripHistoryPage() {
       {data && data.content.length === 0 && (
         <Card>
           <EmptyState
-            icon={<RouteIcon size={22} />}
+            tile="navigation-tabs/trips"
             title="No trips yet"
             description="Plan your first FareFlow trip and we'll start building personalized transportation insights — what you spend, what you save, and which routes are worth taking."
             action={<Link className="btn btn-primary btn-lg" to="/plan">Plan a trip</Link>}
@@ -145,6 +146,7 @@ function TripCard({ trip, onCancel, cancelling, disabled, initiallyOpen }: {
       data-testid={`trip-${trip.id}`}
     >
       <div className="trip-body">
+        <Tile name="navigation-tabs/trips" size={48} className="trip-tile" />
         <div className="trip-main">
           {/* The arrow is decorative, so the heading carries a spoken label:
               "Newark to Manhattan" rather than "Newark right-arrow Manhattan". */}
@@ -157,10 +159,9 @@ function TripCard({ trip, onCancel, cancelling, disabled, initiallyOpen }: {
           {/* The operator strip: what a rider actually pictures when they
               remember a trip. */}
           <div className="trip-line">
-            <span className="trip-line-node">
-              <ModeIcon mode={trip.mode} size={15} />
-            </span>
-            <span className="trip-line-track" aria-hidden="true" />
+            <ModeBadge mode={trip.mode} size="sm" />
+            <span className={`trip-line-track mode-${trip.mode?.toLowerCase()}`}
+                  aria-hidden="true" />
             <span className="trip-line-name">{trip.providerName}</span>
           </div>
 
@@ -184,7 +185,7 @@ function TripCard({ trip, onCancel, cancelling, disabled, initiallyOpen }: {
 
         <div className="trip-side">
           <span className="trip-fare numeric">{formatCents(trip.fareCents)}</span>
-          {trip.fareModel === 'FAREFLOW_USAGE_V1' && (
+          {trip.fareModel?.startsWith('FAREFLOW_USAGE_') && (
             <span className="trip-fare-model">Simulated usage fare</span>
           )}
           <TripStatus trip={trip} cancelled={cancelled} />
@@ -315,9 +316,7 @@ function Itinerary({ journeyId, trip }: { journeyId: number; trip: Trip }) {
             <div className="timeline-body">
               <span className="timeline-station">{leg.fromName}</span>
               <div className="timeline-ride">
-                <span className="timeline-mode" aria-hidden="true">
-                  <ModeIcon mode={leg.mode} size={14} />
-                </span>
+                <ModeBadge mode={leg.mode} size="sm" className="timeline-mode" />
                 <span className="timeline-line-name">{leg.lineName}</span>
                 <span className="timeline-duration numeric">
                   {formatMinutes(leg.durationMinutes)}

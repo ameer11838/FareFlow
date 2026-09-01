@@ -255,13 +255,16 @@ export function PlanTripPage() {
     }
   }
 
-  const updateSession = async (action: 'advance' | 'end') => {
+  const updateSession = async (
+    action: 'advance' | 'end',
+    outcome: 'REACHED' | 'SKIPPED' | 'DIVERTED' = 'REACHED',
+  ) => {
     if (!session) return
     setChoosingJourneyId(tripCandidate?.journeyId ?? session.id)
     setPaymentError(null)
     try {
       const updated = action === 'advance'
-        ? await transitSessionsApi.advance(session.id)
+        ? await transitSessionsApi.advance(session.id, outcome)
         : await transitSessionsApi.end(session.id)
       setSession(updated)
       setActiveLegIndex(updated.activeLegIndex)
@@ -340,6 +343,8 @@ export function PlanTripPage() {
           selectedJourneyId={mapSelection}
           highlightedJourneyId={hoveredJourneyId}
           activeLegIndex={session?.activeLegIndex ?? activeLegIndex}
+          activeStopSequence={session?.progressUnitsCompleted ?? null}
+          activeStopName={session?.currentStop ?? null}
           onSelectJourney={(journeyId) => {
             setSelectedJourneyId(journeyId)
             setActiveLegIndex(null)
@@ -437,7 +442,7 @@ export function PlanTripPage() {
               }
             }}
             onStart={() => void startTrip()}
-            onAdvance={() => void updateSession('advance')}
+            onAdvance={(outcome) => void updateSession('advance', outcome)}
             onEnd={() => void updateSession('end')}
             onPay={(method) => void payForSession(method)}
           />

@@ -10,7 +10,7 @@ import type {
 } from '../../api/types'
 import { formatCents } from '../../lib/format'
 import { ChoiceCard } from './OnboardingLayout'
-import { BusIcon, FerryIcon, RailIcon, SubwayIcon } from '../../components/Icons'
+import { Tile } from '../../components/Tile'
 
 /* ------------------------------------------------------------------ *
  * Step 1 — how often do you commute?
@@ -258,11 +258,14 @@ function toPlace(candidate: LocationCandidate): TypicalPlace {
  * Step 5 — habits
  * ------------------------------------------------------------------ */
 
+/* Picking how you travel is the most expressive moment in onboarding and the
+   one screen with room to breathe, so the modes are shown as plates rather than
+   as four near-identical outlines. */
 const MODE_ICONS: Record<string, React.ReactNode> = {
-  TRAIN: <RailIcon size={17} />,
-  SUBWAY: <SubwayIcon size={17} />,
-  BUS: <BusIcon size={17} />,
-  FERRY: <FerryIcon size={17} />,
+  TRAIN: <Tile name="transit-modes/train" size={30} />,
+  SUBWAY: <Tile name="transit-modes/subway" size={30} />,
+  BUS: <Tile name="transit-modes/bus" size={30} />,
+  FERRY: <Tile name="transit-modes/ferry" size={30} />,
 }
 
 export function HabitsStep({

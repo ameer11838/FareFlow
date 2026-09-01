@@ -146,7 +146,7 @@ export function LocationInput({
                 onClick={() => select(candidate)}
               >
                 <span className="location-option-head">
-                  <span className={`location-kind${candidate.source === 'GTFS' ? ' is-transit' : ''}`}
+                  <span className={`location-kind${candidate.source === 'GTFS' ? ' is-transit' : ''}${isAddress(candidate) ? ' is-address' : ''}`}
                         aria-hidden="true" />
                   <span className="location-name">{candidate.displayName}</span>
                 </span>
@@ -154,6 +154,7 @@ export function LocationInput({
                   <span className="location-meta">
                     {[candidate.locality, candidate.region].filter(Boolean).join(', ')}
                     {candidate.source === 'GTFS' ? ' · Imported schedule' : ''}
+                    {candidate.source !== 'GTFS' && isAddress(candidate) ? ' · Street address' : ''}
                   </span>
                 )}
               </button>
@@ -169,4 +170,8 @@ export function LocationInput({
       {hint}
     </div>
   )
+}
+
+function isAddress(candidate: LocationCandidate): boolean {
+  return /address|point address|street|cross street/i.test(candidate.type)
 }

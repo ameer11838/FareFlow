@@ -2,7 +2,7 @@ import type { EChartsCoreOption } from 'echarts/core'
 import type { Insights, SpendingHistory, SpendingHistoryBucket } from '../../api/types'
 import { EChart, type ChartClickEvent } from '../../components/EChart'
 import { useTheme } from '../../hooks/useTheme'
-import { formatCents, formatMinutes, formatOptionalCents } from '../../lib/format'
+import { formatCents, formatMinutes } from '../../lib/format'
 import type { AnalyticsFilters, AnalyticsGroup, AnalyticsView } from './analytics'
 
 /**
@@ -30,11 +30,6 @@ interface ChartTheme {
   positive: string
   /** Over budget: the one place a chart mark is allowed to go red. */
   negative: string
-  /**
-   * Cyan → purple. The only gradient the dashboard is allowed, and it is spent
-   * on one series: spending over time, the chart the page exists to show.
-   */
-  flow: [string, string]
   /** Series identity. Fixed order, assigned against a stable domain. */
   palette: string[]
   /** The tail of a long series list, past where the palette stays separable. */
@@ -45,9 +40,10 @@ const LIGHT: ChartTheme = {
   text: '#1b1824', secondary: '#5c5869', muted: '#817c90', grid: '#e6e5ef',
   border: '#e3e1ea', surface: '#ffffff', raised: '#ffffff',
   accent: '#6547e7', accentSoft: '#e8e2fe',
-  transit: '#0094a8', positive: '#0f7a4f', negative: '#b3261e',
-  flow: ['#0094a8', '#6547e7'],
-  palette: ['#0094a8', '#9c65ff', '#a91d8e', '#006c4b', '#a67200', '#173ebb'],
+  transit: '#1e6ff5', positive: '#0c875e', negative: '#eb0d33',
+  /* Data is blue, not brand violet. A chart drawn in the brand colour reads as
+     decoration; one drawn in the information colour reads as data. */
+  palette: ['#3b82f6', '#12a695', '#a86c07', '#f43f5e', '#b5309b', '#2f7d4f'],
   neutral: '#9a94a8',
 }
 
@@ -55,29 +51,48 @@ const DARK: ChartTheme = {
   text: '#f5f3f8', secondary: '#b9b4c2', muted: '#8d8797', grid: '#262340',
   border: '#2d2938', surface: '#191722', raised: '#211e2c',
   accent: '#9a82ff', accentSoft: '#30294d',
-  transit: '#22d3ee', positive: '#3ddc9a', negative: '#ff8a80',
-  flow: ['#22d3ee', '#9a82ff'],
-  palette: ['#00a4ba', '#a06fff', '#b72e9a', '#007653', '#b57d00', '#2e5bda'],
+  transit: '#3b82f6', positive: '#10b981', negative: '#f43f5e',
+  /* The same six steps as light. They were validated against both surfaces, so
+     the categorical set does not need re-picking per mode — only the semantic
+     inks do, and those live in tokens.css. */
+  palette: ['#3b82f6', '#12a695', '#a86c07', '#f43f5e', '#b5309b', '#2f7d4f'],
   neutral: '#6b6580',
 }
 
 /**
  * What a time series is *about*, which is what decides its colour.
  *
- * <p>Money is purple, activity and time are cyan and blue, savings is the
- * positive green it is everywhere else in the product, and the one headline
- * series — spending — carries the cyan→purple flow. A reader who has learned the
- * page once can tell which question a chart answers before reading its title.
+ * <p>Money is purple, activity and time are blue, and savings is the positive
+ * green it is everywhere else in the product. Flat, stable colours make these
+ * read as analytical marks rather than decorative illustrations.
  */
-type SeriesTone = 'flow' | 'transit' | 'positive' | 'money' | 'time'
+type SeriesTone = 'transit' | 'positive' | 'money' | 'time'
 
 function toneColor(tone: SeriesTone, theme: ChartTheme): string {
   if (tone === 'transit') return theme.transit
   if (tone === 'positive') return theme.positive
   if (tone === 'time') return theme.palette[5]
-  // 'flow' resolves to its purple end wherever a flat colour is required —
-  // symbols, the zoom handle — so the series still reads as one object.
   return theme.accent
+}
+
+/**
+ * Transit mode → palette slot, fixed by identity.
+ *
+ * <p>Modes are a *closed* domain, unlike operators, so their colour is assigned
+ * from the mode itself rather than from its rank. This is what makes rail the
+ * same violet in the mode comparison, in a route chip and on the raster mode tile; when
+ * the assignment came from list order, filtering the busiest mode out repainted
+ * every mode below it.
+ *
+ * <p>The slots mirror `--mode-*` in tokens.css, chosen so each mode lands on the
+ * validated colour nearest its tile artwork.
+ */
+const MODE_SLOT: Record<string, number> = {
+  RAIL: 4, TRAIN: 4,          // magenta — nearest slot to the violet rail plate
+  SUBWAY: 0, METRO: 0,        // blue
+  FERRY: 1,                   // teal
+  TRAM: 2, LIGHT_RAIL: 2,     // amber
+  BUS: 3,                     // coral
 }
 
 /**
@@ -94,6 +109,20 @@ function toneColor(tone: SeriesTone, theme: ChartTheme): string {
 function domainColors(ids: string[], theme: ChartTheme): Map<string, string> {
   return new Map(ids.map((id, index) =>
     [id, theme.palette[Math.min(index, theme.palette.length - 1)]]))
+}
+
+/**
+ * The same, for a closed domain that owns its colours outright.
+ *
+ * <p>Anything outside the known set — a walking leg, an operator-specific mode
+ * the API starts returning — takes the neutral rather than borrowing a hue that
+ * already means something else.
+ */
+function modeColors(ids: string[], theme: ChartTheme): Map<string, string> {
+  return new Map(ids.map((id) => {
+    const slot = MODE_SLOT[id?.toUpperCase?.() ?? '']
+    return [id, slot === undefined ? theme.neutral : theme.palette[slot]]
+  }))
 }
 
 /** ECharts wants rgba() literals for translucent fills, not an opacity channel. */
@@ -120,7 +149,7 @@ export function InsightsCharts({
   // as the reader cross-filters, and a series that changes colour when its
   // neighbours disappear is unreadable.
   const operatorColors = domainColors(history.byOperator.map((o) => o.provider), theme)
-  const modeColors = domainColors(history.byMode.map((m) => m.mode), theme)
+  const modeColorMap = modeColors(history.byMode.map((m) => m.mode), theme)
 
   if (view.observations.length === 0) {
     return (
@@ -136,7 +165,17 @@ export function InsightsCharts({
   const savings = view.buckets.map((bucket) => bucket.savedCents)
   const fares = view.buckets.map((bucket) => bucket.averageFareCents)
   const durations = view.buckets.map((bucket) => bucket.averageDurationMinutes)
-  const timeReady = view.distinctTripDays >= 2
+  // Three, not two. Two points is a line segment, and a line segment drawn in a
+  // gridded frame with an axis and a zoom handle claims to be a trend it cannot
+  // support. At one or two active days the same figures are shown as a stat
+  // comparison instead; three is the first length where a direction is real.
+  const CHART_MIN_POINTS = 3
+  const timeReady = view.distinctTripDays >= CHART_MIN_POINTS
+  const sparseTime = view.distinctTripDays >= 2 && view.distinctTripDays < CHART_MIN_POINTS
+  const bucketLabels = view.buckets.map((bucket) => bucket.label)
+  const pointsOf = (values: Array<number | null>) =>
+    bucketLabels.map((label, index) => ({ label, value: values[index] ?? null }))
+        .filter((point) => point.value !== null)
 
   return (
     <div className="analytics-grid">
@@ -144,25 +183,18 @@ export function InsightsCharts({
         <>
           <ChartPanel
             title="Spending over time"
-            question="When did transportation spending change?"
-            value={formatCents(view.totals.spentCents)}
-            delta={seriesDelta(activeValues(view.buckets, spending), 'money')}
+            note="Click a point to filter the dashboard to that day"
             className="analytics-panel-wide"
           >
             <EChart
-              option={timeOption(history, spending, 'Spending', 'line', theme, 'money', 'flow')}
+              option={timeOption(history, spending, 'Spending', 'line', theme, 'money')}
               ariaLabel={`Spending over ${history.rangeName}`}
               testId="chart-spending"
               onClick={(event) => selectBucket(event, filters.bucketDate, onBucket)}
             />
           </ChartPanel>
 
-          <ChartPanel
-            title="Trips over time"
-            question="How often did you travel?"
-            value={`${view.totals.tripCount} trip${view.totals.tripCount === 1 ? '' : 's'}`}
-            delta={seriesDelta(activeValues(view.buckets, trips), 'number')}
-          >
+          <ChartPanel title="Trips over time">
             <EChart
               option={timeOption(history, trips, 'Completed trips', 'bar', theme, 'number', 'transit')}
               ariaLabel={`Trips over ${history.rangeName}`}
@@ -171,12 +203,7 @@ export function InsightsCharts({
             />
           </ChartPanel>
 
-          <ChartPanel
-            title="Savings over time"
-            question="Where did route choices save money?"
-            value={formatOptionalCents(view.totals.savedCents, 'Not available')}
-            delta={seriesDelta(activeValues(view.buckets, savings), 'money')}
-          >
+          <ChartPanel title="Savings over time">
             {view.totals.savedCents === null ? (
               <ChartState
                 title="No comparable trips in this view"
@@ -192,12 +219,7 @@ export function InsightsCharts({
             )}
           </ChartPanel>
 
-          <ChartPanel
-            title="Average fare trend"
-            question="Is each trip becoming more or less expensive?"
-            value={formatOptionalCents(view.totals.averageFareCents, 'Not available')}
-            delta={seriesDelta(activeValues(view.buckets, fares), 'money')}
-          >
+          <ChartPanel title="Average fare">
             <EChart
               option={timeOption(history, fares, 'Average fare', 'line', theme, 'money', 'money')}
               ariaLabel={`Average fare over ${history.rangeName}`}
@@ -206,13 +228,7 @@ export function InsightsCharts({
             />
           </ChartPanel>
 
-          <ChartPanel
-            title="Average commute time"
-            question="Is travel taking longer?"
-            value={view.totals.averageDurationMinutes === null
-              ? 'Not available' : formatMinutes(view.totals.averageDurationMinutes)}
-            delta={seriesDelta(activeValues(view.buckets, durations), 'minutes')}
-          >
+          <ChartPanel title="Average commute time">
             <EChart
               option={timeOption(history, durations, 'Average duration', 'line', theme, 'minutes', 'time')}
               ariaLabel={`Average commute time over ${history.rangeName}`}
@@ -221,53 +237,78 @@ export function InsightsCharts({
             />
           </ChartPanel>
         </>
+      ) : sparseTime ? (
+        /* Two or three active days: the same figures, without a frame that
+           would imply a trend they cannot support. */
+        <>
+          <ChartPanel
+            title="Spending"
+            note={`${view.distinctTripDays} days with completed trips in this period`}
+            className="analytics-panel-wide"
+          >
+            <SparseSeries points={pointsOf(spending)} format={formatCents} label="spending" />
+          </ChartPanel>
+          <ChartPanel title="Trips">
+            <SparseSeries points={pointsOf(trips)} format={(value) => `${value}`} label="trips" />
+          </ChartPanel>
+          <ChartPanel title="Average fare">
+            <SparseSeries points={pointsOf(fares)} format={formatCents} label="fares" />
+          </ChartPanel>
+        </>
       ) : (
         <div className="analytics-history-short analytics-panel-wide" data-testid="history-sparse-state">
-          <span className="analytics-kicker">Not enough history yet</span>
-          <strong>{formatCents(view.totals.spentCents)} across {view.totals.tripCount} completed trip{view.totals.tripCount === 1 ? '' : 's'}</strong>
-          <p>FareFlow has one day of real activity in this view. Complete trips on another day to unlock meaningful spending, trip, savings, fare, and commute trends.</p>
+          <strong>One day of activity in this view</strong>
+          <p>
+            {formatCents(view.totals.spentCents)} across {view.totals.tripCount} completed
+            trip{view.totals.tripCount === 1 ? '' : 's'}. Trends need trips on more than one day.
+          </p>
         </div>
       )}
 
       <ChartPanel
         title="Spending by operator"
-        question="Which operator receives most of your transit spend?"
-        value={view.byOperator[0]?.name ?? 'Not available'}
-        delta={view.byOperator[0]
-          ? `${share(view.byOperator[0].spentCents, view.totals.spentCents)} of filtered spend`
-          : null}
+        note={view.byOperator.length > 1 ? 'Click a segment to cross-filter' : null}
       >
-        <EChart
-          option={operatorOption(view.byOperator, theme, filters.operator, operatorColors)}
-          ariaLabel="Spending by transit operator"
-          testId="chart-operators"
-          onClick={(event) => selectDimension(event, filters.operator, onOperator)}
-        />
+        {view.byOperator.length < 2 ? (
+          /* A one-row chart adds axes without adding information. */
+          <SingleShare
+            rows={view.byOperator}
+            total={view.totals.spentCents}
+            empty="No operator spending in this view"
+          />
+        ) : (
+          <EChart
+            option={operatorOption(view.byOperator, theme, filters.operator, operatorColors)}
+            ariaLabel="Spending by transit operator"
+            testId="chart-operators"
+            onClick={(event) => selectDimension(event, filters.operator, onOperator)}
+          />
+        )}
       </ChartPanel>
 
       <ChartPanel
         title="Spending by transit mode"
-        question="How is spending split across bus, train, subway, and ferry?"
-        value={view.byMode[0]?.name ?? 'Not available'}
-        delta={view.byMode[0]
-          ? `${share(view.byMode[0].spentCents, view.totals.spentCents)} of filtered spend`
-          : null}
+        note={view.byMode.length > 1 ? 'Click a segment to cross-filter' : null}
       >
-        <EChart
-          option={modeOption(view.byMode, theme, filters.mode, modeColors)}
-          ariaLabel="Spending by public-transit mode"
-          testId="chart-modes"
-          onClick={(event) => selectDimension(event, filters.mode, onMode)}
-          onLegendSelect={(name) => selectNamedGroup(name, view.byMode, filters.mode, onMode)}
-        />
+        {view.byMode.length < 2 ? (
+          <SingleShare
+            rows={view.byMode}
+            total={view.totals.spentCents}
+            empty="No mode spending in this view"
+          />
+        ) : (
+          <EChart
+            option={modeOption(view.byMode, theme, filters.mode, modeColorMap)}
+            ariaLabel="Spending by public-transit mode"
+            testId="chart-modes"
+            onClick={(event) => selectDimension(event, filters.mode, onMode)}
+          />
+        )}
       </ChartPanel>
 
       <ChartPanel
         title="Budget vs actual vs projected"
-        question="Is this week tracking within budget?"
-        value={weekly.weeklyBudgetCents === null
-          ? 'No budget set' : formatCents(weekly.weeklyBudgetCents)}
-        delta={hasFilter ? 'Projection hidden while cross-filtering' : budgetDelta(weekly)}
+        note={hasFilter ? 'Projection hidden while cross-filtering' : budgetDelta(weekly)}
         className="analytics-panel-wide"
       >
         {weekly.weeklyBudgetCents === null ? (
@@ -287,9 +328,7 @@ export function InsightsCharts({
 
       <ChartPanel
         title="Fare vs trip duration"
-        question="Are higher fares actually buying faster trips?"
-        value={`${view.observations.length} trip${view.observations.length === 1 ? '' : 's'}`}
-        delta="Click a point to filter by operator"
+        note="Click a point to filter by operator"
         className="analytics-panel-wide"
       >
         {view.observations.length < 2 ? (
@@ -313,30 +352,78 @@ export function InsightsCharts({
   )
 }
 
-function ChartPanel({
-  title, question, value, delta, className = '', children,
-}: {
+/**
+ * A chart and its title. Deliberately almost nothing else.
+ *
+ * <p>This used to carry three more things: a rhetorical question under the
+ * title ("When did transportation spending change?"), the series total set
+ * large beside it, and a delta under that. All three were removed.
+ *
+ * <p>The question narrated what the reader was about to look at, which a chart
+ * with a clear title does not need. The total was worse: it printed a number
+ * the chart underneath already draws, and on the operator and mode panels it
+ * printed the *name of the top category* as though it were a headline figure —
+ * a data value standing in for a title. When the same total also appeared in
+ * the summary row above, one number was on screen three times.
+ *
+ * <p>What is left is a title, and an optional `note` for something the chart
+ * genuinely cannot say about itself — that it is clickable, or that a
+ * projection is suppressed while filtered. A note is never a number.
+ */
+function ChartPanel({ title, note, className = '', children }: {
   title: string
-  question: string
-  value: string
-  delta: string | null
+  note?: string | null
   className?: string
   children: React.ReactNode
 }) {
   return (
     <article className={`analytics-panel ${className}`.trim()}>
       <header className="analytics-panel-head">
-        <div>
-          <h3>{title}</h3>
-          <p>{question}</p>
-        </div>
-        <div className="analytics-panel-value">
-          <strong>{value}</strong>
-          {delta && <span>{delta}</span>}
-        </div>
+        <h3>{title}</h3>
+        {note && <p className="analytics-panel-note">{note}</p>}
       </header>
       {children}
     </article>
+  )
+}
+
+/**
+ * The fallback when a series is too short to be a chart.
+ *
+ * <p>Two or three points do not make a trend, but drawing them with a full
+ * cartesian frame — axes, gridlines, a zoom handle — asserts that they do. The
+ * honest form at that length is the numbers themselves, side by side, with the
+ * change between the ends stated once.
+ */
+function SparseSeries({ points, format, label }: {
+  points: Array<{ label: string; value: number | null }>
+  format: (value: number) => string
+  label: string
+}) {
+  const real = points.filter((point): point is { label: string; value: number } =>
+    point.value !== null)
+  if (real.length === 0) {
+    return <ChartState title={`No ${label} recorded yet`} detail="Complete a trip to start this series." />
+  }
+  const first = real[0], last = real[real.length - 1]
+  const delta = real.length > 1 ? last.value - first.value : null
+
+  return (
+    <div className="sparse-series" data-testid="sparse-series">
+      <ol className="sparse-points">
+        {real.map((point) => (
+          <li key={point.label}>
+            <span className="sparse-point-label">{point.label}</span>
+            <span className="sparse-point-value numeric">{format(point.value)}</span>
+          </li>
+        ))}
+      </ol>
+      {delta !== null && delta !== 0 && (
+        <p className={`sparse-delta${delta > 0 ? ' is-up' : ' is-down'}`}>
+          {delta > 0 ? '↑' : '↓'} {format(Math.abs(delta))} between these {real.length} points
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -345,6 +432,32 @@ function ChartState({ title, detail }: { title: string; detail: string }) {
     <div className="analytics-chart-state" role="status">
       <strong>{title}</strong>
       <span>{detail}</span>
+    </div>
+  )
+}
+
+/**
+ * What a one-category breakdown looks like without unnecessary chart chrome.
+ *
+ * <p>Stating the name and the amount is the whole content; a ring drawn around
+ * a single 100% segment adds a shape but no information.
+ */
+function SingleShare({ rows, total, empty }: {
+  rows: Array<{ id: string; name: string; spentCents: number }>
+  total: number
+  empty: string
+}) {
+  const row = rows[0]
+  if (!row) return <ChartState title={empty} detail="Complete a trip to populate this breakdown." />
+  return (
+    <div className="single-share" data-testid="single-share">
+      <span className="single-share-name">{row.name}</span>
+      <span className="single-share-value numeric">{formatCents(row.spentCents)}</span>
+      <span className="single-share-note">
+        {total > 0 && row.spentCents === total
+          ? 'All spending in this view'
+          : total > 0 ? `${Math.round((row.spentCents / total) * 100)}% of spending in this view` : ''}
+      </span>
     </div>
   )
 }
@@ -364,21 +477,10 @@ function timeOption(
   }))
   const solid = toneColor(tone, theme)
   const zoom = dataZoom(history.buckets.length, theme, solid)
-  // The flow is a left-to-right sweep across the plot, not a per-segment tint:
-  // it reads as one line that travels from transit into money, which is the
-  // sentence the chart is making. Every other series is a flat colour.
-  const stroke = tone === 'flow'
-    ? {
-      type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
-      colorStops: [
-        { offset: 0, color: theme.flow[0] },
-        { offset: 1, color: theme.flow[1] },
-      ],
-    }
-    : solid
 
   return {
-    animationDuration: 360,
+    animationDuration: 220,
+    animationEasing: 'cubicOut',
     color: [solid],
     grid: { left: 64, right: 24, top: 22, bottom: zoom.length > 1 ? 58 : 38 },
     tooltip: tooltip(theme, 'axis'),
@@ -393,27 +495,18 @@ function timeOption(
       emphasis: { focus: 'series' },
       tooltip: { valueFormatter: (value: unknown) => formatUnit(value, unit) },
       ...(type === 'line' ? {
-        smooth: .28,
+        smooth: false,
         connectNulls: false,
         symbol: 'circle',
-        symbolSize: history.buckets.length > 18 ? 5 : 7,
-        showSymbol: history.buckets.length <= 32,
-        lineStyle: { width: 2.5, color: stroke },
+        symbolSize: 6,
+        showSymbol: history.buckets.length <= 18,
+        lineStyle: { width: 2, color: solid },
         // Points are ringed in the panel colour so a dense series reads as
         // separate marks rather than as a beaded string.
         itemStyle: { color: solid, borderColor: theme.surface, borderWidth: 1.5 },
-        areaStyle: tone === 'flow' ? {
-          color: {
-            type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
-            colorStops: [
-              { offset: 0, color: alpha(theme.flow[0], .20) },
-              { offset: 1, color: alpha(theme.flow[1], .20) },
-            ],
-          },
-        } : undefined,
       } : {
         barMaxWidth: 28,
-        itemStyle: { color: solid, borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: solid, borderRadius: [2, 2, 0, 0] },
       }),
     }],
   }
@@ -432,7 +525,8 @@ function operatorOption(
   colors: Map<string, string>,
 ): EChartsCoreOption {
   return {
-    animationDuration: 320,
+    animationDuration: 220,
+    animationEasing: 'cubicOut',
     // Room for the direct label at the end of the longest bar; at 34 the last
     // two characters of a four-figure amount were being clipped.
     grid: { left: 118, right: 68, top: 18, bottom: 42 },
@@ -466,7 +560,7 @@ function operatorOption(
           itemStyle: {
             color: colorOf(group.id, colors, theme),
             opacity: active ? 1 : .22,
-            borderRadius: [0, 4, 4, 0],
+            borderRadius: [0, 2, 2, 0],
             borderColor: selected === group.id ? theme.text : 'transparent',
             borderWidth: selected === group.id ? 1 : 0,
           },
@@ -482,52 +576,50 @@ function operatorOption(
   }
 }
 
-/**
- * Spending by transit mode.
- *
- * <p>A donut is an all-pairs form — any two segments can end up adjacent as the
- * split changes — and the palette is validated pairwise for its first four
- * slots. That covers the real domain (bus, train, subway, ferry). Past four,
- * identity is carried by the direct label on every segment and by the legend,
- * never by colour alone.
- */
+/** Spending by transit mode, direct-labelled for quick comparison. */
 function modeOption(
   groups: AnalyticsGroup[], theme: ChartTheme, selected: string | null,
   colors: Map<string, string>,
 ): EChartsCoreOption {
+  const total = groups.reduce((sum, group) => sum + group.spentCents, 0)
   return {
-    animationDuration: 320,
+    animationDuration: 220,
+    animationEasing: 'cubicOut',
     color: groups.map((group) => colorOf(group.id, colors, theme)),
     tooltip: tooltip(theme, 'item'),
-    legend: {
-      type: 'scroll', bottom: 0, left: 'center', icon: 'roundRect',
-      textStyle: { color: theme.secondary, fontSize: 11 },
-      pageTextStyle: { color: theme.muted },
-      inactiveColor: theme.muted,
+    grid: { left: 104, right: 92, top: 18, bottom: 36 },
+    xAxis: valueAxis(theme, 'money'),
+    yAxis: {
+      type: 'category', inverse: true,
+      data: groups.map((group) => group.name),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: theme.secondary, fontSize: 11, width: 92, overflow: 'truncate' },
     },
     series: [{
-      name: 'Transit mode', type: 'pie', radius: ['48%', '72%'], center: ['50%', '43%'],
-      avoidLabelOverlap: true,
+      name: 'Transit mode', type: 'bar', barMaxWidth: 22,
       data: groups.map((group) => {
         const active = !selected || selected === group.id
         return {
           name: group.name, value: group.spentCents, filterId: group.id,
           itemStyle: {
             color: colorOf(group.id, colors, theme),
-            // A 2px cut in the panel colour, so two adjacent shares never read
-            // as one continuous arc.
-            borderColor: theme.surface,
-            borderWidth: selected === group.id ? 3 : 2,
+            borderRadius: [0, 2, 2, 0],
+            borderColor: selected === group.id ? theme.text : 'transparent',
+            borderWidth: selected === group.id ? 1 : 0,
             opacity: active ? 1 : .22,
           },
         }
       }),
       label: {
-        color: theme.secondary, fontSize: 11, formatter: '{b}\n{d}%',
+        show: true, position: 'right', color: theme.text, fontSize: 11,
+        formatter: (params: { value?: unknown }) => {
+          const value = Number(params.value ?? 0)
+          const share = total > 0 ? Math.round((value / total) * 100) : 0
+          return `${formatCents(value)} · ${share}%`
+        },
       },
-      labelLine: { lineStyle: { color: theme.border } },
       tooltip: { valueFormatter: (value: unknown) => formatUnit(value, 'money') },
-      emphasis: { scaleSize: 5 },
+      emphasis: { focus: 'self', itemStyle: { opacity: 1 } },
     }],
   }
 }
@@ -558,7 +650,7 @@ function budgetOption(
     data: [actual],
     itemStyle: {
       color: over ? theme.negative : theme.accent,
-      borderRadius: [0, 4, 4, 0],
+      borderRadius: [0, 2, 2, 0],
     },
     label: { show: true, position: 'right', color: theme.text,
       formatter: () => formatCents(actual) },
@@ -588,7 +680,7 @@ function budgetOption(
       itemStyle: {
         color: alpha(theme.transit, .16),
         borderColor: theme.transit, borderWidth: 1.5,
-        borderRadius: [0, 4, 4, 0],
+        borderRadius: [0, 2, 2, 0],
       },
       label: { show: true, position: 'right', color: theme.text,
         formatter: () => formatCents(projected) },
@@ -597,7 +689,8 @@ function budgetOption(
   }
 
   return {
-    animationDuration: 320,
+    animationDuration: 220,
+    animationEasing: 'cubicOut',
     color: [theme.accent, theme.transit],
     grid: { left: 72, right: 90, top: 44, bottom: 42 },
     tooltip: tooltip(theme, 'axis'),
@@ -647,7 +740,8 @@ function scatterOption(
   }
 
   return {
-    animationDuration: 320,
+    animationDuration: 220,
+    animationEasing: 'cubicOut',
     color: groups.map((group) => group.color),
     grid: { left: 64, right: 26, top: 34, bottom: 66 },
     tooltip: {
@@ -702,9 +796,8 @@ function tooltip(theme: ChartTheme, trigger: 'axis' | 'item') {
     trigger,
     // The crosshair is the one piece of chrome that should feel live, so it
     // takes the transit cyan rather than a grey.
-    axisPointer: trigger === 'axis' ? { type: 'cross', snap: true,
-      lineStyle: { color: theme.transit, type: 'dashed', opacity: .7 },
-      crossStyle: { color: theme.transit, opacity: .7 } } : undefined,
+    axisPointer: trigger === 'axis' ? { type: 'line', snap: true,
+      lineStyle: { color: theme.transit, type: 'solid', opacity: .55 } } : undefined,
     // A tooltip has to read as floating above the panel, so it takes the raised
     // surface and a brand-tinted hairline rather than the panel's own colours.
     backgroundColor: theme.raised,
@@ -731,7 +824,7 @@ function valueAxis(theme: ChartTheme, unit: 'money' | 'minutes' | 'number') {
     axisLine: { show: false }, axisTick: { show: false },
     axisLabel: { color: theme.muted, fontSize: 10,
       formatter: (value: number) => formatAxis(value, unit) },
-    splitLine: { lineStyle: { color: theme.grid, type: 'dashed' } },
+    splitLine: { lineStyle: { color: theme.grid, type: 'solid', width: 1 } },
     nameTextStyle: { color: theme.muted, fontSize: 10, padding: [0, 0, 6, 0] },
   }
 }
@@ -778,21 +871,7 @@ function filterId(event: ChartClickEvent): string | null {
   return typeof value === 'string' ? value : null
 }
 
-function seriesDelta(
-  values: Array<number | null>, unit: 'money' | 'minutes' | 'number',
-): string | null {
-  const actual = values.filter((value): value is number => value !== null)
-  if (actual.length < 2) return null
-  const change = actual[actual.length - 1] - actual[0]
-  if (change === 0) return 'No change vs first active period'
-  return `${change > 0 ? '↑' : '↓'} ${formatUnit(Math.abs(change), unit)} vs first active period`
-}
 
-function activeValues(
-  buckets: SpendingHistoryBucket[], values: Array<number | null>,
-): Array<number | null> {
-  return values.filter((_, index) => buckets[index]?.tripCount > 0)
-}
 
 function selectNamedGroup(
   name: string,
@@ -804,6 +883,14 @@ function selectNamedGroup(
   if (group) select(current === group.id ? null : group.id)
 }
 
+
+/**
+ * The projected buffer, which is the one number the budget chart cannot draw.
+ *
+ * <p>Kept when the panel's headline value was removed: that value merely
+ * reprinted the budget, but this is a derived figure that appears nowhere else
+ * on the page.
+ */
 function budgetDelta(weekly: Insights): string | null {
   const budget = weekly.weeklyBudgetCents
   const projected = weekly.personalization?.projectedWeeklySpendCents
@@ -821,9 +908,6 @@ function mondayOf(date: string): string {
   return parsed.toISOString().slice(0, 10)
 }
 
-function share(value: number, total: number): string {
-  return total === 0 ? '0%' : `${Math.round((value / total) * 100)}%`
-}
 
 function formatAxis(value: number, unit: 'money' | 'minutes' | 'number'): string {
   if (unit === 'money') return `$${(value / 100).toFixed(value >= 10_000 ? 0 : 2)}`

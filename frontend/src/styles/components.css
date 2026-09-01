@@ -83,7 +83,7 @@
 .metric-head { display: flex; align-items: center; gap: var(--space-2); }
 .metric-icon { display: grid; place-items: center; color: var(--color-accent); }
 .metric-label {
-  font-size: var(--text-xs); font-weight: var(--weight-semibold);
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold);
   text-transform: uppercase; letter-spacing: var(--tracking-label);
   color: var(--color-text-muted);
 }
@@ -93,11 +93,12 @@
  * box around it to be understood as important.
  */
 .metric-value {
-  font-size: var(--text-xl); font-weight: var(--weight-semibold);
+  font-size: var(--text-lg); font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-title); line-height: 1.1;
 }
 .metric-hero .metric-value {
-  font-size: var(--text-4xl); font-weight: var(--weight-bold);
+  font-size: var(--text-2xl); font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-display);
 }
 .metric-caption {
@@ -328,10 +329,8 @@
 /*
  * The dashboard's KPI row.
  *
- * A rule in the flow gradient leads it — one of the three places that gradient
- * is allowed. It is doing work rather than decorating: it marks where the
- * filtered figures begin, and it is the visual join between the cyan filter bar
- * above and the purple-led charts below.
+ * A restrained accent rule leads it. It marks where the filtered figures begin
+ * without turning the analytical workspace into a decorative surface.
  */
 .analytics-summary {
   position: relative;
@@ -348,38 +347,25 @@
 .analytics-summary > *:first-child .metric-value { font-size: var(--text-2xl); }
 .analytics-summary > *:first-child .metric-label { color: var(--color-accent); }
 
-/*
- * Panels share one ruled frame. This reads as an analytical workspace rather
- * than a wall of floating, identical dashboard cards.
- *
- * The rules between them are brand-tinted rather than neutral grey: at 1px the
- * hue is barely nameable, but it is the difference between a grid that belongs
- * to this product and one lifted from an admin template. The frame itself is a
- * shade stronger than its inner rules, so the workspace reads as a single object
- * with divisions rather than as a pile of cells.
- */
+/* Independent, neutral chart panels make comparisons easy without turning the
+   dashboard into one decorative block. Colour stays in the data marks. */
 .analytics-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
-  gap: 1px; overflow: hidden; background: var(--color-border-brand);
+  gap: var(--space-4); overflow: visible; background: transparent;
 }
 .analytics-panel {
   position: relative;
-  min-width: 0; padding: var(--space-5); background: var(--color-surface);
-  transition: background var(--dur-fast) var(--ease);
+  min-width: 0; padding: var(--space-5);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: 0 1px 2px rgba(20, 18, 31, .035);
+  transition: border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-/*
- * Hover lights a cyan edge along the top of the panel and lifts its ground a
- * step. Nothing moves and nothing glows: the panel simply acknowledges the
- * pointer, which is all a chart you are about to click needs to do.
- */
-.analytics-panel::before {
-  content: ''; position: absolute; inset: 0 0 auto 0; height: 2px;
-  background: var(--color-transit);
-  opacity: 0; transition: opacity var(--dur) var(--ease);
+.analytics-panel:hover {
+  border-color: color-mix(in srgb, var(--color-transit) 28%, var(--color-border));
+  background: var(--color-surface-hover);
+  box-shadow: 0 10px 28px -24px rgba(20, 18, 31, .5);
 }
-.analytics-panel:hover { background: var(--color-surface-hover); }
-.analytics-panel:hover::before { opacity: 1; }
 .analytics-panel-wide { grid-column: 1 / -1; }
 .analytics-panel-head {
   min-height: 62px; display: flex; align-items: flex-start; justify-content: space-between;
@@ -387,7 +373,7 @@
 }
 .analytics-panel-head > div { min-width: 0; }
 .analytics-panel-head h3 {
-  color: var(--color-text); font-size: var(--text-md); font-weight: var(--weight-semibold);
+  color: var(--color-text); font-size: var(--text-sm); font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-title);
 }
 .analytics-panel-head p {
@@ -403,7 +389,7 @@
   font-variant-numeric: tabular-nums; line-height: 1.25; overflow-wrap: anywhere;
 }
 .analytics-panel-value span { margin-top: 3px; color: var(--color-text-muted); font-size: 10px; }
-.echart { width: 100%; min-width: 0; }
+.echart { width: 100%; min-width: 0; border-radius: var(--radius-sm); }
 .analytics-chart-state, .analytics-filter-empty, .analytics-history-short {
   display: grid; align-content: center; justify-items: start; gap: 6px;
   min-height: 180px; padding: var(--space-6); background: var(--color-surface-sunken);
@@ -415,7 +401,7 @@
 .analytics-history-short p { max-width: 64ch; color: var(--color-text-muted); font-size: var(--text-sm); }
 .analytics-filter-empty { min-height: 240px; }
 .analytics-history-short {
-  min-height: 220px; border-style: solid; border-width: 0 0 1px;
+  min-height: 0; border-style: solid; border-width: 0 0 1px;
   border-radius: 0; background: var(--color-surface);
 }
 .analytics-kicker {
@@ -609,17 +595,14 @@
   gap: var(--space-4); flex-wrap: wrap;
   margin-bottom: var(--space-5);
 }
+/* No coloured tick before the title. It carried no information, appeared on
+   every heading regardless of meaning, and is exactly the decorative tell that
+   makes an interface read as generated rather than designed. Hierarchy comes
+   from size, weight and the rule above the band. */
 .band-title {
-  position: relative;
-  font-size: var(--text-lg); font-weight: var(--weight-semibold);
+  font-size: var(--text-md); font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-title);
   color: var(--color-text);
-  padding-left: var(--space-3);
-}
-.band-title::before {
-  content: ''; position: absolute; left: 0; top: 0.18em; bottom: 0.18em;
-  width: 3px; border-radius: var(--radius-pill);
-  background: var(--color-transit);
 }
 .band-note { font-size: var(--text-xs); color: var(--color-text-muted); }
 
@@ -731,3 +714,909 @@
   .figures-open { gap: var(--space-5); }
   .lede-value { font-size: var(--text-4xl); }
 }
+
+/* ============================================================================
+   ASK FAREFLOW — the assistant workspace
+   ============================================================================
+   A rail, a reading column and a composer. The rail is narrow because a
+   conversation title is the only thing in it; the thread is capped at a reading
+   measure because the assistant's answers are prose and prose does not read at
+   1500px.
+   ============================================================================ */
+.ask {
+  display: grid; grid-template-columns: 268px minmax(0, 1fr);
+  height: calc(100dvh - var(--topbar-height));
+  min-height: 0;
+  animation: page-content-in 300ms var(--ease-out) both;
+}
+
+/* ---- Conversation rail ---------------------------------------------------- */
+.ask-rail {
+  display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+}
+.ask-rail-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.ask-rail-title {
+  font-size: var(--text-2xs); font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.ask-rail-empty {
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  line-height: var(--leading-body);
+}
+.ask-rail-list { overflow-y: auto; padding: var(--space-2); display: grid; gap: 1px; }
+.ask-rail-list li { position: relative; display: flex; align-items: center; }
+.ask-rail-item {
+  flex: 1; min-width: 0;
+  display: grid; gap: 2px; padding: var(--space-2) var(--space-3);
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; text-align: left; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.ask-rail-item:hover { background: var(--color-surface); }
+/* Selected is a left rule plus primary ink — not a filled block, which at this
+   density would turn the rail into a stack of buttons. */
+.ask-rail-item.is-active {
+  background: var(--color-surface);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.ask-rail-item-title {
+  font-size: var(--text-xs); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ask-rail-item.is-active .ask-rail-item-title { color: var(--color-text); }
+.ask-rail-item-meta { font-size: var(--text-2xs); color: var(--color-text-muted); }
+.ask-rail-remove {
+  position: absolute; right: 4px;
+  width: 22px; height: 22px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-text-muted);
+  font-size: 15px; line-height: 1; cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.ask-rail-list li:hover .ask-rail-remove { opacity: 1; }
+.ask-rail-remove:hover { background: var(--color-negative-soft); color: var(--color-negative); }
+
+/* ---- Workspace ------------------------------------------------------------ */
+.ask-main {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0; min-width: 0;
+}
+.ask-head {
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--color-border);
+}
+.ask-title {
+  font-size: var(--text-lg); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+}
+.ask-sub { margin-top: 2px; font-size: var(--text-xs); color: var(--color-text-muted); }
+
+.ask-thread { overflow-y: auto; padding: var(--space-7); min-height: 0; }
+.ask-turns, .ask-intro, .ask-suggested, .ask-error {
+  max-width: 72ch; margin-inline: auto;
+}
+
+.ask-intro { display: grid; justify-items: start; gap: var(--space-3); padding-top: var(--space-7); }
+/* Sized to the plate it now holds, and with the border dropped: a 1px hairline
+   around a tile that already has its own edge read as two frames. */
+.ask-intro-mark {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: 26%;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent),
+    0 3px 10px -4px color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+.ask-intro h2 {
+  font-size: var(--text-xl); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+}
+.ask-intro p {
+  font-size: var(--text-base); color: var(--color-text-secondary);
+  line-height: var(--leading-body); max-width: 60ch;
+}
+.ask-starters { display: grid; gap: var(--space-2); width: 100%; margin-top: var(--space-3); }
+.ask-starters button {
+  width: 100%; text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+  background: var(--color-surface); color: var(--color-text);
+  font-size: var(--text-sm); cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.ask-starters button:hover {
+  border-color: var(--color-accent); background: var(--color-accent-faint);
+}
+
+.ask-turns { display: grid; gap: var(--space-6); }
+/*
+ * Turns are separated by a label and space, not by chat bubbles. Bubbles are a
+ * messaging idiom; this is a reference tool whose answers get read closely and
+ * sometimes copied, and left-aligned prose on one measure reads far better.
+ */
+.ask-turn { display: grid; gap: var(--space-2); }
+.ask-turn-who {
+  font-size: var(--text-2xs); font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.ask-turn-assistant .ask-turn-who { color: var(--color-accent); }
+.ask-turn-body {
+  font-size: var(--text-base); line-height: var(--leading-body);
+  color: var(--color-text); white-space: pre-wrap;
+}
+.ask-turn-user .ask-turn-body {
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}
+.ask-thinking { color: var(--color-text-muted); }
+.ask-error {
+  margin-top: var(--space-5); padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-negative-border); border-radius: var(--radius);
+  background: var(--color-negative-soft); color: var(--color-negative);
+  font-size: var(--text-sm);
+}
+.ask-suggested {
+  margin-top: var(--space-6); padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center;
+}
+.ask-suggested-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold);
+  text-transform: uppercase; letter-spacing: var(--tracking-label);
+  color: var(--color-text-muted);
+}
+.ask-suggested-item {
+  padding: 3px var(--space-3); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* ---- Composer ------------------------------------------------------------- */
+.ask-composer {
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-7) var(--space-5);
+  background: var(--color-surface);
+}
+.ask-followups {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  max-width: 72ch; margin: 0 auto var(--space-3);
+}
+.ask-followups button {
+  padding: 5px var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-text-secondary);
+  font-size: var(--text-xs); cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ask-followups button:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.ask-input {
+  display: flex; align-items: flex-end; gap: var(--space-3);
+  max-width: 72ch; margin-inline: auto;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.ask-input:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+.ask-input textarea {
+  flex: 1; min-width: 0; resize: none;
+  border: 0; outline: none; background: transparent;
+  font: inherit; font-size: var(--text-base); color: var(--color-text);
+  padding: 7px 0; max-height: 160px; line-height: var(--leading-body);
+}
+.ask-input textarea::placeholder { color: var(--color-text-muted); }
+.ask-unavailable {
+  max-width: 72ch; margin: var(--space-3) auto 0;
+  font-size: var(--text-xs); color: var(--color-amber);
+}
+
+@media (max-width: 900px) {
+  .ask { grid-template-columns: minmax(0, 1fr); }
+  .ask-rail { display: none; }
+  .ask-thread, .ask-composer { padding-inline: var(--space-4); }
+}
+
+/* ============================================================================
+   MODE BADGES & MARKERS
+   ============================================================================
+   The reference icon set's most useful idea was colour-coding transit modes.
+   Adopted, but as information rather than decoration: the badge is a tinted
+   square carrying the mode's own hue, at the size of the text beside it, not a
+   saturated gradient tile competing with the content it labels.
+
+   The tint is derived from the mode colour with color-mix, so adding a mode
+   means adding one token — never a matching pair of fill and border values that
+   can drift apart.
+   ============================================================================ */
+.mode-badge {
+  display: inline-grid; place-items: center;
+  width: 24px; height: 24px; flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--mode-color, var(--color-transit));
+  background: color-mix(in srgb, var(--mode-color, var(--color-transit)) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mode-color, var(--color-transit)) 34%, transparent);
+}
+.mode-badge-sm { width: 20px; height: 20px; border-radius: 4px; }
+.mode-badge-lg { width: 30px; height: 30px; }
+
+.mode-rail   { --mode-color: var(--mode-rail); }
+.mode-train  { --mode-color: var(--mode-rail); }
+.mode-subway { --mode-color: var(--mode-subway); }
+.mode-metro  { --mode-color: var(--mode-subway); }
+.mode-bus    { --mode-color: var(--mode-bus); }
+.mode-tram, .mode-light_rail { --mode-color: var(--mode-tram); }
+.mode-ferry  { --mode-color: var(--mode-ferry); }
+.mode-walk, .mode-walking { --mode-color: var(--mode-walk); }
+
+/* A run of modes reading as one line: badge, connector, badge. The connector
+   takes the colour of the segment it leads into, so the strip reads as a route
+   rather than as a row of unrelated chips. */
+.mode-run { display: inline-flex; align-items: center; gap: 0; }
+.mode-run-link {
+  width: 10px; height: 2px; flex-shrink: 0;
+  background: color-mix(in srgb, var(--mode-color, var(--color-transit)) 55%, transparent);
+}
+
+/* ---- Status ---------------------------------------------------------------
+   A dot and a word. The reference used filled colour tiles for status, which
+   makes "Completed" — the unremarkable default — the loudest thing in a list.
+   ---------------------------------------------------------------------------- */
+.status {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-xs); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary); white-space: nowrap;
+}
+.status::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--status-color, var(--color-text-muted));
+}
+.status-completed { --status-color: var(--color-positive); }
+.status-progress  { --status-color: var(--color-transit); }
+.status-planned   { --status-color: var(--color-accent); }
+.status-delayed   { --status-color: var(--color-amber); }
+.status-cancelled { --status-color: var(--color-negative); }
+/* In-progress is the one state worth animating: it is the only one that is
+   still changing while you look at it. */
+.status-progress::before { animation: status-pulse 2s var(--ease) infinite; }
+@keyframes status-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .status-progress::before { animation: none; }
+}
+
+/* ---- Journey markers ------------------------------------------------------
+   Start, stop, transfer and end, drawn as the transit vocabulary they are: a
+   filled node for a boarding, a ring for an intermediate stop, a doubled ring
+   for an interchange, a square for the end of the line.
+   ---------------------------------------------------------------------------- */
+.marker {
+  display: inline-grid; place-items: center;
+  width: 13px; height: 13px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--marker-color, var(--color-transit));
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+.marker-start { background: var(--marker-color, var(--color-transit)); }
+.marker-transfer { border-width: 2px; box-shadow: inset 0 0 0 2px var(--color-surface); }
+.marker-transfer::after {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--marker-color, var(--color-transit));
+}
+.marker-end {
+  border-radius: 3px; background: var(--color-accent); border-color: var(--color-accent);
+}
+
+/* ============================================================================
+   RASTER TILES
+   ============================================================================
+   The expressive half of the icon system. Everything here exists to make a
+   fixed-resolution plate sit convincingly on a vector-drawn page.
+
+   Three things are doing the work:
+
+     1. `image-rendering: auto` plus an explicit width/height. The tiles are
+        30-86px at source and are always rendered *down*, never up past ~1.3x,
+        which is the point at which the plate's gradient starts to band.
+     2. A hairline ring in the surrounding surface's own colour. The artwork was
+        cut from a dark sheet, so its corners carry a faint dark fringe; a ring
+        the colour of the page hides the fringe and, on light backgrounds, stops
+        a dark plate from looking like a hole punched in the card.
+     3. A shadow tinted with the plate's hue rather than black, so the tile
+        looks lit by the same light as everything around it.
+   ============================================================================ */
+.tile {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 24%;
+  /* The artwork's own corner radius is masked into the alpha channel; this
+     matches it so the ring below traces the real edge rather than a square. */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* The framed treatment: a tile that sits *in* something — a row, a header, a
+   list item — rather than floating on the page. */
+.tile-plate {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 26%;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--plate-hue, var(--color-accent)) 22%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--plate-hue, var(--color-accent)) 40%, transparent);
+  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+/* Hovering a row lifts its tile a fraction. Small enough that nobody would name
+   it if asked, large enough that the row feels like an object. */
+.surface-interactive:hover .tile-plate,
+.option:hover .tile-plate,
+.activity-row:hover .tile-plate {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--plate-hue, var(--color-accent)) 34%, transparent),
+    0 4px 10px -3px color-mix(in srgb, var(--plate-hue, var(--color-accent)) 52%, transparent);
+}
+
+/* Mode tiles carry the hue of the mode they show, so the halo agrees with the
+   artwork instead of defaulting to brand purple. */
+/* Set on whichever element carries the mode class — usually an ancestor of the
+   plate, so that the plate's halo and any mode-coloured text beside it resolve
+   from one declaration. */
+.mode-rail, .mode-train        { --plate-hue: var(--plate-rail); }
+.mode-subway, .mode-metro      { --plate-hue: var(--plate-subway); }
+.mode-bus                      { --plate-hue: var(--plate-bus); }
+.mode-tram, .mode-light_rail   { --plate-hue: var(--plate-tram); }
+.mode-ferry                    { --plate-hue: var(--plate-ferry); }
+.mode-walk, .mode-walking      { --plate-hue: var(--plate-walk); }
+
+/* ============================================================================
+   STATE NOTICES
+   ============================================================================
+   The plate replaces the old 32px bordered square that held a 17px grey glyph.
+   Same footprint, same row height — the difference is that the notice now says
+   *which* nothing it is describing before the text is read.
+   ============================================================================ */
+.state-plate {
+  position: relative;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+  border-radius: 26%;
+  box-shadow: 0 1px 4px -1px rgba(20, 18, 31, 0.18);
+}
+/* Shown only if the raster never arrives. Stacked underneath, so a loaded tile
+   covers it without needing script to decide. */
+.state-plate-fallback {
+  position: absolute; inset: 0; margin: auto;
+  color: var(--color-negative);
+  z-index: -1;
+}
+.state-plate .tile { position: relative; z-index: 1; }
+
+/* ============================================================================
+   PAGE HEADER PLATE
+   ============================================================================ */
+.page-header-plate {
+  display: grid; place-items: center;
+  /* Explicitly rigid. `.page-header-row > *:first-child` sets `flex: 1` for the
+     text block, and once a plate is inserted ahead of it that rule lands on the
+     plate instead — which stretched a 44px square into a 600px ellipse. */
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 26%;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-accent) 16%, transparent),
+    0 3px 10px -4px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.page-header-tiled .page-header-row { align-items: center; }
+/* Restores the growth the first-child rule used to give the text block. */
+.page-header-tiled .page-header-row > .page-header-text { flex: 1 1 auto; min-width: 0; }
+.page-header-tiled .page-header-row > *:first-child { flex: 0 0 auto; }
+/* The tiled header drops the eyebrow's bottom margin: with a plate beside it the
+   eyebrow and title already read as one block, and the extra 8px broke that. */
+.page-header-tiled .page-eyebrow { margin-bottom: 3px; }
+
+@media (max-width: 640px) {
+  .page-header-plate { display: none; }
+}
+
+/* ============================================================================
+   ROUTE OPTION — provider block
+   ============================================================================
+   The operator name and the mode are two different facts and used to be one
+   line, which meant "NJ Transit" and "Rail" competed at the same weight. Split
+   into a two-line block beside the plate, the eye gets a title and a caption
+   instead of a run-on.
+   ============================================================================ */
+.option-provider {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.option-provider-text { display: grid; gap: 1px; min-width: 0; }
+.option-provider-name {
+  font-size: var(--text-md); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+  color: var(--color-text);
+}
+.option-provider-mode {
+  font-size: var(--text-2xs); font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--mode-color, var(--color-text-muted));
+}
+
+/* ============================================================================
+   MICRO-INTERACTION VOCABULARY
+   ============================================================================
+   Four gestures, defined once and reused, so the whole product responds to the
+   pointer in the same handwriting. The rule they share: a control moves at most
+   1px, and it moves *down* on press. Interfaces feel mechanical when the press
+   is the thing that animates, and floaty when hover moves things far.
+   ============================================================================ */
+
+/* 1. Press. Every button, every time — the tactile half of a click. */
+.btn:active:not(:disabled),
+.navtab:active,
+.profile-chip:active,
+.method:active {
+  transform: translateY(1px);
+}
+.btn { transition:
+  background var(--dur-fast) var(--ease),
+  border-color var(--dur-fast) var(--ease),
+  color var(--dur-fast) var(--ease),
+  transform var(--dur-fast) var(--ease),
+  box-shadow var(--dur-fast) var(--ease); }
+
+/* The primary action gets a coloured lift, so the one button a screen is about
+   is the one button that looks liftable. */
+.btn-primary { box-shadow: 0 1px 2px color-mix(in srgb, var(--color-accent) 30%, transparent); }
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--color-accent) 48%, transparent);
+}
+.btn-primary:active:not(:disabled) {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-accent) 34%, transparent);
+}
+
+/* 2. Lift. Surfaces that are genuinely pressable rise a hair and warm their
+      border toward the brand. */
+.surface-interactive {
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+}
+.surface-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.surface-interactive:active { transform: translateY(0); }
+
+/* 3. Sweep. The selected nav tab's rule grows from the centre rather than
+      fading in, which is what makes moving between tabs feel like one object
+      sliding instead of two lights blinking. */
+.navtab::after {
+  transform: scaleX(0.4);
+  transform-origin: center;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur) var(--ease-out);
+  border-radius: 2px;
+}
+.navtab.is-active::after { transform: scaleX(1); }
+
+/* 4. Fill. Meters and bars animate their width so a number that changed is
+      visibly a number that changed. */
+.meter-fill, .chart-fill {
+  transition: width var(--dur-slow) var(--ease-out), background var(--dur) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled), .navtab:active, .profile-chip:active, .method:active,
+  .surface-interactive:hover, .surface-interactive:active,
+  .surface-interactive:hover .tile-plate, .option:hover .tile-plate,
+  .activity-row:hover .tile-plate {
+    transform: none;
+  }
+  .navtab::after { transform: scaleX(1); transition: opacity var(--dur-fast) var(--ease); }
+  .meter-fill, .chart-fill, .tile-plate { transition: none; }
+}
+
+/* ============================================================================
+   SECTION HIERARCHY
+   ============================================================================
+   Deliberately NOT a coloured tick in the heading's left margin. See the note
+   above `.band-title`: a decoration that appears on every heading regardless of
+   what the heading says carries no information, and is the clearest tell that a
+   layout was generated rather than designed. The same argument rules it out
+   here.
+
+   Hierarchy comes from the two things that actually encode importance — the gap
+   above a heading, and how far its size sits from the body around it. A section
+   title is a full step up from row titles and sits on a wide margin; that is
+   enough, and it survives being read in greyscale.
+   ============================================================================ */
+.section-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-tight);
+}
+
+/* ============================================================================
+   RHYTHM
+   ============================================================================
+   Vertical space was previously one value (--space-7) between everything, so a
+   page had no phrasing: a card and the next section were equally far apart. The
+   scale below is deliberately uneven — related things sit close, and a real
+   change of subject gets noticeably more room than a continuation.
+   ============================================================================ */
+.section + .section { margin-top: var(--space-8); }
+/* Two sections that are two views of one subject stay tight. */
+.section + .section-continues { margin-top: var(--space-6); }
+.section-head { margin-bottom: var(--space-5); }
+
+/* ============================================================================
+   FIGURES ROW — a lead figure
+   ============================================================================
+   Four equal figures in a row is still four equal things: correct, comparable,
+   and silent about which one the reader came for. The `-lead` variant widens the
+   first cell and lets its value take the next size up, so a page opens with a
+   sentence rather than a list — "you have spent £24.60" first, the supporting
+   three after it.
+
+   Only the first cell changes. The rules, baseline and frame are untouched, so
+   the row still reads as divisions of one object.
+   ============================================================================ */
+.figures-row-lead { grid-auto-flow: unset; grid-auto-columns: unset; }
+.figures-row-lead {
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+}
+.figures-row-lead > :first-child {
+  background: var(--color-accent-faint);
+}
+.figures-row-lead > :first-child .metric-value {
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-display);
+}
+.figures-row-lead > :first-child .metric-label { color: var(--color-accent-strong); }
+
+/* Below the fold of a phone the lead treatment stops helping: the cells stack,
+   so "first" no longer means "leftmost and biggest", it just means "on top". */
+@media (max-width: 860px) {
+  .figures-row-lead { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figures-row-lead > :first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .figures-row-lead { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============================================================================
+   INSIGHTS — THE LEDE
+   ============================================================================
+   The page's one loud thing, and the only place on it that gets a status
+   colour. Everything below is deliberately quieter, which is what makes this
+   read as a lead rather than as the first of seven equal bands.
+
+   Colour here is semantic, never decorative: green under budget, amber getting
+   close, coral over. The brand violet is absent on purpose — it means "brand
+   and action", and this is neither.
+   ============================================================================ */
+.lede {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: var(--space-7);
+  align-items: start;
+  padding: var(--space-6) var(--space-7);
+  margin-bottom: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  /* A 3px status edge, not a whole tinted panel: the verdict is legible at a
+     glance without the card shouting behind the figures. */
+  border-left: 3px solid var(--lede-tone, var(--color-border-strong));
+}
+.lede-none  { --lede-tone: var(--color-border-strong); }
+.lede-under { --lede-tone: var(--color-positive); }
+.lede-close { --lede-tone: var(--color-amber); }
+.lede-over  { --lede-tone: var(--color-negative); }
+
+.lede-main { min-width: 0; display: grid; gap: var(--space-3); }
+.lede-label {
+  font-size: var(--text-sm); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.lede-figure { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.lede-value {
+  font-size: var(--text-3xl); font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display); line-height: var(--leading-display);
+  color: var(--color-text);
+}
+.lede-of { font-size: var(--text-lg); color: var(--color-text-muted); font-weight: var(--weight-medium); }
+
+.lede-meter {
+  height: 6px; border-radius: var(--radius-pill);
+  background: var(--viz-track); overflow: hidden; max-width: 420px;
+}
+.lede-meter-fill {
+  display: block; height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--lede-tone);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.lede-verdict {
+  font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  color: var(--lede-tone);
+}
+.lede-none .lede-verdict { color: var(--color-text-muted); }
+
+/* The secondary figure. A step down in size and set against the sunken
+   surface, so it is clearly the answer to the *second* question. */
+.lede-aside {
+  display: grid; gap: 3px; min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--color-surface-sunken);
+}
+.lede-aside-label {
+  font-size: var(--text-xs); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.lede-aside-value {
+  font-size: var(--text-xl); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title); color: var(--color-text);
+}
+.lede-aside-value.is-positive { color: var(--color-positive); }
+.lede-aside-note {
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  line-height: var(--leading-tight);
+}
+.lede-aside .headline-commute { margin-top: var(--space-3); justify-self: start; }
+
+@media (max-width: 880px) {
+  .lede { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+}
+
+/* ============================================================================
+   INSIGHTS — SPARSE SERIES
+   ============================================================================
+   What a two- or three-point series looks like without a chart frame.
+   ============================================================================ */
+.sparse-series { display: grid; gap: var(--space-4); padding: var(--space-2) 0 var(--space-1); }
+.sparse-points {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: var(--space-2);
+}
+.sparse-points li {
+  display: grid; gap: 3px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface-sunken);
+}
+.sparse-point-label { font-size: var(--text-2xs); color: var(--color-text-muted); }
+.sparse-point-value {
+  font-size: var(--text-lg); font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title); color: var(--color-text);
+}
+.sparse-delta { font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.sparse-delta.is-up { color: var(--color-negative); }     /* spending more */
+.sparse-delta.is-down { color: var(--color-positive); }
+
+/* One-category breakdown, where a donut would draw a single 100% ring. */
+.single-share { display: grid; gap: 3px; padding: var(--space-5) 0; }
+.single-share-name {
+  font-size: var(--text-sm); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.single-share-value {
+  font-size: var(--text-2xl); font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display); color: var(--color-text);
+}
+.single-share-note { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/* ============================================================================
+   INSIGHTS — PANEL HEAD, now just a title
+   ============================================================================ */
+.analytics-panel-head {
+  min-height: 0; display: block; margin-bottom: var(--space-3);
+}
+.analytics-panel-note {
+  margin-top: 3px; color: var(--color-text-muted);
+  font-size: var(--text-2xs); line-height: 1.45;
+}
+
+/* The scope line carries the dashboard's totals now, so it needs to sit on the
+   baseline as data rather than as caption text. */
+.analytics-scope-totals { color: var(--color-text); font-weight: var(--weight-medium); }
+
+/* A band that is explicitly supporting material. */
+.band-quiet { border-top-color: var(--color-border-subtle); }
+.band-quiet .band-title {
+  font-size: var(--text-sm); font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.figures-open-quiet .metric-value { font-size: var(--text-lg); }
+.figures-open-quiet .metric-label { color: var(--color-text-muted); }
+
+/* The backend's derived sentences about this rider. Spans the lede's full
+   width, under both columns, set quiet — they are context for the figures
+   above, not a third figure. */
+.lede-notes {
+  grid-column: 1 / -1;
+  display: grid; gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  max-width: 82ch;
+}
+.lede-notes li {
+  font-size: var(--text-sm); line-height: var(--leading-body);
+  color: var(--color-text-secondary);
+}
+
+/* The period comparison. A sentence under the section title, not a labelled
+   cell in a three-column "What changed / Why it matters / What you can do"
+   strip — the label was narration, the sentence is the fact. */
+.band-comparison {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+}
+
+/* The lede's two columns are different heights — the aside carries a commute
+   link, the main column stops at its verdict — so a row gap under the taller
+   one opened a visible hole above the notes. The notes bring their own top
+   margin; the grid does not need to add to it. */
+.lede { column-gap: var(--space-7); row-gap: 0; }
+
+/* ============================================================================
+   LABELS — retiring the tiny grey uppercase treatment
+   ============================================================================
+   12px, semibold, uppercase, wide-tracked, muted grey was the label style for
+   every figure, every stat, every table head and every page eyebrow in the
+   product. Used once it is a nice accent; used on every label on every screen
+   it becomes the visual signature of a template, and it is genuinely harder to
+   read — uppercase removes the word-shape cue that makes short labels scannable.
+
+   Labels are now sentence case at reading size. They still recede, because they
+   are a step down in colour and weight from the value they name, but they
+   recede by being quieter rather than by being shouted in small caps.
+
+   Uppercase survives in exactly two places, where it is doing work rather than
+   decorating: the table column heads (they must not be confused with the data
+   rows beneath them) and the recommended-route ribbon (a single badge, once per
+   screen). Both are listed explicitly below rather than inherited.
+   ============================================================================ */
+.metric-label,
+.stat-label,
+.page-eyebrow,
+.lede-aside-label,
+.sparse-point-label,
+.analytics-kicker {
+  text-transform: none;
+  letter-spacing: var(--tracking-flat);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+.metric-hero .metric-label { color: var(--color-text-secondary); }
+
+/* The toolbar's field labels sat above their controls in the same small-caps
+   grey; they read as a sentence now. */
+.analytics-toolbar label > span {
+  text-transform: none;
+  letter-spacing: var(--tracking-flat);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================================================
+   CARD EMPHASIS — three weights, not one
+   ============================================================================
+   Every surface in the product was a 1px border, --radius-lg and --space-6 of
+   padding, which meant a page could not say which of its cards mattered. These
+   are the three levels a screen is allowed to use, and the rule is that a page
+   gets at most one `-lead`.
+   ============================================================================ */
+
+/* Note the doubled selectors. `global.css` pulls this file in with an @import
+   at its top, so every rule here is *earlier* in the cascade than `.card`'s own
+   background and border. At equal specificity `.card` therefore wins, and these
+   tones silently did nothing. Pairing each with `.card` outranks it. */
+
+/* Lead: the one surface a screen is about. Denser border, more air inside, and
+   a tinted ground so it separates from the canvas without a drop shadow. */
+.surface-lead, .card.surface-lead {
+  border-color: var(--color-border-strong);
+  padding: var(--space-7);
+  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-surface));
+}
+
+/* Quiet: supporting material. No border at all — it sits on the sunken ground
+   and is read as part of the page rather than as an object on it. */
+.surface-quiet-flat, .card.surface-quiet-flat {
+  border-color: transparent;
+  background: var(--color-surface-sunken);
+  padding: var(--space-5);
+}
+
+/* Dense: list-like content where padding is wasted vertical space. */
+.surface-dense, .card.surface-dense { padding: var(--space-4) var(--space-5); }
+
+/* ============================================================================
+   COLOUR WITH INTENT
+   ============================================================================
+   One rule, applied everywhere:
+
+     violet  brand and action — navigation, the primary button, the logo
+     coral   money out, over budget, cancelled, failed
+     green   money in, saved, completed, under budget
+     amber   attention — pending, delayed, tracking close to a limit
+     blue    information — live state, links, data that carries no verdict
+
+   The corrections below are all the same mistake: violet used because it was
+   the accent to hand, on things that are not brand and not actions. A product
+   where the brand colour also means "a number" and "a chart bar" has no colour
+   left to mean "press this".
+   ============================================================================ */
+
+/* A metric's icon labels the figure; it is not an action. */
+.metric-icon { color: var(--color-text-muted); }
+
+/* Mini-chart fills are data, so they take the categorical set's first slot
+   rather than the brand. */
+.fill-brand { background: var(--viz-1); }
+
+/* Live/updating chrome is information, not brand. Repointing the transit role
+   at the information blue also frees teal to mean exactly one thing — ferry,
+   and series 2 — instead of competing with a near-identical cyan. */
+.chart-swatch.is-brand { background: var(--viz-1); }
+
+/* Status dots earn their colour from state rather than inheriting the accent. */
+.status-live { color: var(--color-info); }
+.status-pending { color: var(--color-amber); }
+.status-done { color: var(--color-positive); }
+.status-failed { color: var(--color-negative); }
+
+/* A supporting line under the verdict — pace, projection, the sentence the
+   verdict itself does not have room for. */
+.lede-detail {
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+  line-height: var(--leading-body); max-width: 62ch;
+}
+.lede-none .lede-value-unset {
+  font-size: var(--text-2xl); letter-spacing: var(--tracking-title);
+  color: var(--color-text-secondary); font-weight: var(--weight-semibold);
+}
+.lede-warn {
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm); font-weight: var(--weight-medium);
+  color: var(--color-negative);
+}
+
+/* Verdict: a word the reader takes away, and the figure backing it. */
+.lede-verdict { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.lede-verdict-word {
+  font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  color: var(--lede-tone);
+}
+.lede-none .lede-verdict-word { color: var(--color-text-muted); }
+.lede-verdict-amount { font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+/* ============================================================================
+   SETTINGS — emphasis by consequence
+   ============================================================================ */
+.settings-block-lead .section-title { font-size: var(--text-xl); }
+.settings-block-quiet .section-title { font-size: var(--text-md); }
+.settings-block-quiet .section-sub { font-size: var(--text-xs); }

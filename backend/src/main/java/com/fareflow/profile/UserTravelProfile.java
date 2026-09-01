@@ -85,6 +85,10 @@ public class UserTravelProfile {
     @Column(name = "pass_preference")
     private PassPreference passPreference;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fare_category", nullable = false)
+    private FareCategory fareCategory = FareCategory.REGULAR;
+
     /**
      * Eager because it is a bounded set of at most five rows that every caller
      * needs, and {@code open-in-view} is off — a lazy collection would fail during
@@ -170,6 +174,10 @@ public class UserTravelProfile {
         this.passPreference = passPreference;
     }
 
+    public void setFareCategory(FareCategory fareCategory) {
+        this.fareCategory = fareCategory == null ? FareCategory.REGULAR : fareCategory;
+    }
+
     public void setPreferredModes(Collection<PreferredTravelMode> modes) {
         Set<PreferredTravelMode> replacement = EnumSet.noneOf(PreferredTravelMode.class);
         if (modes != null) {
@@ -226,6 +234,10 @@ public class UserTravelProfile {
 
     public PassPreference getPassPreference() {
         return passPreference;
+    }
+
+    public FareCategory getFareCategory() {
+        return fareCategory == null ? FareCategory.REGULAR : fareCategory;
     }
 
     public Set<PreferredTravelMode> getPreferredModes() {

@@ -228,6 +228,8 @@ export const travelProfile: TravelProfile = {
   hasTypicalCommute: true,
   passPreference: 'PAY_PER_RIDE',
   passPreferenceName: 'Pay per ride',
+  fareCategory: 'REGULAR',
+  fareCategoryName: 'Regular fare',
   preferredModes: [
     { id: 'TRAIN', displayName: 'Train' },
     { id: 'SUBWAY', displayName: 'Subway' },
@@ -251,6 +253,8 @@ export const emptyTravelProfile: TravelProfile = {
   hasTypicalCommute: false,
   passPreference: null,
   passPreferenceName: null,
+  fareCategory: 'REGULAR',
+  fareCategoryName: 'Regular fare',
   preferredModes: [],
 }
 
@@ -274,6 +278,12 @@ export const profileOptions: ProfileOptions = {
     { id: 'WEEKLY_PASS', displayName: 'Weekly pass', detail: null },
     { id: 'MONTHLY_PASS', displayName: 'Monthly pass', detail: null },
     { id: 'NOT_SURE', displayName: 'Not sure', detail: null },
+  ],
+  fareCategories: [
+    { id: 'REGULAR', displayName: 'Regular fare', detail: 'Standard stop-based pricing' },
+    { id: 'STUDENT', displayName: 'Student', detail: 'Discounted stop and boarding charges' },
+    { id: 'SENIOR', displayName: 'Senior', detail: 'Reduced-fare stop and boarding charges' },
+    { id: 'REDUCED', displayName: 'Reduced fare', detail: 'Reduced pricing for eligible riders' },
   ],
   travelModes: [
     { id: 'TRAIN', displayName: 'Train' },
@@ -432,6 +442,36 @@ export const spendingHistory: SpendingHistory = {
   ],
 }
 
+/**
+ * A history long enough to earn chart chrome.
+ *
+ * <p>`spendingHistory` has trips on two days, which the dashboard deliberately
+ * renders as a stat comparison rather than as five gridded time series. This
+ * variant adds a third active day so the charting branch stays covered.
+ */
+export const spendingHistoryThreeDays: SpendingHistory = {
+  ...spendingHistory,
+  totals: { ...spendingHistory.totals, spentCents: 1965, tripCount: 6, usagePricedTripCount: 4 },
+  buckets: [
+    ...spendingHistory.buckets,
+    {
+      date: '2026-08-21', label: 'Aug 21', spentCents: 400, tripCount: 1,
+      averageFareCents: 400, averageDurationMinutes: 42, savedCents: 0,
+      cumulativeSpentCents: 1965,
+    },
+  ],
+  observations: [
+    ...spendingHistory.observations,
+    {
+      tripId: 106, takenAt: '2026-08-21T12:00:00Z', tripDate: '2026-08-21',
+      bucketDate: '2026-08-21', provider: 'PATH', providerName: 'PATH',
+      mode: 'RAIL', modeName: 'Rail', origin: 'Newark', destination: 'Manhattan',
+      fareCents: 400, durationMinutes: 42, savedCents: 0, distanceMetres: 3600,
+    },
+  ],
+}
+
+
 export const insights: Insights = {
   spentCents: 2465,
   weeklyBudgetCents: 5000,
@@ -574,7 +614,7 @@ export const septaNjtJourney: JourneyOption = {
   explanation: 'SEPTA Trenton Line → NJ Transit saves you $12.40 while adding 32 minutes.',
   dataSource: 'CURATED_NETWORK',
   usageFareMinCents: 130, usageFareMaxCents: 475,
-  usagePricingVersion: 'FAREFLOW_USAGE_V1',
+  usagePricingVersion: 'FAREFLOW_USAGE_V2',
   legs: [
     leg('WALK', 'Walk', 'Philadelphia, PA', 'Suburban Station', 4),
     leg('RAIL', 'SEPTA Trenton Line', 'Suburban Station', 'Trenton Transit Center', 65, 15),
@@ -594,7 +634,7 @@ export const amtrakJourney: JourneyOption = {
   explanation: 'This option has no published fare FareFlow can compute, so it is not compared on cost.',
   dataSource: 'CURATED_NETWORK',
   usageFareMinCents: 130, usageFareMaxCents: 310,
-  usagePricingVersion: 'FAREFLOW_USAGE_V1',
+  usagePricingVersion: 'FAREFLOW_USAGE_V2',
   legs: [
     leg('WALK', 'Walk', 'Philadelphia, PA', '30th Street Station', 19),
     leg('RAIL', 'Amtrak Northeast Regional', '30th Street Station', 'New York Penn Station', 85, 30),
@@ -742,16 +782,29 @@ export const startedTransitSession: TransitSession = {
   currentFareCents: 0,
   currentEstimatedFareCents: 0,
   finalFareCents: null,
+  fareCategory: 'REGULAR',
+  fareCategoryName: 'Regular fare',
+  dailyCapCents: 1200,
+  weeklyCapCents: 6000,
+  dailyCapRemainingCents: 1200,
+  weeklyCapRemainingCents: 6000,
+  transferDiscountCents: 0,
+  concessionDiscountCents: 0,
+  capDiscountCents: 0,
   fareBreakdown: ['No transit progress recorded · no charge'],
+  fareEvents: [],
   stopFareProgress: [
     { sequence: 0, stopName: 'Suburban Station', lineName: 'SEPTA Trenton Line',
-      mode: 'RAIL', state: 'CURRENT', fareIncrementCents: 0, cumulativeFareCents: 0 },
+      mode: 'RAIL', state: 'CURRENT', fareIncrementCents: 0, cumulativeFareCents: 0,
+      grossCents: 0, totalDiscountCents: 0, description: 'Boarding point' },
     { sequence: 1, stopName: 'Trenton Transit Center', lineName: 'SEPTA Trenton Line',
-      mode: 'RAIL', state: 'NEXT', fareIncrementCents: 130, cumulativeFareCents: 130 },
+      mode: 'RAIL', state: 'NEXT', fareIncrementCents: 130, cumulativeFareCents: 130,
+      grossCents: 130, totalDiscountCents: 0, description: 'Stop charge' },
     { sequence: 2, stopName: 'New York Penn Station', lineName: 'NJ Transit Northeast Corridor',
-      mode: 'RAIL', state: 'UPCOMING', fareIncrementCents: 345, cumulativeFareCents: 475 },
+      mode: 'RAIL', state: 'UPCOMING', fareIncrementCents: 345, cumulativeFareCents: 475,
+      grossCents: 345, totalDiscountCents: 0, description: 'Stop charge' },
   ],
-  pricingVersion: 'FAREFLOW_USAGE_V1',
+  pricingVersion: 'FAREFLOW_USAGE_V2',
   canAdvance: true,
   canEnd: true,
   canPay: false,
@@ -823,7 +876,7 @@ export const settledSessionPayment: PaymentIntent = {
     durationMinutes: 12,
     distanceMetres: 65_000,
     stopsTravelled: 1,
-    fareModel: 'FAREFLOW_USAGE_V1',
+    fareModel: 'FAREFLOW_USAGE_V2',
   },
 }
 

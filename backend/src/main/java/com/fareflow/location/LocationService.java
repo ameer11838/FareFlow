@@ -115,14 +115,16 @@ public class LocationService {
         if (candidate.equals(query)) {
             return 0;
         }
+        if (candidate.contains(query)) {
+            // A provider often appends a ZIP code to an otherwise exact address.
+            // That completion is more precise than a short feature whose name is
+            // merely contained in the query ("5th Avenue" for "350 5th Avenue").
+            return 20 + Math.min(candidate.length() - query.length(), 69);
+        }
         if (query.contains(candidate)) {
             // Prefer the most specific contained name: "Chicago Union Station"
             // must outrank the generic "Chicago" geography.
             return 100 - Math.min(candidate.length(), 99);
-        }
-        if (candidate.contains(query)) {
-            // For autocomplete, prefer the shortest completion of what was typed.
-            return 200 + Math.min(candidate.length() - query.length(), 99);
         }
         return 400;
     }

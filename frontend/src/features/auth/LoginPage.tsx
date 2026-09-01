@@ -10,6 +10,7 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,11 +59,23 @@ export function LoginPage() {
         */}
         <div className="field">
           <label className="label" htmlFor="password">Password</label>
-          <input
-            id="password" className="input" type="password" autoComplete="current-password" required
-            value={password} onChange={(event) => setPassword(event.target.value)}
-            placeholder="Your password"
-          />
+          <div className="auth-password-control">
+            <input
+              id="password" className="input" type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password" required
+              value={password} onChange={(event) => setPassword(event.target.value)}
+              placeholder="Your password"
+            />
+            <button
+              className="auth-password-toggle"
+              type="button"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
 
         {error && <p className="auth-error" role="alert">{error}</p>}

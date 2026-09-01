@@ -168,6 +168,11 @@ configured. Imported nearby-stop markers still appear only where a GTFS feed has
 successfully imported. See
 [docs/MAP.md](docs/MAP.md) and [docs/TRANSIT_DATA.md](docs/TRANSIT_DATA.md).
 
+The same local `VITE_TOMTOM_API_KEY` is automatically reused by the backend for
+address autocomplete, so the From and To fields accept full U.S. street addresses,
+landmarks, stations, and stops. In a deployed environment, set the server-only
+`TOMTOM_API_KEY` explicitly instead of relying on the frontend environment file.
+
 **Optional — nationwide transit routing.** Set `GOOGLE_MAPS_ROUTES_API_KEY` in the
 root `.env` to a Google Maps Platform key with the Routes API enabled. This is a
 server-side credential and is intentionally separate from `GEMINI_API_KEY`. Without

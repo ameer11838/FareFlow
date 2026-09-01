@@ -9,6 +9,7 @@ import com.fareflow.journey.PersistedJourney;
 import com.fareflow.journey.PersistedJourneyRepository;
 import com.fareflow.location.LocationCandidate;
 import com.fareflow.location.LocationService;
+import com.fareflow.profile.TravelProfileService;
 import com.fareflow.session.dto.StartTransitSessionRequest;
 import com.fareflow.session.dto.TransitSessionResponse;
 import com.fareflow.user.User;
@@ -39,6 +40,8 @@ public class TransitSessionService {
     private final JourneyPlanningService planningService;
     private final BudgetService budgetService;
     private final UsageFareEngine usageFareEngine;
+    private final TransitFareEventRepository fareEventRepository;
+    private final TravelProfileService travelProfileService;
     private final Clock clock;
 
     public TransitSessionService(TransitSessionRepository sessionRepository,
@@ -47,6 +50,8 @@ public class TransitSessionService {
                                  JourneyPlanningService planningService,
                                  BudgetService budgetService,
                                  UsageFareEngine usageFareEngine,
+                                 TransitFareEventRepository fareEventRepository,
+                                 TravelProfileService travelProfileService,
                                  Clock clock) {
         this.sessionRepository = sessionRepository;
         this.journeyRepository = journeyRepository;
@@ -54,6 +59,8 @@ public class TransitSessionService {
         this.planningService = planningService;
         this.budgetService = budgetService;
         this.usageFareEngine = usageFareEngine;
+        this.fareEventRepository = fareEventRepository;
+        this.travelProfileService = travelProfileService;
         this.clock = clock;
     }
 
@@ -80,6 +87,9 @@ public class TransitSessionService {
         LocationCandidate origin = resolve(request.from());
         LocationCandidate destination = resolve(request.to());
         var summary = budgetService.currentWeek(user.getId());
+        UsageFareContext fareContext = new UsageFareContext(
+                travelProfileService.findOrEmpty(user.getId()).getFareCategory(),
+                budgetService.spentToday(user), Math.max(0, summary.spentCents()));
         var candidates = planningService.plan(origin, destination,
                 new UserFareContext(Math.max(0, summary.spentCents()), 0, Set.of()));
         var selected = candidates.stream()
@@ -91,31 +101,33 @@ public class TransitSessionService {
         PersistedJourney journey = journeyRepository.save(PersistedJourney.snapshot(
                 selected.journey(), selected.fare(), origin, destination));
         int totalUnits = usageFareEngine.totalProgressUnits(journey);
-        UsageFareCalculation minimum = usageFareEngine.calculate(journey, 1);
-        UsageFareCalculation maximum = usageFareEngine.calculate(journey, totalUnits);
+        UsageFareCalculation minimum = usageFareEngine.calculate(journey, 1, fareContext);
+        UsageFareCalculation maximum = usageFareEngine.calculate(journey, totalUnits, fareContext);
         TransitSession session = TransitSession.start(
                 user.getId(), journey, totalUnits, usageFareEngine.plannedDistanceMetres(journey),
-                minimum.totalCents(), maximum.totalCents(), usageFareEngine.version(), key,
-                fingerprint, clock.instant());
+                minimum.totalCents(), maximum.totalCents(), usageFareEngine.version(), fareContext,
+                key, fingerprint, clock.instant());
         session = sessionRepository.save(session);
         return new Creation(response(session), false);
     }
 
     @Transactional
-    public TransitSessionResponse advance(User user, UUID id) {
+    public TransitSessionResponse advance(User user, UUID id, TransitProgressOutcome outcome) {
         TransitSession session = owned(user, id);
-        UsageFareCalculation fare = usageFareEngine.calculate(
-                session.getJourney(), session.getProgressUnitsCompleted() + 1);
-        session.advance(fare, clock.instant());
+        int sequence = session.getProgressUnitsCompleted() + 1;
+        UsageFareEngine.StopFarePoint fare = usageFareEngine.quote(
+                session.getJourney(), sequence, context(session),
+                session.getCurrentFareCents(), outcome);
+        var now = clock.instant();
+        session.advance(fare, outcome, now);
+        fareEventRepository.save(TransitFareEvent.from(session.getId(), fare, outcome, now));
         return response(session);
     }
 
     @Transactional
     public TransitSessionResponse end(User user, UUID id) {
         TransitSession session = owned(user, id);
-        UsageFareCalculation fare = usageFareEngine.calculate(
-                session.getJourney(), session.getProgressUnitsCompleted());
-        session.end(fare, clock.instant());
+        session.end(clock.instant());
         return response(session);
     }
 
@@ -136,7 +148,14 @@ public class TransitSessionService {
     }
 
     public TransitSessionResponse response(TransitSession session) {
-        return TransitSessionResponse.from(session, usageFareEngine, clock.instant());
+        return TransitSessionResponse.from(session, usageFareEngine,
+                fareEventRepository.findByTransitSessionIdOrderBySequenceAsc(session.getId()),
+                clock.instant());
+    }
+
+    private static UsageFareContext context(TransitSession session) {
+        return new UsageFareContext(session.getFareCategory(),
+                session.getSpentTodayBeforeCents(), session.getSpentWeekBeforeCents());
     }
 
     private LocationCandidate resolve(String query) {

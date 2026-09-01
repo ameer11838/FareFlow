@@ -38,6 +38,19 @@ class LocationServiceTest {
         assertThat(service.resolve("Philadelphia").orElseThrow()).isEqualTo(curated);
     }
 
+    @Test
+    void fullStreetAddressOutranksAStreetNameContainedInTheQuery() {
+        LocationCandidate street = place("tomtom:street", "5th Avenue",
+                40.735278, -73.994278, "TOMTOM");
+        LocationCandidate address = place("tomtom:address",
+                "350 5th Avenue, New York, NY 10001",
+                40.748167, -73.985, "TOMTOM");
+        LocationService service = service(List.of(street, address), List.of());
+
+        assertThat(service.resolve("350 5th Avenue, New York, NY").orElseThrow())
+                .isEqualTo(address);
+    }
+
     private static LocationService service(List<LocationCandidate> primaryResults,
                                            List<LocationCandidate> fallbackResults) {
         GeocodingProvider primary = provider("PRIMARY", primaryResults);

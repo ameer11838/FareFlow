@@ -62,6 +62,8 @@ class TransitSessionIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.currentFareCents", greaterThan(0)))
                 .andExpect(jsonPath("$.stopFareProgress[1].state", is("CURRENT")))
                 .andExpect(jsonPath("$.stopFareProgress[2].state", is("NEXT")))
+                .andExpect(jsonPath("$.fareEvents[0].eventType", is("STOP_COMPLETED")))
+                .andExpect(jsonPath("$.fareEvents[0].description").isNotEmpty())
                 .andExpect(jsonPath("$.nextStopFareIncreaseCents", greaterThan(0)))
                 .andReturn().getResponse().getContentAsString();
         long currentFare = objectMapper.readTree(advanced).get("currentEstimatedFareCents").asLong();
@@ -84,7 +86,7 @@ class TransitSessionIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.status", is("SETTLED")))
                 .andExpect(jsonPath("$.amountCents", is((int) currentFare)))
                 .andExpect(jsonPath("$.transitSessionId", is(id)))
-                .andExpect(jsonPath("$.trip.fareModel", is("FAREFLOW_USAGE_V1")))
+                .andExpect(jsonPath("$.trip.fareModel", is("FAREFLOW_USAGE_V2")))
                 .andExpect(jsonPath("$.trip.stopsTravelled", is(1)))
                 .andReturn().getResponse().getContentAsString();
 
@@ -112,6 +114,28 @@ class TransitSessionIntegrationTest extends IntegrationTestBase {
         String second = start("session-replay");
         assertThat(second).isEqualTo(first);
         assertThat(sessionRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("skipped and diverted stops advance progress without creating a charge")
+    void serviceExceptionsAreNeverCharged() throws Exception {
+        String id = start("skipped-stop");
+
+        mockMvc.perform(post("/api/transit-sessions/{id}/advance", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"outcome\":\"SKIPPED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.progressUnitsCompleted", is(1)))
+                .andExpect(jsonPath("$.completedStops", is(0)))
+                .andExpect(jsonPath("$.currentFareCents", is(0)))
+                .andExpect(jsonPath("$.fareEvents[0].eventType", is("STOP_SKIPPED")))
+                .andExpect(jsonPath("$.fareEvents[0].amountCents", is(0)))
+                .andExpect(jsonPath("$.stopFareProgress[1].state", is("SKIPPED")));
+
+        mockMvc.perform(post("/api/transit-sessions/{id}/end", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("NO_CHARGE")))
+                .andExpect(jsonPath("$.finalFareCents", is(0)));
     }
 
     private String start(String key) throws Exception {

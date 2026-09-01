@@ -14,6 +14,7 @@ import { AlertIcon } from '../../../components/Icons'
  */
 export function SchematicMap({
   journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
+  activeStopSequence, activeStopName,
   onSelectJourney, onSelectLeg, reason, focusLocations = [], nearbyStops = [],
 }: {
   journeys: JourneyOption[]
@@ -21,6 +22,8 @@ export function SchematicMap({
   highlightedJourneyId?: string | null
   onSelectJourney: (journeyId: string) => void
   activeLegIndex?: number | null
+  activeStopSequence?: number | null
+  activeStopName?: string | null
   onSelectLeg?: (journeyId: string, legIndex: number) => void
   reason: string
   focusLocations?: LocationCandidate[]
@@ -137,26 +140,6 @@ export function SchematicMap({
                     <title>{route.name}</title>
                   </path>
 
-                  {isSelected && route.waypoints.slice(1, -1)
-                    .filter((point) => point.name.trim().length > 0)
-                    .filter((point, index, all) => index === all.findIndex((candidate) =>
-                      candidate.name === point.name
-                      && candidate.latitude === point.latitude
-                      && candidate.longitude === point.longitude))
-                    .map((waypoint, index) => {
-                      const point = projection.project(waypoint)
-                      return (
-                        <circle
-                          key={index}
-                          cx={point.x}
-                          cy={point.y}
-                          r={4.5}
-                          fill="#fff"
-                          stroke="var(--color-accent)"
-                          strokeWidth={2.5}
-                        />
-                      )
-                    })}
                   {isSelected && route.legs.map((leg, legIndex) => {
                     if (leg.waypoints.length < 2) return null
                     const legPoints = leg.waypoints.map((point) => projection.project(point))
@@ -188,6 +171,34 @@ export function SchematicMap({
                         >
                           <title>{leg.mode === 'WALK' ? `Walk to ${leg.toName}` : leg.lineName}</title>
                         </path>
+                      </g>
+                    )
+                  })}
+                  {isSelected && schematicTransitStopMarkers(route.legs).map((waypoint) => {
+                    const point = projection.project(waypoint)
+                    const state = activeStopSequence == null ? 'upcoming'
+                      : waypoint.sequence < activeStopSequence ? 'completed'
+                        : waypoint.sequence === activeStopSequence ? 'current' : 'upcoming'
+                    return (
+                      <g key={`${waypoint.name}-${waypoint.latitude}-${waypoint.longitude}`}
+                         className={`map-schematic-stop is-${state}`}>
+                        {state === 'current' && (
+                          <circle className="map-schematic-current-ring" cx={point.x} cy={point.y}
+                                  r={15} fill="none" stroke="var(--color-accent)" strokeWidth={2} />
+                        )}
+                        <circle cx={point.x} cy={point.y} r={state === 'current' ? 11 : 8}
+                                fill={state === 'current' ? 'var(--color-accent)'
+                                  : state === 'completed' ? 'var(--color-accent-soft)' : '#fff'}
+                                stroke={state === 'current' ? '#fff' : 'var(--color-accent)'}
+                                strokeWidth={state === 'current' ? 3 : 2.5} />
+                        <text x={point.x} y={point.y + 3.2} textAnchor="middle"
+                              className="map-schematic-stop-number">{waypoint.marker}</text>
+                        {state === 'current' && (
+                          <text x={point.x + 20} y={point.y + 4} className="map-schematic-current-label">
+                            You are here · {activeStopName ?? waypoint.name}
+                          </text>
+                        )}
+                        <title>{state === 'current' ? `You are here · ${activeStopName ?? waypoint.name}` : waypoint.name}</title>
                       </g>
                     )
                   })}
@@ -228,6 +239,26 @@ export function SchematicMap({
       )}
     </div>
   )
+}
+
+function schematicTransitStopMarkers(legs: JourneyOption['legs']) {
+  let reached = 0
+  const markers: Array<JourneyOption['legs'][number]['waypoints'][number] & {
+    marker: string
+    sequence: number
+  }> = []
+  for (const leg of legs) {
+    if (leg.mode === 'WALK') continue
+    for (const [index, point] of leg.waypoints
+      .filter((candidate) => candidate.name.trim().length > 0).entries()) {
+      if (markers.some((candidate) => candidate.name === point.name
+        && candidate.latitude === point.latitude && candidate.longitude === point.longitude)) continue
+      const sequence = index === 0 && markers.length === 0 ? 0 : ++reached
+      const marker = sequence === 0 ? 'B' : String(sequence)
+      markers.push({ ...point, marker, sequence })
+    }
+  }
+  return markers
 }
 
 interface Projection {

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 
 /**
  * Derives weekly spending figures from the ledger.
@@ -45,6 +46,15 @@ public class BudgetService {
         User user = userService.getById(userId);
         WeekWindow week = WeekWindow.containing(clock.instant(), user.zoneId());
         return summarize(user, week);
+    }
+
+    /** Fare-cap spend since midnight in the rider's own timezone. */
+    public long spentToday(User user) {
+        var zone = user.zoneId();
+        var today = LocalDate.ofInstant(clock.instant(), zone);
+        var start = today.atStartOfDay(zone).toInstant();
+        var end = today.plusDays(1).atStartOfDay(zone).toInstant();
+        return Math.max(0, -ledgerService.netAmountBetween(user.getId(), start, end));
     }
 
     public WeeklySummary summarize(User user, WeekWindow week) {

@@ -19,12 +19,14 @@ describe('WalletPage', () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
-    // Remaining is the figure that changes a decision, so it leads the page.
-    // It appears twice: the lede and the "Remaining" figure in the row beneath.
-    expect(await screen.findAllByText('$21.60')).toHaveLength(2)
+    // Remaining is the figure that changes a decision, so it leads the page —
+    // and now appears exactly once. It used to be printed again in a figure row
+    // beneath the lede, along with spent and projected; that row is gone,
+    // because none of it said anything the lede had not already said.
+    expect(await screen.findAllByText('$21.60')).toHaveLength(1)
     // Scoped to the lede: "weekly transportation" also appears in the page
     // subtitle, and matching both would prove nothing about the hierarchy.
-    const lede = document.querySelector('.budget-lede') as HTMLElement
+    const lede = screen.getByTestId('budget-lede')
     expect(within(lede).getByText('Weekly transportation')).toBeInTheDocument()
     expect(within(lede).getByText('remaining')).toBeInTheDocument()
     // The figure gets its prominence from type, not from a container.
@@ -105,7 +107,9 @@ describe('WalletPage — no budget set', () => {
     expect(screen.getByRole('link', { name: /set a budget/i })).toHaveAttribute('href', '/settings')
     // "$0.00" would read as "you are out of money", which is not what is true.
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
-    expect(screen.getByText('Not set')).toBeInTheDocument()
+    // The old page also printed "Not set" in a "Remaining" figure beside the
+    // prompt. The prompt is the whole message now, so there is nothing left to
+    // label as unset.
     // And no verdict is offered about a budget that does not exist.
     expect(screen.queryByText(/on track|over budget/i)).not.toBeInTheDocument()
   })

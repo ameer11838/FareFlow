@@ -2,6 +2,7 @@ package com.fareflow.session;
 
 import com.fareflow.exception.InvalidStateException;
 import com.fareflow.journey.PersistedJourney;
+import com.fareflow.profile.FareCategory;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -53,6 +54,19 @@ public class TransitSession {
     private Long distanceFareCents;
     @Column(name = "stop_fare_cents")
     private Long stopFareCents;
+    @Column(name = "transfer_discount_cents", nullable = false)
+    private long transferDiscountCents;
+    @Column(name = "concession_discount_cents", nullable = false)
+    private long concessionDiscountCents;
+    @Column(name = "cap_discount_cents", nullable = false)
+    private long capDiscountCents;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fare_category", nullable = false, updatable = false)
+    private FareCategory fareCategory;
+    @Column(name = "spent_today_before_cents", nullable = false, updatable = false)
+    private long spentTodayBeforeCents;
+    @Column(name = "spent_week_before_cents", nullable = false, updatable = false)
+    private long spentWeekBeforeCents;
     @Column(name = "pricing_version", nullable = false, updatable = false)
     private String pricingVersion;
     @Column(name = "progress_source", nullable = false, updatable = false)
@@ -86,6 +100,7 @@ public class TransitSession {
                                        long minimumFareCents,
                                        long maximumFareCents,
                                        String pricingVersion,
+                                       UsageFareContext fareContext,
                                        String idempotencyKey,
                                        String requestFingerprint,
                                        Instant now) {
@@ -103,6 +118,12 @@ public class TransitSession {
         session.estimatedFareMinCents = minimumFareCents;
         session.estimatedFareMaxCents = maximumFareCents;
         session.pricingVersion = pricingVersion;
+        session.fareCategory = fareContext.fareCategory();
+        session.spentTodayBeforeCents = fareContext.spentTodayCents();
+        session.spentWeekBeforeCents = fareContext.spentThisWeekCents();
+        session.baseFareCents = 0L;
+        session.distanceFareCents = 0L;
+        session.stopFareCents = 0L;
         session.progressSource = "RIDER_CONFIRMED";
         session.idempotencyKey = idempotencyKey;
         session.requestFingerprint = requestFingerprint;
@@ -112,30 +133,34 @@ public class TransitSession {
         return session;
     }
 
-    public void advance(UsageFareCalculation fare, Instant now) {
+    public void advance(UsageFareEngine.StopFarePoint fare,
+                        TransitProgressOutcome outcome, Instant now) {
         requireActive();
         if (progressUnitsCompleted >= progressUnitsTotal) {
             throw new InvalidStateException("Every recorded stop on this route is already complete");
         }
         progressUnitsCompleted++;
-        completedStopCount = fare.stops();
-        distanceTravelledMetres = fare.distanceMetres();
-        currentFareCents = fare.totalCents();
+        if (outcome == TransitProgressOutcome.REACHED) completedStopCount++;
+        distanceTravelledMetres = Math.min(plannedDistanceMetres,
+                Math.addExact(distanceTravelledMetres, fare.distanceMetres()));
+        currentFareCents = fare.cumulativeFareCents();
+        baseFareCents = Math.addExact(baseFareCents, fare.baseCents());
+        distanceFareCents = Math.addExact(distanceFareCents, fare.distanceCents());
+        stopFareCents = Math.addExact(stopFareCents, fare.stopCents());
+        transferDiscountCents = Math.addExact(
+                transferDiscountCents, fare.transferDiscountCents());
+        concessionDiscountCents = Math.addExact(
+                concessionDiscountCents, fare.concessionDiscountCents());
+        capDiscountCents = Math.addExact(capDiscountCents, fare.capDiscountCents());
         status = TransitSessionStatus.IN_PROGRESS;
         updatedAt = now;
     }
 
-    public void end(UsageFareCalculation fare, Instant now) {
+    public void end(Instant now) {
         requireActive();
-        finalFareCents = fare.totalCents();
-        baseFareCents = fare.baseCents();
-        distanceFareCents = fare.distanceCents();
-        stopFareCents = fare.stopCents();
-        currentFareCents = fare.totalCents();
-        distanceTravelledMetres = fare.distanceMetres();
-        completedStopCount = fare.stops();
+        finalFareCents = currentFareCents;
         endedAt = now;
-        status = progressUnitsCompleted == 0
+        status = currentFareCents == 0
                 ? TransitSessionStatus.NO_CHARGE : TransitSessionStatus.COMPLETED;
         updatedAt = now;
     }
@@ -176,6 +201,12 @@ public class TransitSession {
     public Long getBaseFareCents() { return baseFareCents; }
     public Long getDistanceFareCents() { return distanceFareCents; }
     public Long getStopFareCents() { return stopFareCents; }
+    public long getTransferDiscountCents() { return transferDiscountCents; }
+    public long getConcessionDiscountCents() { return concessionDiscountCents; }
+    public long getCapDiscountCents() { return capDiscountCents; }
+    public FareCategory getFareCategory() { return fareCategory; }
+    public long getSpentTodayBeforeCents() { return spentTodayBeforeCents; }
+    public long getSpentWeekBeforeCents() { return spentWeekBeforeCents; }
     public String getPricingVersion() { return pricingVersion; }
     public String getProgressSource() { return progressSource; }
     public String getIdempotencyKey() { return idempotencyKey; }

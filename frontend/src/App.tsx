@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/states'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
+import { AssistantPage } from './features/assistant/AssistantPage'
 import { InsightsPage } from './features/insights/InsightsPage'
 import { LedgerPage } from './features/ledger/LedgerPage'
 import { OnboardingPage } from './features/onboarding/OnboardingPage'
@@ -52,6 +53,7 @@ export function App() {
           <Route path="/wallet" element={<WalletPage />} />
           <Route path="/trips" element={<TripHistoryPage />} />
           <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/payments" element={<LedgerPage />} />
           <Route path="/ledger" element={<Navigate to="/payments" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
