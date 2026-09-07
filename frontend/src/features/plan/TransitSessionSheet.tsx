@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import type {
-  JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, TransitSession,
+  JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, PaymentRails,
+  TransitSession, TransitFareEvent,
 } from '../../api/types'
 import {
   CheckIcon, ClockIcon, CloseIcon, InfoIcon, WalletIcon,
 } from '../../components/Icons'
+import { paymentsApi } from '../../api'
+import { verifyOnLedger, type LedgerCheck } from './payment/ledgerVerification'
 import { ModeTile } from '../../components/Tile'
 import { formatCents, formatMinutes } from '../../lib/format'
 
@@ -32,7 +35,19 @@ export function TransitSessionSheet({
   onPay: (method: PaymentRail) => void
 }) {
   const [method, setMethod] = useState<PaymentRail>('FAREFLOW_WALLET')
+  const [rails, setRails] = useState<PaymentRails | null>(null)
   const [now, setNow] = useState(Date.now())
+
+  // Which rails this deployment can actually complete. A failure here is not
+  // worth surfacing: the two built-in rails always work, so the checkout falls
+  // back to them rather than blocking payment on an unreachable capability probe.
+  useEffect(() => {
+    let cancelled = false
+    void paymentsApi.rails()
+      .then((available) => { if (!cancelled) setRails(available) })
+      .catch(() => { if (!cancelled) setRails(null) })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!session || !session.canEnd) return
@@ -89,7 +104,7 @@ export function TransitSessionSheet({
         {phase === 'checkout' && session && (
           <TripCheckout session={session} elapsedSeconds={elapsedSeconds} payment={payment}
                         method={method} onMethod={setMethod} processing={processing}
-                        onPay={onPay} />
+                        rails={rails} onPay={onPay} />
         )}
 
         {(error || payment?.failureMessage) && (
@@ -262,12 +277,16 @@ function ActiveTrip({ session, elapsedSeconds, processing, onAdvance, onEnd }: {
 }
 
 function StopFareTimeline({ session }: { session: TransitSession }) {
+  // Verdicts live on the fare events; the timeline is keyed by stop sequence.
+  const verdicts = new Map(session.fareEvents.map((event) => [event.sequence, event]))
   return (
     <section className="session-stop-fares" aria-labelledby="stop-fare-title">
       <div className="session-stop-fares-head">
         <div>
           <strong id="stop-fare-title">Simulated fare by stop</strong>
-          <span>FareFlow usage charges post at completed stops</span>
+          <span>{session.contradictedStops > 0
+            ? 'Charges post at completed stops · some were confirmed away from the stop'
+            : 'FareFlow usage charges post at completed stops'}</span>
         </div>
         <span>{session.progressUnitsCompleted}/{session.progressUnitsTotal}</span>
       </div>
@@ -281,6 +300,7 @@ function StopFareTimeline({ session }: { session: TransitSession }) {
               <small>{stop.sequence === 0
                 ? 'Boarding point · no charge'
                 : `${stop.lineName} · ${stopStateLabel(stop.state)}`}</small>
+              {verdictFor(verdicts.get(stop.sequence))}
             </span>
             <span className="session-stop-charge numeric">
               <b>{stop.sequence === 0 ? '$0.00'
@@ -312,13 +332,17 @@ function NoCharge({ session, onClose }: { session: TransitSession; onClose: () =
   )
 }
 
-function TripCheckout({ session, elapsedSeconds, payment, method, onMethod, processing, onPay }: {
+function TripCheckout({
+  session, elapsedSeconds, payment, method, onMethod, processing, rails, onPay,
+}: {
   session: TransitSession
   elapsedSeconds: number
   payment: PaymentIntent | null
   method: PaymentRail
   onMethod: (method: PaymentRail) => void
   processing: boolean
+  /** Null while the probe is in flight, or if it failed; the built-in rails stand. */
+  rails: PaymentRails | null
   onPay: (method: PaymentRail) => void
 }) {
   const fare = session.finalFareCents ?? 0
@@ -351,17 +375,72 @@ function TripCheckout({ session, elapsedSeconds, payment, method, onMethod, proc
                              title="FareFlow Wallet" detail="Applies to your weekly transit budget" />
         <PaymentMethodChoice method="SIMULATED_CARD" selected={method} onSelect={onMethod}
                              title="Simulated card" detail="No real card or money movement" />
+        {rails?.rails.includes('XRPL_RLUSD') && (
+          <PaymentMethodChoice method="XRPL_RLUSD" selected={method} onSelect={onMethod}
+                               title="RLUSD on the XRP Ledger"
+                               detail={`Settles on the public XRPL ${
+                                 (rails.network ?? 'testnet').toLowerCase()}`} />
+        )}
       </fieldset>
 
       <button className="btn btn-primary checkout-submit" type="button"
               onClick={() => onPay(method)} disabled={processing || payment?.status === 'SETTLED'}>
-        {processing ? 'Authorizing payment…'
+        {processing ? (method === 'XRPL_RLUSD' ? 'Settling on the XRP Ledger…' : 'Authorizing payment…')
           : payment?.status === 'FAILED' ? 'Retry payment'
             : payment?.status === 'SETTLED' ? 'Payment complete'
-              : `Pay ${formatCents(fare)} with FareFlow`}
+              : method === 'XRPL_RLUSD'
+                ? `Pay ${formatCents(fare)} in RLUSD`
+                : `Pay ${formatCents(fare)} with FareFlow`}
       </button>
+      {payment?.xrplTransactionHash && <LedgerReceipt payment={payment} />}
       <p className="checkout-fineprint">{session.simulationNotice}</p>
     </>
+  )
+}
+
+/**
+ * The on-ledger receipt for an RLUSD fare.
+ *
+ * Shows the hash, links it to a public explorer, and then asks the ledger itself
+ * whether the transaction validated — from the browser, over a connection the
+ * FareFlow server is not part of. That last step is the whole argument for this
+ * rail: every other method ends with the rider taking our word for it.
+ */
+function LedgerReceipt({ payment }: { payment: PaymentIntent }) {
+  const [check, setCheck] = useState<LedgerCheck>({ state: 'checking' })
+  const hash = payment.xrplTransactionHash
+
+  useEffect(() => {
+    if (!hash) return
+    let cancelled = false
+    void verifyOnLedger(payment).then((result) => { if (!cancelled) setCheck(result) })
+    return () => { cancelled = true }
+    // Keyed on the hash: one settlement is checked once, not on every rerender.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash])
+
+  if (!hash) return null
+  return (
+    <section className="ledger-receipt" aria-label="On-ledger settlement">
+      <div className="ledger-receipt-head">
+        <strong>Settled on the XRP Ledger</strong>
+        {check.state === 'checking' && <span>Checking the ledger…</span>}
+        {check.state === 'confirmed' && (
+          <span className={check.validated ? 'is-validated' : ''}>
+            {check.validated
+              ? 'Confirmed by a public node'
+              : 'Found on-ledger, not yet validated'}
+          </span>
+        )}
+        {check.state === 'unavailable' && <span>Could not reach a public node just now</span>}
+      </div>
+      <code className="ledger-receipt-hash">{hash}</code>
+      {payment.xrplExplorerUrl && (
+        <a href={payment.xrplExplorerUrl} target="_blank" rel="noreferrer noopener">
+          View on the XRPL explorer
+        </a>
+      )}
+    </section>
   )
 }
 
@@ -377,7 +456,9 @@ function PaymentMethodChoice({ method, selected, onSelect, title, detail }: {
       <input type="radio" name="session-payment-method" value={method}
              checked={selected === method} onChange={() => onSelect(method)} />
       <span className="checkout-method-icon">
-        {method === 'FAREFLOW_WALLET' ? <WalletIcon /> : <span className="numeric">••••</span>}
+        {method === 'FAREFLOW_WALLET' ? <WalletIcon />
+          : method === 'XRPL_RLUSD' ? <span aria-hidden="true">◈</span>
+            : <span className="numeric">••••</span>}
       </span>
       <span><strong>{title}</strong><small>{detail}</small></span>
       {selected === method && <CheckIcon />}
@@ -439,6 +520,43 @@ function formatTimer(seconds: number): string {
 
 function formatClock(value: string): string {
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+/**
+ * The location verdict for a stop, when there is one worth showing.
+ *
+ * Only completed stops carry evidence, and only two outcomes tell the rider
+ * something they can act on: it was corroborated, or it looked wrong. The rest —
+ * no signal, a vague fix, a stop the provider never placed — are ordinary
+ * conditions of moving underground, and captioning every one of them would turn
+ * a fare receipt into an apology for GPS.
+ */
+function verdictFor(event: TransitFareEvent | undefined) {
+  if (!event || !event.verificationStatus) return null
+  const status = event.verificationStatus
+  if (status === 'VERIFIED') {
+    return (
+      <small className="session-stop-verdict is-verified">
+        Verified at the stop{event.verificationDistanceMetres != null
+          ? ` · ${formatProximity(event.verificationDistanceMetres)} away` : ''}
+      </small>
+    )
+  }
+  if (status === 'UNVERIFIED_TOO_FAR') {
+    return (
+      <small className="session-stop-verdict is-flagged">
+        Confirmed {event.verificationDistanceMetres != null
+          ? `${formatProximity(event.verificationDistanceMetres)} from the stop`
+          : 'away from the stop'} · charged, flagged
+      </small>
+    )
+  }
+  return null
+}
+
+/** Stop-scale distance. Trip distances use miles; "0.02 mi from the stop" is useless. */
+function formatProximity(metres: number): string {
+  return metres >= 1_000 ? `${(metres / 1_000).toFixed(1)} km` : `${Math.round(metres)} m`
 }
 
 function stopStateLabel(state: TransitSession['stopFareProgress'][number]['state']): string {

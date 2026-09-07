@@ -45,10 +45,25 @@ public class TransitFareEvent {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, updatable = false)
+    private StopVerificationStatus verificationStatus;
+    @Column(name = "verification_distance_metres", updatable = false)
+    private Double verificationDistanceMetres;
+    @Column(name = "reported_accuracy_metres", updatable = false)
+    private Double reportedAccuracyMetres;
+    @Column(name = "reported_latitude", updatable = false)
+    private Double reportedLatitude;
+    @Column(name = "reported_longitude", updatable = false)
+    private Double reportedLongitude;
+    @Column(name = "verification_note", updatable = false)
+    private String verificationNote;
+
     protected TransitFareEvent() {}
 
     public static TransitFareEvent from(UUID sessionId, UsageFareEngine.StopFarePoint point,
-                                        TransitProgressOutcome outcome, Instant occurredAt) {
+                                        TransitProgressOutcome outcome, Instant occurredAt,
+                                        StopVerification verification) {
         TransitFareEvent event = new TransitFareEvent();
         event.transitSessionId = sessionId;
         event.sequence = point.sequence();
@@ -69,6 +84,18 @@ public class TransitFareEvent {
         event.cumulativeFareCents = point.cumulativeFareCents();
         event.description = point.description();
         event.occurredAt = occurredAt;
+        event.verificationStatus = verification.status();
+        event.verificationDistanceMetres = verification.distanceMetres();
+        event.reportedAccuracyMetres = verification.accuracyMetres();
+        event.verificationNote = verification.explanation();
+        // Only a contradicted stop keeps the raw position: that is the one case a
+        // rider may need to dispute. Everywhere else the distance is the whole of
+        // what the ledger reasons about, and the coordinates would be a
+        // surveillance record the product has no use for.
+        if (verification.status().isContradicted()) {
+            event.reportedLatitude = verification.reportedLatitude();
+            event.reportedLongitude = verification.reportedLongitude();
+        }
         return event;
     }
 
@@ -88,4 +115,10 @@ public class TransitFareEvent {
     public long getCumulativeFareCents() { return cumulativeFareCents; }
     public String getDescription() { return description; }
     public Instant getOccurredAt() { return occurredAt; }
+    public StopVerificationStatus getVerificationStatus() { return verificationStatus; }
+    public Double getVerificationDistanceMetres() { return verificationDistanceMetres; }
+    public Double getReportedAccuracyMetres() { return reportedAccuracyMetres; }
+    public Double getReportedLatitude() { return reportedLatitude; }
+    public Double getReportedLongitude() { return reportedLongitude; }
+    public String getVerificationNote() { return verificationNote; }
 }

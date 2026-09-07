@@ -4,9 +4,9 @@ spring:
 
   config:
     # Local development keeps the browser map key in frontend/.env. Importing it
-    # as an optional property source lets the server use the same public TomTom
-    # key for street-address geocoding without requiring developers to duplicate
-    # the key. Deployed environments should continue to set TOMTOM_API_KEY.
+    # as an optional property source lets the server use the same public Google
+    # Maps key for street-address geocoding without requiring developers to
+    # duplicate the key. Deployed environments should set GOOGLE_MAPS_API_KEY.
     import:
       - "optional:file:../frontend/.env[.properties]"
       - "optional:file:frontend/.env[.properties]"
@@ -80,17 +80,50 @@ fareflow:
     caps: { daily-cents: 1200, weekly-cents: 6000 }
     # Percent of the standard net fare paid by each verified rider category.
     rider-discounts: { student-percent: 75, senior-percent: 50, reduced-percent: 50 }
-  tomtom:
-    # TOMTOM_API_KEY is preferred in deployed environments. Local development
-    # may reuse the browser's public map key imported above so full U.S. street
-    # addresses work out of the box whenever the map is configured.
-    api-key: ${TOMTOM_API_KEY:${VITE_TOMTOM_API_KEY:}}
+
+  stop-verification:
+    # How close a reported position must be to count as "at the stop". Generous
+    # on purpose: this grades evidence for the ledger, it never blocks a rider or
+    # changes a fare, so a false "too far" costs more than a missed catch.
+    radius-metres: 250
+    # Fixes vaguer than this are recorded as unusable rather than as evidence
+    # against the rider — a 500 m error circle proves nothing either way.
+    max-accuracy-metres: 400
+    # A rider gets the benefit of their own error radius, capped so a device
+    # cannot claim its way to a verified stop by reporting huge uncertainty.
+    accuracy-slack-metres: 150
+
+  google-maps:
+    # Place search and geocoding via the Places API (New). GOOGLE_MAPS_API_KEY is
+    # preferred in deployed environments. Local development may reuse the
+    # browser's public map key imported above so full U.S. street addresses work
+    # out of the box whenever the map is configured.
+    api-key: ${GOOGLE_MAPS_API_KEY:${VITE_GOOGLE_MAPS_API_KEY:}}
 
   google-routes:
     # Primary nationwide transit discovery. This must be a Google Maps Platform
     # key with Routes API enabled; it is intentionally separate from Gemini keys.
     # With no key, discovery falls through to imported GTFS and curated routes.
-    api-key: ${GOOGLE_MAPS_ROUTES_API_KEY:${GOOGLE_MAPS_API_KEY:}}
+    # Defaults to the shared Maps key: one project usually enables both APIs.
+    api-key: ${GOOGLE_MAPS_ROUTES_API_KEY:${GOOGLE_MAPS_API_KEY:${VITE_GOOGLE_MAPS_API_KEY:}}}
+
+  xrpl:
+    # RLUSD settlement on the XRP Ledger. Off unless an issuer, a treasury account,
+    # and a custody key are all configured; with any missing, the rail reports
+    # itself unavailable and wallet and card payments are unaffected.
+    #
+    # TESTNET or DEVNET only. Mainnet is not an option here: this holds riders'
+    # signing keys, and custodial settlement of a real stablecoin is a regulated
+    # activity that a product documented as a simulation must not perform.
+    network: ${XRPL_NETWORK:TESTNET}
+    # The RLUSD issuer on that network. No default ships, because a guessed issuer
+    # would create a trustline to nothing and fail every payment far from the cause.
+    issuer-address: ${XRPL_RLUSD_ISSUER:}
+    # FareFlow's own funded account, which must trust the same issuer.
+    treasury-address: ${XRPL_TREASURY_ADDRESS:}
+    # base64 32-byte AES key encrypting rider seed entropy at rest.
+    # Generate with: openssl rand -base64 32
+    custody-key: ${XRPL_CUSTODY_KEY:}
 
   assistant:
     # Optional. The rest of FareFlow boots normally without a model key and the

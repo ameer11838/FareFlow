@@ -77,6 +77,13 @@ public class PaymentIntent {
     @Column(name = "provider_reference")
     private String providerReference;
 
+    // The public settlement, when this payment went out over the XRP Ledger.
+    // Kept apart from providerReference because anyone can resolve this one.
+    @Column(name = "xrpl_transaction_hash")
+    private String xrplTransactionHash;
+    @Column(name = "xrpl_network")
+    private String xrplNetwork;
+
     @Column(name = "failure_code")
     private String failureCode;
 
@@ -153,6 +160,18 @@ public class PaymentIntent {
                 SelectedLabel.MANUAL, now);
         intent.transitSessionId = transitSessionId;
         return intent;
+    }
+
+    /**
+     * Records the public transaction that carried this payment.
+     *
+     * <p>Set before authorization, not after settlement: by the time the ledger
+     * returns a hash the money has already moved, so the row must be able to name
+     * that transaction even if everything after it fails.
+     */
+    public void recordLedgerSettlement(String transactionHash, String network) {
+        this.xrplTransactionHash = transactionHash;
+        this.xrplNetwork = network;
     }
 
     public PaymentStatus authorize(String reference, Instant now) {
@@ -235,6 +254,8 @@ public class PaymentIntent {
     public SelectedLabel getSelectedLabel() { return selectedLabel; }
     public int getAttemptCount() { return attemptCount; }
     public String getProviderReference() { return providerReference; }
+    public String getXrplTransactionHash() { return xrplTransactionHash; }
+    public String getXrplNetwork() { return xrplNetwork; }
     public String getFailureCode() { return failureCode; }
     public String getFailureMessage() { return failureMessage; }
     public Instant getAuthorizedAt() { return authorizedAt; }

@@ -42,6 +42,7 @@ public class TransitSessionService {
     private final UsageFareEngine usageFareEngine;
     private final TransitFareEventRepository fareEventRepository;
     private final TravelProfileService travelProfileService;
+    private final StopVerifier stopVerifier;
     private final Clock clock;
 
     public TransitSessionService(TransitSessionRepository sessionRepository,
@@ -52,6 +53,7 @@ public class TransitSessionService {
                                  UsageFareEngine usageFareEngine,
                                  TransitFareEventRepository fareEventRepository,
                                  TravelProfileService travelProfileService,
+                                 StopVerifier stopVerifier,
                                  Clock clock) {
         this.sessionRepository = sessionRepository;
         this.journeyRepository = journeyRepository;
@@ -61,6 +63,7 @@ public class TransitSessionService {
         this.usageFareEngine = usageFareEngine;
         this.fareEventRepository = fareEventRepository;
         this.travelProfileService = travelProfileService;
+        this.stopVerifier = stopVerifier;
         this.clock = clock;
     }
 
@@ -111,16 +114,33 @@ public class TransitSessionService {
         return new Creation(response(session), false);
     }
 
+    /**
+     * Records one stop boundary.
+     *
+     * <p>The verification verdict is computed before the charge and stored with it,
+     * but never gates it: the fare is identical whether the rider was corroborated,
+     * unreachable, or apparently elsewhere. Refusing to advance an unverified rider
+     * would strand them in an open session they cannot end or pay.
+     *
+     * @param position null when the rider confirmed without sharing a location
+     */
     @Transactional
-    public TransitSessionResponse advance(User user, UUID id, TransitProgressOutcome outcome) {
+    public TransitSessionResponse advance(User user, UUID id, TransitProgressOutcome outcome,
+                                          RiderPosition position) {
         TransitSession session = owned(user, id);
         int sequence = session.getProgressUnitsCompleted() + 1;
         UsageFareEngine.StopFarePoint fare = usageFareEngine.quote(
                 session.getJourney(), sequence, context(session),
                 session.getCurrentFareCents(), outcome);
+        // Only a reached stop makes a claim about where the rider is. A skipped or
+        // diverted boundary asserts the opposite, so there is nothing to verify.
+        StopVerification verification = outcome == TransitProgressOutcome.REACHED
+                ? stopVerifier.verify(fare, position)
+                : StopVerification.noFix();
         var now = clock.instant();
-        session.advance(fare, outcome, now);
-        fareEventRepository.save(TransitFareEvent.from(session.getId(), fare, outcome, now));
+        session.advance(fare, outcome, now, verification);
+        fareEventRepository.save(
+                TransitFareEvent.from(session.getId(), fare, outcome, now, verification));
         return response(session);
     }
 

@@ -5,14 +5,16 @@ approximate, and why the boundaries sit where they do.
 
 ## Routing geometry sources
 
-TomTom remains the interactive basemap renderer, but route discovery no longer asks
-TomTom to calculate transit. Google Maps Routes API supplies primary U.S. transit
-itineraries and step polylines using `travelMode: TRANSIT`.
+Google Maps is now the single mapping vendor: the Maps JavaScript API renders the
+basemap, the Routes API supplies primary U.S. transit itineraries and step polylines
+using `travelMode: TRANSIT`, and the Places API resolves typed place text. One
+project, one key, one billing surface — and the place a rider searches for is
+resolved by the same vendor that then routes from it.
 
 Fallback geometry follows the original truth boundary:
 
-1. Ask TomTom for a *driving* route and draw it as if it were the train. **Rejected** —
-   it would be a lie rendered at GPS precision.
+1. Ask a road router for a *driving* route and draw it as if it were the train.
+   **Rejected** — it would be a lie rendered at GPS precision.
 2. Invent plausible-looking coordinates. **Rejected** — fabricated data.
 3. Model fallback geometry from real published station coordinates and label the
    connecting lines as schematic. **Chosen for GTFS/curated fallback routes.**
@@ -42,7 +44,7 @@ id; it draws coordinates and reports clicks. It does not know what a fare is.
   Place, World Trade Center, Hoboken Terminal, Port Authority, Secaucus Junction,
   New York Penn Station, Princeton Junction, and the PATH 33rd Street line stops are
   actual published locations, accurate to roughly 10cm of stated precision.
-- TomTom basemap tiles, when a key is configured.
+- Google basemap tiles, when a key is configured.
 
 **Approximate, and labelled as such:**
 - Geometry between stops for curated and GTFS routes without a published shape.
@@ -63,23 +65,30 @@ would simply stop rendering the "schematic corridor" footnote.
 
 See [TRANSIT_DATA.md](TRANSIT_DATA.md) for what that costs.
 
-## The TomTom key
+## The Google Maps key
 
 ```bash
 # frontend/.env  (gitignored)
-VITE_TOMTOM_API_KEY=your-key-here
+VITE_GOOGLE_MAPS_API_KEY=your-key-here
+VITE_GOOGLE_MAPS_MAP_ID=              # optional; DEMO_MAP_ID is used when blank
 ```
 
-Get one free at <https://developer.tomtom.com/> — the **Maps SDK for Web** product.
-The free tier covers development use comfortably.
+Create one in the Google Cloud console and enable **Maps JavaScript API**,
+**Places API (New)**, and **Routes API** on it. The backend imports this same
+file, so the one key also backs server-side place search.
+
+Advanced markers are vector-only and need a map id; Google's `DEMO_MAP_ID` is used
+when none is set. A styled id from the Cloud console themes the basemap without
+touching any code.
 
 **Without a key the page still works.** `isMapAvailable()` returns false and
 `SchematicMap` renders instead: same real coordinates, same selection interaction,
 same route cards, same recommendations — just no street basemap. A missing map key
 degrades the view, not the product.
 
-The SDK is loaded with a dynamic `import()` so its ~800KB stays out of the initial
-bundle for users who never open Plan Trip.
+The SDK is loaded through Google's dynamic-library bootstrap, requested on demand,
+so it stays out of the initial bundle for users who never open Plan Trip. Libraries
+are imported individually (`maps`, `marker`) so a failure names the one that broke.
 
 ## What a key would add
 
@@ -91,7 +100,10 @@ bundle for users who never open Plan Trip.
 | Fit viewport to journey | Yes | implemented |
 | Click a line to select a route | Yes | implemented |
 | Schematic fallback | No | working now |
-| Geocoding free-text places | Server-side TomTom key | implemented |
+| Geocoding free-text places | Same key, server-side | implemented |
 
-TomTom Search resolves arbitrary U.S. place text when `TOMTOM_API_KEY` is configured.
-Imported GTFS stops and the built-in gazetteer remain the fallback search sources.
+Google Places Text Search resolves arbitrary U.S. place text when
+`GOOGLE_MAPS_API_KEY` is configured — text search rather than plain geocoding
+because "NJIT" and "Times Square" are points of interest, not postal addresses,
+and a rider types those far more often than a house number. Imported GTFS stops
+and the built-in gazetteer remain the fallback search sources.

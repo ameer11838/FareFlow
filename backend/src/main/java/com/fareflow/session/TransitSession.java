@@ -69,8 +69,16 @@ public class TransitSession {
     private long spentWeekBeforeCents;
     @Column(name = "pricing_version", nullable = false, updatable = false)
     private String pricingVersion;
-    @Column(name = "progress_source", nullable = false, updatable = false)
-    private String progressSource;
+    // Updatable, unlike the rest of the session's provenance: a trip starts on the
+    // rider's word and is upgraded the first time a fix corroborates a stop.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "progress_source", nullable = false)
+    private ProgressSource progressSource;
+
+    @Column(name = "verified_stop_count", nullable = false)
+    private int verifiedStopCount;
+    @Column(name = "contradicted_stop_count", nullable = false)
+    private int contradictedStopCount;
 
     @Column(name = "idempotency_key", nullable = false, updatable = false)
     private String idempotencyKey;
@@ -124,7 +132,7 @@ public class TransitSession {
         session.baseFareCents = 0L;
         session.distanceFareCents = 0L;
         session.stopFareCents = 0L;
-        session.progressSource = "RIDER_CONFIRMED";
+        session.progressSource = ProgressSource.RIDER_CONFIRMED;
         session.idempotencyKey = idempotencyKey;
         session.requestFingerprint = requestFingerprint;
         session.startedAt = now;
@@ -134,7 +142,8 @@ public class TransitSession {
     }
 
     public void advance(UsageFareEngine.StopFarePoint fare,
-                        TransitProgressOutcome outcome, Instant now) {
+                        TransitProgressOutcome outcome, Instant now,
+                        StopVerification verification) {
         requireActive();
         if (progressUnitsCompleted >= progressUnitsTotal) {
             throw new InvalidStateException("Every recorded stop on this route is already complete");
@@ -152,6 +161,11 @@ public class TransitSession {
         concessionDiscountCents = Math.addExact(
                 concessionDiscountCents, fare.concessionDiscountCents());
         capDiscountCents = Math.addExact(capDiscountCents, fare.capDiscountCents());
+        if (verification.status().isVerified()) verifiedStopCount++;
+        if (verification.status().isContradicted()) contradictedStopCount++;
+        // A trip is only called location-verified once something actually was.
+        // Anything less keeps the honest label: the rider's own word.
+        if (verifiedStopCount > 0) progressSource = ProgressSource.LOCATION_VERIFIED;
         status = TransitSessionStatus.IN_PROGRESS;
         updatedAt = now;
     }
@@ -208,7 +222,9 @@ public class TransitSession {
     public long getSpentTodayBeforeCents() { return spentTodayBeforeCents; }
     public long getSpentWeekBeforeCents() { return spentWeekBeforeCents; }
     public String getPricingVersion() { return pricingVersion; }
-    public String getProgressSource() { return progressSource; }
+    public ProgressSource getProgressSource() { return progressSource; }
+    public int getVerifiedStopCount() { return verifiedStopCount; }
+    public int getContradictedStopCount() { return contradictedStopCount; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestFingerprint() { return requestFingerprint; }
     public Instant getStartedAt() { return startedAt; }

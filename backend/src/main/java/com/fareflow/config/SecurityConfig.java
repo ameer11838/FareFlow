@@ -90,6 +90,10 @@ public class SecurityConfig {
                         // personal data in it, exactly like the profile catalogue
                         // above. The profile itself, one path segment up, is not.
                         .requestMatchers("/api/profile/options").permitAll()
+                        // Describes the deployment's rails, not the rider's, and
+                        // the checkout needs it before it knows who is paying.
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/payments/rails").permitAll()
                         .requestMatchers("/api/locations/**").permitAll()
                         // Searching is public; taking a journey moves money, so it is not.
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/journeys").permitAll()

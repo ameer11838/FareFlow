@@ -25,6 +25,8 @@ import com.fareflow.trip.TripRepository;
 import com.fareflow.user.User;
 import com.fareflow.session.TransitSession;
 import com.fareflow.session.TransitSessionRepository;
+import com.fareflow.xrpl.RlusdGateway;
+import com.fareflow.xrpl.XrplRailException;
 import com.fareflow.session.TransitSessionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +68,7 @@ public class PaymentService {
     private final LedgerService ledgerService;
     private final BudgetService budgetService;
     private final SimulatedCardGateway cardGateway;
+    private final RlusdGateway rlusdGateway;
     private final TransitSessionRepository sessionRepository;
     private final Clock clock;
 
@@ -78,6 +81,7 @@ public class PaymentService {
                           LedgerService ledgerService,
                           BudgetService budgetService,
                           SimulatedCardGateway cardGateway,
+                          RlusdGateway rlusdGateway,
                           TransitSessionRepository sessionRepository,
                           Clock clock) {
         this.locationService = locationService;
@@ -89,6 +93,7 @@ public class PaymentService {
         this.ledgerService = ledgerService;
         this.budgetService = budgetService;
         this.cardGateway = cardGateway;
+        this.rlusdGateway = rlusdGateway;
         this.sessionRepository = sessionRepository;
         this.clock = clock;
     }
@@ -374,6 +379,24 @@ public class PaymentService {
                 return null;
             }
             reference = authorization.providerReference();
+        } else if (intent.getPaymentMethod() == PaymentMethod.XRPL_RLUSD) {
+            // The only rail that moves value outside this transaction. Once the
+            // ledger accepts the payment it cannot be rolled back with the row, so
+            // the hash is written to the intent before anything else can fail --
+            // an unrecorded on-ledger payment is worse than a failed one, and the
+            // memo carries this intent's id so reconciliation can still find it.
+            RlusdGateway.Settlement settlement;
+            try {
+                settlement = rlusdGateway.settle(
+                        intent.getUserId(), intent.getAmountCents(), intent.getId().toString());
+            } catch (XrplRailException exception) {
+                PaymentStatus previous = intent.fail(
+                        "XRPL_SETTLEMENT_FAILED", exception.getMessage(), now);
+                event(intent, previous, PaymentStatus.FAILED, exception.getMessage(), now);
+                return null;
+            }
+            intent.recordLedgerSettlement(settlement.hash(), settlement.network());
+            reference = settlement.hash();
         } else {
             reference = "fareflow_wallet_%s_%d"
                     .formatted(intent.getId(), intent.getAttemptCount() + 1);

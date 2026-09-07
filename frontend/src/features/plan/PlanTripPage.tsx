@@ -15,6 +15,7 @@ import { PlannerCard } from './PlannerCard'
 import { RouteDrawer } from './RouteDrawer'
 import { TransitSessionSheet } from './TransitSessionSheet'
 import { RouteMap } from './map/RouteMap'
+import { captureRiderPosition } from './location/riderPosition'
 
 /**
  * Map-first Plan Trip.
@@ -263,8 +264,13 @@ export function PlanTripPage() {
     setChoosingJourneyId(tripCandidate?.journeyId ?? session.id)
     setPaymentError(null)
     try {
+      // Only a reached stop claims the rider is somewhere. A skipped or diverted
+      // boundary asserts the opposite, so asking for a fix would be noise.
+      const position = action === 'advance' && outcome === 'REACHED'
+        ? await captureRiderPosition()
+        : null
       const updated = action === 'advance'
-        ? await transitSessionsApi.advance(session.id, outcome)
+        ? await transitSessionsApi.advance(session.id, outcome, position)
         : await transitSessionsApi.end(session.id)
       setSession(updated)
       setActiveLegIndex(updated.activeLegIndex)

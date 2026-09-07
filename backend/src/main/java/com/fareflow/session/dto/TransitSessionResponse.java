@@ -44,6 +44,10 @@ public record TransitSessionResponse(
         long distanceTravelledMetres,
         long plannedDistanceMetres,
         String progressSource,
+        /** Stops corroborated by a location fix inside the stop's geofence. */
+        int verifiedStops,
+        /** Stops where a usable fix placed the rider outside it. Charged, flagged. */
+        int contradictedStops,
         long estimatedFareMinCents,
         long estimatedFareMaxCents,
         Long publishedFareCents,
@@ -122,7 +126,11 @@ public record TransitSessionResponse(
             long amountCents,
             long cumulativeFareCents,
             String description,
-            Instant occurredAt
+            Instant occurredAt,
+            String verificationStatus,
+            /** Straight-line metres from the reported position to the stop. */
+            Double verificationDistanceMetres,
+            String verificationNote
     ) {
     }
 
@@ -187,7 +195,10 @@ public record TransitSessionResponse(
                 event.getGrossCents(), event.getTransferDiscountCents(),
                 event.getConcessionDiscountCents(), event.getCapDiscountCents(),
                 event.getAmountCents(), event.getCumulativeFareCents(), event.getDescription(),
-                event.getOccurredAt())).toList();
+                event.getOccurredAt(),
+                event.getVerificationStatus() == null ? null : event.getVerificationStatus().name(),
+                event.getVerificationDistanceMetres(),
+                event.getVerificationNote())).toList();
 
         return new TransitSessionResponse(
                 session.getId(),
@@ -218,7 +229,9 @@ public record TransitSessionResponse(
                         : session.getPlannedStopCount(),
                 session.getDistanceTravelledMetres(),
                 session.getPlannedDistanceMetres(),
-                session.getProgressSource(),
+                session.getProgressSource().name(),
+                session.getVerifiedStopCount(),
+                session.getContradictedStopCount(),
                 session.getEstimatedFareMinCents(),
                 session.getEstimatedFareMaxCents(),
                 journey.getTotalFareCents(),

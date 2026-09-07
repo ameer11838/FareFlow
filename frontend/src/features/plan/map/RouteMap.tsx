@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JourneyOption, LocationCandidate, TransitStop } from '../../../api/types'
-import { boundsOf, isMapAvailable, loadTomTom, ROUTE_COLORS, type LngLat } from './tomtom'
+import {
+  boundsOf, isMapAvailable, loadGoogleMaps, GOOGLE_MAPS_MAP_ID, ROUTE_COLORS, type LngLat,
+} from './googleMaps'
 import { SchematicMap } from './SchematicMap'
 
 /**
- * TomTom map showing every candidate route, with the selected one highlighted.
+ * Google map showing every candidate route, with the selected one highlighted.
  *
  * Responsibilities are kept narrow on purpose: this component draws coordinates
  * and reports clicks. It does not know what a fare is, which route is recommended,
  * or how routes are scored — it is handed a selection and renders it.
  *
- * When no TomTom key is configured it renders {@link SchematicMap} instead, so the
- * page remains fully usable.
+ * When no Google Maps key is configured it renders {@link SchematicMap} instead,
+ * so the page remains fully usable.
  */
 export function RouteMap({
   journeys, selectedJourneyId, highlightedJourneyId, activeLegIndex,
@@ -42,12 +44,16 @@ export function RouteMap({
   nearbyStops?: TransitStop[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const contextMarkersRef = useRef<any[]>([])
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const polylinesRef = useRef<google.maps.Polyline[]>([])
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([])
+  const contextMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([])
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
-  const renderedLayersRef = useRef<string[]>([])
-  const renderedSourcesRef = useRef<string[]>([])
+  // The last viewport a effect asked for, replayed when the container resizes.
+  const lastFitRef = useRef<{
+    bounds: google.maps.LatLngBoundsLiteral
+    padding: number | google.maps.Padding
+  } | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
@@ -66,64 +72,65 @@ export function RouteMap({
     if (!isMapAvailable() || !containerRef.current) return
 
     let cancelled = false
-    let map: any
+    let map: google.maps.Map | undefined
     let loadTimeout = 0
 
-    loadTomTom()
-      .then((tt) => {
+    loadGoogleMaps()
+      .then(({ maps }) => {
         if (cancelled || !containerRef.current) return
 
-        if (cancelled) return
-        map = tt.map({
-          key: (import.meta.env.VITE_TOMTOM_API_KEY ?? '').trim(),
-          container: containerRef.current,
-          center: [-74.05, 40.73],
+        map = new maps.Map(containerRef.current, {
+          center: { lat: 40.73, lng: -74.05 },
           zoom: 10.5,
-          dragRotate: false,
-          pitchWithRotate: false,
+          mapId: GOOGLE_MAPS_MAP_ID,
+          // The rider is picking a route, not touring a city: rotation and
+          // Street View are noise, and a tilted basemap makes a polyline harder
+          // to trace. Zoom stays, because comparing routes needs it.
+          disableDefaultUI: true,
+          zoomControl: true,
+          zoomControlOptions: { position: maps.ControlPosition.RIGHT_BOTTOM },
+          clickableIcons: false,
+          gestureHandling: 'greedy',
+          isFractionalZoomEnabled: true,
         })
-        map.addControl(new tt.NavigationControl({ showCompass: false }), 'bottom-right')
 
         // The map is created inside an async callback, and in a flex column the
-        // container can still report clientHeight 0 at that moment. mapbox-gl then
-        // falls back to a hardcoded 300px canvas and never recovers on its own.
-        // Observing the container and calling resize() fixes it for good, and also
-        // handles the window being resized later.
+        // container can still report clientHeight 0 at that moment. Replaying the
+        // last requested viewport once the container has real size stops the map
+        // settling on a framing that was computed against a zero-height box.
         resizeObserverRef.current = new ResizeObserver(() => {
+          const fit = lastFitRef.current
+          if (!fit || !mapRef.current) return
           try {
-            map.resize()
+            mapRef.current.fitBounds(fit.bounds, fit.padding as never)
           } catch {
             // Map torn down mid-observation; nothing to do.
           }
         })
         resizeObserverRef.current.observe(containerRef.current)
 
-        map.on('load', () => {
+        maps.event.addListenerOnce(map, 'idle', () => {
           if (cancelled) return
           window.clearTimeout(loadTimeout)
-          mapRef.current = map
-          map.resize()
+          mapRef.current = map ?? null
           setReady(true)
         })
 
-        // Guard against a style that never finishes loading -- a stalled tile
+        // Guard against a basemap that never finishes loading -- a stalled tile
         // request, a blocked network, or a GPU that cannot back a GL context.
         // Kept short: an empty grey rectangle is worse than a working schematic,
-        // and a healthy map fires `load` in well under a second.
+        // and a healthy map goes idle in well under a second.
         loadTimeout = window.setTimeout(() => {
           if (!cancelled && !mapRef.current) {
             setFailed('The map did not finish loading — showing the schematic view instead.')
           }
         }, 6_000)
-        map.on('error', () => {
-          if (!cancelled) setFailed('TomTom rejected the request. Check that VITE_TOMTOM_API_KEY is valid.')
-        })
       })
       .catch((caught: unknown) => {
         // Surface the real reason -- "could not be loaded" is useless to a developer.
         const detail = caught instanceof Error ? caught.message : String(caught)
-        console.error('[FareFlow] TomTom map failed to initialise:', caught)
-        if (!cancelled) setFailed(`The TomTom map could not start: ${detail}`)
+        console.error('[FareFlow] Google map failed to initialise:', caught)
+        if (!cancelled) setFailed(`The Google map could not start: ${detail}`)
       })
 
     return () => {
@@ -131,11 +138,7 @@ export function RouteMap({
       window.clearTimeout(loadTimeout)
       resizeObserverRef.current?.disconnect()
       resizeObserverRef.current = null
-      try {
-        map?.remove()
-      } catch {
-        // Map may already be torn down; nothing to clean up.
-      }
+      clearOverlays(polylinesRef, markersRef, contextMarkersRef)
       mapRef.current = null
     }
   }, [])
@@ -145,73 +148,44 @@ export function RouteMap({
     const map = mapRef.current
     if (!ready || !map) return
 
-    // Remove every id from the previous render. Candidate ids can change between
-    // searches, so deriving cleanup ids from the new result would leak old layers.
-    for (const id of [...renderedLayersRef.current].reverse()) {
-      if (map.getLayer(id)) map.removeLayer(id)
-    }
-    for (const id of renderedSourcesRef.current) {
-      if (map.getSource(id)) map.removeSource(id)
-    }
-    renderedLayersRef.current = []
-    renderedSourcesRef.current = []
-    markersRef.current.forEach((marker) => marker.remove())
-    markersRef.current = []
+    // Overlays are owned outright rather than diffed: candidate ids change between
+    // searches, so reconciling against the new result would leak the old lines.
+    clearOverlays(polylinesRef, markersRef)
 
     if (drawable.length === 0) return
 
-    void loadTomTom().then((tt) => {
+    void loadGoogleMaps().then(({ maps, marker }) => {
       if (!mapRef.current) return
 
       // Unselected routes first so the selected line always draws on top.
       const ordered = [...drawable].sort((a, b) =>
         Number(a.id === selectedJourneyId) - Number(b.id === selectedJourneyId))
 
-      for (const route of ordered) {
+      ordered.forEach((route, index) => {
         const isSelected = route.id === selectedJourneyId
         const isHighlighted = route.id === highlightedJourneyId
-        const coordinates = route.waypoints.map((point) => [point.longitude, point.latitude])
-        const lineId = `route-line-${route.id}`
-        const hitId = `route-hit-${route.id}`
+        const path = route.waypoints.map((point) => ({
+          lat: point.latitude, lng: point.longitude,
+        }))
+        // Google provides actual route polylines. Local stop-to-stop fallback
+        // geometry stays dashed so it is never presented as surveyed track.
+        const dashed = !route.hasProviderGeometry && !isSelected
 
-        map.addSource(lineId, {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: { journeyId: route.id },
-            geometry: { type: 'LineString', coordinates },
-          },
-        })
-        renderedSourcesRef.current.push(lineId)
-
-        map.addLayer({
-          id: lineId,
-          type: 'line',
-          source: lineId,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': isSelected || isHighlighted ? ROUTE_COLORS.selected : ROUTE_COLORS.muted,
-            'line-width': isSelected ? 6 : isHighlighted ? 5 : 3.5,
-            'line-opacity': isSelected ? 1 : isHighlighted ? 0.85 : 0.45,
-            // Google provides actual route polylines. Local stop-to-stop fallback
-            // geometry remains dashed so it is never presented as surveyed track.
-            'line-dasharray': route.hasProviderGeometry || isSelected ? [1, 0] : [2, 1.6],
-          },
-        })
-        renderedLayersRef.current.push(lineId)
+        polylinesRef.current.push(new maps.Polyline({
+          map,
+          path,
+          clickable: false,
+          zIndex: 10 + index,
+          strokeColor: isSelected || isHighlighted ? ROUTE_COLORS.selected : ROUTE_COLORS.muted,
+          strokeWeight: isSelected ? 6 : isHighlighted ? 5 : 3.5,
+          strokeOpacity: dashed ? 0 : isSelected ? 1 : isHighlighted ? 0.85 : 0.45,
+          ...(dashed ? { icons: dashPattern(3.5, 0.45) } : {}),
+        }))
 
         // A wide invisible line makes the route easy to click without thickening it.
-        map.addLayer({
-          id: hitId,
-          type: 'line',
-          source: lineId,
-          paint: { 'line-color': '#000', 'line-width': 22, 'line-opacity': 0 },
-        })
-        renderedLayersRef.current.push(hitId)
-        map.on('click', hitId, () => onSelectJourney(route.id))
-        map.on('mouseenter', hitId, () => { map.getCanvas().style.cursor = 'pointer' })
-        map.on('mouseleave', hitId, () => { map.getCanvas().style.cursor = '' })
-      }
+        polylinesRef.current.push(clickTarget(
+          maps, map, path, 22, 30 + index, () => onSelectJourney(route.id)))
+      })
 
       // Draw the selected journey leg-by-leg over the route corridor. Walking is
       // dashed; transit is solid. Each segment has its own generous hit target so
@@ -219,45 +193,28 @@ export function RouteMap({
       const selected = journeys.find((journey) => journey.journeyId === selectedJourneyId)
       selected?.legs.forEach((leg, legIndex) => {
         if (leg.waypoints.length < 2) return
-        const sourceId = `route-leg-source-${selected.journeyId}-${legIndex}`
-        const layerId = `route-leg-${selected.journeyId}-${legIndex}`
-        const hitId = `route-leg-hit-${selected.journeyId}-${legIndex}`
         const active = activeLegIndex === legIndex
-        map.addSource(sourceId, {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: { journeyId: selected.journeyId, legIndex },
-            geometry: {
-              type: 'LineString',
-              coordinates: leg.waypoints.map((point) => [point.longitude, point.latitude]),
-            },
-          },
-        })
-        renderedSourcesRef.current.push(sourceId)
-        map.addLayer({
-          id: layerId,
-          type: 'line',
-          source: sourceId,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': active ? ROUTE_COLORS.selected : '#18202b',
-            'line-width': active ? 8 : 5,
-            'line-opacity': activeLegIndex === null || active ? 1 : .42,
-            'line-dasharray': leg.mode === 'WALK' ? [1, 1.8] : [1, 0],
-          },
-        })
-        renderedLayersRef.current.push(layerId)
-        map.addLayer({
-          id: hitId,
-          type: 'line',
-          source: sourceId,
-          paint: { 'line-color': '#000', 'line-width': 24, 'line-opacity': 0 },
-        })
-        renderedLayersRef.current.push(hitId)
-        map.on('click', hitId, () => onSelectLeg?.(selected.journeyId, legIndex))
-        map.on('mouseenter', hitId, () => { map.getCanvas().style.cursor = 'pointer' })
-        map.on('mouseleave', hitId, () => { map.getCanvas().style.cursor = '' })
+        const path = leg.waypoints.map((point) => ({
+          lat: point.latitude, lng: point.longitude,
+        }))
+        const opacity = activeLegIndex == null || active ? 1 : 0.42
+        const walking = leg.mode === 'WALK'
+        const weight = active ? 8 : 5
+
+        polylinesRef.current.push(new maps.Polyline({
+          map,
+          path,
+          clickable: false,
+          zIndex: active ? 70 : 60,
+          strokeColor: active ? ROUTE_COLORS.selected : '#18202b',
+          strokeWeight: weight,
+          strokeOpacity: walking ? 0 : opacity,
+          ...(walking ? { icons: dashPattern(weight, opacity) } : {}),
+        }))
+
+        polylinesRef.current.push(clickTarget(
+          maps, map, path, 24, 80,
+          () => onSelectLeg?.(selected.journeyId, legIndex)))
       })
 
       // Origin and destination markers come from the selected route's endpoints.
@@ -267,12 +224,18 @@ export function RouteMap({
       const last = points[points.length - 1]
 
       markersRef.current.push(
-        new tt.Marker({ element: endpointMarker('origin', first.name) })
-          .setLngLat([first.longitude, first.latitude])
-          .addTo(map),
-        new tt.Marker({ element: endpointMarker('destination', last.name) })
-          .setLngLat([last.longitude, last.latitude])
-          .addTo(map),
+        new marker.AdvancedMarkerElement({
+          map,
+          position: { lat: first.latitude, lng: first.longitude },
+          content: endpointMarker('origin', first.name),
+          zIndex: 100,
+        }),
+        new marker.AdvancedMarkerElement({
+          map,
+          position: { lat: last.latitude, lng: last.longitude },
+          content: endpointMarker('destination', last.name),
+          zIndex: 100,
+        }),
       )
 
       // One marker per transit stop boundary. Intermediate Google markers are
@@ -281,18 +244,17 @@ export function RouteMap({
         const state = activeStopSequence == null ? 'upcoming'
           : point.sequence < activeStopSequence ? 'completed'
             : point.sequence === activeStopSequence ? 'current' : 'upcoming'
-        markersRef.current.push(
-          new tt.Marker({
-            element: stopMarker(
-              point.name,
-              point.marker,
-              state,
-              state === 'current' ? activeStopName : null,
-            ),
-          })
-            .setLngLat([point.longitude, point.latitude])
-            .addTo(map),
-        )
+        markersRef.current.push(new marker.AdvancedMarkerElement({
+          map,
+          position: { lat: point.latitude, lng: point.longitude },
+          content: stopMarker(
+            point.name,
+            point.marker,
+            state,
+            state === 'current' ? activeStopName : null,
+          ),
+          zIndex: state === 'current' ? 120 : 90,
+        }))
       }
     })
   }, [
@@ -306,32 +268,31 @@ export function RouteMap({
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
-    contextMarkersRef.current.forEach((marker) => marker.remove())
-    contextMarkersRef.current = []
+    clearOverlays(contextMarkersRef)
     setSelectedStop(null)
     if (drawable.length > 0) return
 
-    void loadTomTom().then((tt) => {
+    void loadGoogleMaps().then(({ marker }) => {
       if (!mapRef.current || drawable.length > 0) return
       for (const stop of nearbyStops) {
         const element = transitStopMarker(stop)
         element.addEventListener('click', (event) => {
           event.stopPropagation()
           setSelectedStop(stop)
-          map.easeTo({ center: [stop.longitude, stop.latitude], duration: 350 })
+          map.panTo({ lat: stop.latitude, lng: stop.longitude })
         })
-        contextMarkersRef.current.push(
-          new tt.Marker({ element })
-            .setLngLat([stop.longitude, stop.latitude])
-            .addTo(map),
-        )
+        contextMarkersRef.current.push(new marker.AdvancedMarkerElement({
+          map,
+          position: { lat: stop.latitude, lng: stop.longitude },
+          content: element,
+        }))
       }
       for (const place of focusLocations) {
-        contextMarkersRef.current.push(
-          new tt.Marker({ element: placeMarker(place.displayName) })
-            .setLngLat([place.longitude, place.latitude])
-            .addTo(map),
-        )
+        contextMarkersRef.current.push(new marker.AdvancedMarkerElement({
+          map,
+          position: { lat: place.latitude, lng: place.longitude },
+          content: placeMarker(place.displayName),
+        }))
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -349,7 +310,7 @@ export function RouteMap({
       lng: point.longitude,
       lat: point.latitude,
     })))
-    if (bounds) map.fitBounds(bounds, { padding: 140, maxZoom: 15, duration: 550 })
+    if (bounds) fit(map, lastFitRef, bounds, 140)
   }, [ready, journeys, selectedJourneyId, activeLegIndex])
 
   // ---- Frame the saved commute before anything has been searched ----
@@ -361,9 +322,8 @@ export function RouteMap({
     const bounds = boundsOf(focus)
     if (!bounds) return
 
-    map.resize()
     try {
-      map.fitBounds(bounds, { padding: 90, maxZoom: 12, duration: 0 })
+      fit(map, lastFitRef, bounds, 90)
     } catch {
       // A viewport too small to fit anything: leave the default framing alone.
     }
@@ -382,27 +342,21 @@ export function RouteMap({
     const bounds = boundsOf(points)
     if (!bounds) return
 
-    // Make sure the canvas matches its container before fitting: mapbox-gl falls
-    // back to a 400x300 canvas when the container reported no size at creation.
-    map.resize()
-
     // Padding must leave room, or fitBounds produces an invalid viewport that
-    // resolves no tiles at all -- a blank map rather than a zoomed-out one.
-    const canvas = map.getCanvas()
-    const width = canvas.clientWidth || canvas.width
-    const height = canvas.clientHeight || canvas.height
+    // resolves no tiles at all -- a blank map rather than a zoomed-out one. The
+    // left inset is generous because the route drawer overlays that edge.
+    const element = map.getDiv() as HTMLElement
+    const width = element.clientWidth || 800
+    const height = element.clientHeight || 600
 
     const clamp = (value: number, available: number) =>
       Math.max(0, Math.min(value, Math.floor(available * 0.35)))
 
-    map.fitBounds(bounds, {
-      padding: {
-        top: clamp(110, height),
-        bottom: clamp(200, height),
-        left: clamp(400, width),
-        right: clamp(80, width),
-      },
-      duration: 600,
+    fit(map, lastFitRef, bounds, {
+      top: clamp(110, height),
+      bottom: clamp(200, height),
+      left: clamp(400, width),
+      right: clamp(80, width),
     })
     // Refit only when the journey itself changes, not on every selection.
   }, [ready, journeys])
@@ -426,10 +380,17 @@ export function RouteMap({
   return (
     <div
       className={`map-canvas${ready ? ' map-ready' : ''}`}
-      ref={containerRef}
-      data-testid="tomtom-map"
+      data-testid="google-map"
       aria-label="Route map"
     >
+      {/*
+        The map gets a child of its own that React never puts anything inside.
+        `new maps.Map(el)` takes ownership of its container and replaces the
+        children wholesale, so sharing one element with React's overlays makes
+        React try to remove nodes Google has already swapped out — which throws
+        `removeChild: not a child of this node` and unmounts the whole page.
+      */}
+      <div className="map-surface" ref={containerRef} />
       {!ready && (
         <div className="map-loading">
           <div className="skeleton" style={{ width: 120, height: 12 }} />
@@ -457,6 +418,75 @@ export function RouteMap({
       )}
     </div>
   )
+}
+
+/**
+ * A dashed stroke.
+ *
+ * Google draws dashes as repeated symbols along a zero-opacity line rather than
+ * with a dash array, so the line's own `strokeOpacity` must be 0 and the dash
+ * carries the colour weight instead.
+ */
+function dashPattern(weight: number, opacity: number): google.maps.IconSequence[] {
+  return [{
+    icon: {
+      path: 'M 0,-1 0,1',
+      strokeOpacity: opacity,
+      strokeWeight: weight,
+      scale: 1.6,
+    },
+    offset: '0',
+    repeat: `${Math.round(weight * 2.6)}px`,
+  }]
+}
+
+/** A fat transparent line: easy to click, invisible on the basemap. */
+function clickTarget(
+  maps: typeof google.maps,
+  map: google.maps.Map,
+  path: google.maps.LatLngLiteral[],
+  weight: number,
+  zIndex: number,
+  onClick: () => void,
+): google.maps.Polyline {
+  const line = new maps.Polyline({
+    map, path, zIndex,
+    clickable: true,
+    strokeColor: '#000000',
+    strokeOpacity: 0,
+    strokeWeight: weight,
+  })
+  line.addListener('click', onClick)
+  return line
+}
+
+/** Fits the viewport and remembers the request so a resize can replay it. */
+function fit(
+  map: google.maps.Map,
+  lastFitRef: { current: { bounds: google.maps.LatLngBoundsLiteral; padding: number | google.maps.Padding } | null },
+  bounds: google.maps.LatLngBoundsLiteral,
+  padding: number | google.maps.Padding,
+) {
+  lastFitRef.current = { bounds, padding }
+  map.fitBounds(bounds, padding as never)
+}
+
+/** Detaches every overlay in the given refs and empties them. */
+function clearOverlays(
+  ...refs: Array<{ current: Array<google.maps.Polyline | google.maps.marker.AdvancedMarkerElement> }>
+) {
+  for (const ref of refs) {
+    for (const overlay of ref.current) {
+      try {
+        // Polylines detach through setMap; advanced markers through a property.
+        if ('setMap' in overlay) overlay.setMap(null)
+        else overlay.map = null
+      } catch {
+        // Already detached with the map itself; nothing to do.
+      }
+    }
+    ref.current = []
+  }
 }
 
 function endpointMarker(kind: 'origin' | 'destination', label: string): HTMLElement {

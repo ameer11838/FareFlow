@@ -66,7 +66,7 @@ public class LocationService {
         // This ordering is not a fallback, it is a correctness decision. A generic
         // POI search can resolve a city nickname to a same-named business. The
         // gazetteer protects familiar aliases while GTFS supplies authoritative
-        // station identities and TomTom covers the nationwide long tail.
+        // station identities and Google covers the nationwide long tail.
         // Pull enough candidates from every source before trimming. Otherwise a
         // broad built-in city match ("Chicago") can crowd out the precise station
         // or address the rider actually typed ("Chicago Union Station").

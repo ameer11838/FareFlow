@@ -30,6 +30,8 @@ import type {
   PaymentReconciliation,
   TransitSession,
   TransitStop,
+  RiderPosition,
+  PaymentRails,
 } from './types'
 
 export const authApi = {
@@ -136,6 +138,14 @@ export const journeysApi = {
 }
 
 export const paymentsApi = {
+  /**
+   * Which rails this deployment can complete.
+   *
+   * Asked up front so an unconfigured rail is simply absent from the checkout,
+   * rather than offered and then failing at the moment the rider commits.
+   */
+  rails: () => api.get<PaymentRails>('/api/payments/rails'),
+
   create: (
     body: {
       from: string
@@ -171,8 +181,22 @@ export const transitSessionsApi = {
     '/api/transit-sessions', body, { 'Idempotency-Key': idempotencyKey }),
   active: () => api.get<TransitSession | null>('/api/transit-sessions/active'),
   get: (id: string) => api.get<TransitSession>(`/api/transit-sessions/${id}`),
-  advance: (id: string, outcome: 'REACHED' | 'SKIPPED' | 'DIVERTED' = 'REACHED') =>
-    api.post<TransitSession>(`/api/transit-sessions/${id}/advance`, { outcome }),
+  /**
+   * Confirms the next stop, optionally with where the rider says they are.
+   *
+   * The position is evidence, never permission: the server charges the same fare
+   * without it, so a refused permission or a lost fix underground must not stop
+   * the caller from advancing.
+   */
+  advance: (
+    id: string,
+    outcome: 'REACHED' | 'SKIPPED' | 'DIVERTED' = 'REACHED',
+    position?: RiderPosition | null,
+  ) =>
+    api.post<TransitSession>(`/api/transit-sessions/${id}/advance`, {
+      outcome,
+      ...(position ?? {}),
+    }),
   end: (id: string) =>
     api.post<TransitSession>(`/api/transit-sessions/${id}/end`),
   pay: (

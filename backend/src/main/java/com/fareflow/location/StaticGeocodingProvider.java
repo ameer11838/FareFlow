@@ -7,7 +7,7 @@ import java.util.Locale;
  * A small built-in gazetteer of places FareFlow's network actually serves.
  *
  * <p>Two jobs. It backs every unit and integration test, so the suite never touches
- * a third-party API. And it is the fallback when TomTom is unreachable or no key is
+ * a third-party API. And it is the fallback when Google is unreachable or no key is
  * configured, which keeps the product usable rather than dead.
  *
  * <p>Coordinates are real published locations.

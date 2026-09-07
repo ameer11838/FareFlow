@@ -138,6 +138,47 @@ class TransitSessionIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.finalFareCents", is(0)));
     }
 
+    @Test
+    @DisplayName("a stop confirmed from far away is still charged, and flagged")
+    void contradictedStopIsChargedAndFlagged() throws Exception {
+        String id = start("far-away-trip");
+
+        // Denver, while the route runs Newark to Manhattan. The fare must not
+        // change: refusing to advance would strand the rider in a session they
+        // could never end or pay. The record is what changes.
+        mockMvc.perform(post("/api/transit-sessions/{id}/advance", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "latitude", 39.7392, "longitude", -104.9903,
+                                "accuracyMetres", 8.0))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.completedStops", is(1)))
+                .andExpect(jsonPath("$.currentFareCents", greaterThan(0)))
+                .andExpect(jsonPath("$.verifiedStops", is(0)))
+                .andExpect(jsonPath("$.contradictedStops", is(1)))
+                .andExpect(jsonPath("$.progressSource", is("RIDER_CONFIRMED")))
+                .andExpect(jsonPath("$.fareEvents[0].verificationStatus",
+                        is("UNVERIFIED_TOO_FAR")))
+                .andExpect(jsonPath("$.fareEvents[0].verificationDistanceMetres",
+                        greaterThan(1_000.0)));
+    }
+
+    @Test
+    @DisplayName("confirming without a location still charges and stays unverified")
+    void missingPositionStillCharges() throws Exception {
+        String id = start("no-fix-trip");
+
+        // No body at all: the rider declined the permission, or has no fix.
+        mockMvc.perform(post("/api/transit-sessions/{id}/advance", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentFareCents", greaterThan(0)))
+                .andExpect(jsonPath("$.verifiedStops", is(0)))
+                .andExpect(jsonPath("$.contradictedStops", is(0)))
+                .andExpect(jsonPath("$.fareEvents[0].verificationStatus",
+                        is("UNVERIFIED_NO_FIX")))
+                .andExpect(jsonPath("$.fareEvents[0].verificationDistanceMetres").doesNotExist());
+    }
+
     private String start(String key) throws Exception {
         String search = mockMvc.perform(get("/api/journeys")
                         .param("from", "Newark").param("to", "Manhattan"))

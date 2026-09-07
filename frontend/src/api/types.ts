@@ -14,7 +14,7 @@ export interface LocationCandidate {
   latitude: number
   longitude: number
   type: string
-  /** TOMTOM, STATIC, or GTFS — shown so the source of a place is traceable. */
+  /** GOOGLE, STATIC, or GTFS — shown so the source of a place is traceable. */
   source: string
 }
 
@@ -115,7 +115,30 @@ export interface TransitFareEvent {
   cumulativeFareCents: number
   description: string
   occurredAt: string
+  /**
+   * How far FareFlow could corroborate this stop. Evidence only — every value
+   * here was charged identically; the grade never changed the fare.
+   */
+  verificationStatus: StopVerificationStatus | null
+  /** Straight-line metres from the reported position to the stop. */
+  verificationDistanceMetres: number | null
+  verificationNote: string | null
 }
+
+/** What the rider's device reported when they confirmed a stop. */
+export interface RiderPosition {
+  latitude: number
+  longitude: number
+  /** The device's own error radius; without it a distance cannot be judged fairly. */
+  accuracyMetres?: number
+}
+
+export type StopVerificationStatus =
+  | 'VERIFIED'
+  | 'UNVERIFIED_NO_FIX'
+  | 'UNVERIFIED_IMPRECISE'
+  | 'UNVERIFIABLE_STOP'
+  | 'UNVERIFIED_TOO_FAR'
 
 export interface TransitSession {
   id: string
@@ -146,6 +169,10 @@ export interface TransitSession {
   distanceTravelledMetres: number
   plannedDistanceMetres: number
   progressSource: 'RIDER_CONFIRMED' | 'LOCATION_VERIFIED' | 'AGENCY_VERIFIED'
+  /** Stops corroborated by a location fix inside the stop's geofence. */
+  verifiedStops: number
+  /** Stops where a usable fix placed the rider elsewhere. Charged, flagged. */
+  contradictedStops: number
   estimatedFareMinCents: number
   estimatedFareMaxCents: number
   /** Published/provider route fare captured when the journey was selected. */
@@ -680,7 +707,14 @@ export type PaymentStatus =
   | 'FAILED'
   | 'REFUNDED'
 
-export type PaymentRail = 'FAREFLOW_WALLET' | 'SIMULATED_CARD'
+export type PaymentRail = 'FAREFLOW_WALLET' | 'SIMULATED_CARD' | 'XRPL_RLUSD'
+
+/** Which rails this deployment can complete, asked before the rider chooses. */
+export interface PaymentRails {
+  rails: PaymentRail[]
+  /** XRPL network RLUSD settles on, when that rail is available. */
+  network: 'TESTNET' | 'DEVNET' | null
+}
 
 export interface PaymentEvent {
   id: number
@@ -702,6 +736,11 @@ export interface PaymentIntent {
   destination: string
   attemptCount: number
   providerReference: string | null
+  /** On-ledger transaction hash, for fares settled in RLUSD. */
+  xrplTransactionHash: string | null
+  xrplNetwork: 'TESTNET' | 'DEVNET' | null
+  /** Public explorer link — verifiable without trusting FareFlow. */
+  xrplExplorerUrl: string | null
   failureCode: string | null
   failureMessage: string | null
   trip: Trip | null

@@ -62,7 +62,7 @@ public record TransitRouteData(
     /**
      * How much to trust a route's shape.
      *
-     * <p>This distinction exists because TomTom's Routing API has no public-transit
+     * <p>This distinction exists because the curated fallback has no public-transit
      * mode. Drawing a driving route and calling it a train line would be a lie, so
      * clients are told exactly what they are rendering.
      */

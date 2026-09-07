@@ -3,10 +3,10 @@ import type { JourneyOption, LocationCandidate, TransitStop } from '../../../api
 import { AlertIcon } from '../../../components/Icons'
 
 /**
- * Fallback route view used when no TomTom key is configured.
+ * Fallback route view used when no Google Maps key is configured.
  *
  * This is a working fallback, not a placeholder: it projects the same provider
- * geometry and stop coordinates the TomTom layer uses, supports the same selection
+ * geometry and stop coordinates the Google layer uses, supports the same selection
  * interaction, and keeps Plan Trip functional without a street basemap.
  *
  * Rendering it honestly matters: it is clearly labelled as a schematic so nobody
@@ -62,7 +62,7 @@ export function SchematicMap({
         <span>
           <strong>Schematic view.</strong>{' '}
           {reason === 'missing-key'
-            ? 'Set VITE_TOMTOM_API_KEY to load the TomTom basemap.'
+            ? 'Set VITE_GOOGLE_MAPS_API_KEY to load the Google basemap.'
             : reason}{' '}
           {hasGoogleGeometry
             ? ' Google routes use provider geometry; fallback routes connect real stops schematically.'

@@ -22,6 +22,7 @@
              happens to be running on. Belt-and-braces alongside JAVA_HOME. -->
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <xrpl4j.version>3.5.1</xrpl4j.version>
     </properties>
 
     <dependencies>
@@ -85,6 +86,24 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>0.12.6</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- XRP Ledger, for the RLUSD settlement rail.
+             xrpl4j rather than xrpl.js because custodial signing happens here, in
+             Java: a server-held key must never leave the backend, and xrpl.js
+             cannot sign from inside a JVM. The browser still uses xrpl.js, but
+             only to read the ledger back and confirm what this signed.
+             Optional at runtime — with no RLUSD issuer configured the rail
+             reports itself unavailable and the rest of payments is unaffected. -->
+        <dependency>
+            <groupId>org.xrpl</groupId>
+            <artifactId>xrpl4j-core</artifactId>
+            <version>${xrpl4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.xrpl</groupId>
+            <artifactId>xrpl4j-client</artifactId>
+            <version>${xrpl4j.version}</version>
         </dependency>
 
         <!-- Official Google Gen AI SDK: powers the Ask FareFlow assistant.

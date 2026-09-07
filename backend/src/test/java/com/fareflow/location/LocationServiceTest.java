@@ -16,8 +16,8 @@ class LocationServiceTest {
     @Test
     void preciseStationOutranksAContainedCityName() {
         LocationCandidate city = place("static:chicago", "Chicago", 41.8781, -87.6298, "STATIC");
-        LocationCandidate station = place("tomtom:union", "Chicago Union Station",
-                41.878846, -87.639487, "TOMTOM");
+        LocationCandidate station = place("google:union", "Chicago Union Station",
+                41.878846, -87.639487, "GOOGLE");
         LocationService service = service(List.of(station), List.of(city));
 
         assertThat(service.search("Chicago Union Station, Chicago IL", 6))
@@ -31,8 +31,8 @@ class LocationServiceTest {
     void exactCuratedMatchKeepsAuthorityOverAnEquivalentProviderResult() {
         LocationCandidate curated = place("static:philadelphia", "Philadelphia",
                 39.9526, -75.1652, "STATIC");
-        LocationCandidate provider = place("tomtom:philadelphia", "Philadelphia",
-                39.9527, -75.1651, "TOMTOM");
+        LocationCandidate provider = place("google:philadelphia", "Philadelphia",
+                39.9527, -75.1651, "GOOGLE");
         LocationService service = service(List.of(provider), List.of(curated));
 
         assertThat(service.resolve("Philadelphia").orElseThrow()).isEqualTo(curated);
@@ -40,11 +40,11 @@ class LocationServiceTest {
 
     @Test
     void fullStreetAddressOutranksAStreetNameContainedInTheQuery() {
-        LocationCandidate street = place("tomtom:street", "5th Avenue",
-                40.735278, -73.994278, "TOMTOM");
-        LocationCandidate address = place("tomtom:address",
+        LocationCandidate street = place("google:street", "5th Avenue",
+                40.735278, -73.994278, "GOOGLE");
+        LocationCandidate address = place("google:address",
                 "350 5th Avenue, New York, NY 10001",
-                40.748167, -73.985, "TOMTOM");
+                40.748167, -73.985, "GOOGLE");
         LocationService service = service(List.of(street, address), List.of());
 
         assertThat(service.resolve("350 5th Avenue, New York, NY").orElseThrow())

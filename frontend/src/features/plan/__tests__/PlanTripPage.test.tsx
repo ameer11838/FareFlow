@@ -24,10 +24,20 @@ import {
 } from '../../../test/fixtures'
 
 // Map availability is stubbed explicitly so the suite does not depend on whether a
-// TomTom key happens to exist in the local .env.
-vi.mock('../map/tomtom', async () => {
-  const actual = await vi.importActual<typeof import('../map/tomtom')>('../map/tomtom')
-  return { ...actual, isMapAvailable: () => mapAvailable }
+// Google Maps key happens to exist in the local .env.
+//
+// `loadGoogleMaps` is stubbed to stay pending because jsdom cannot execute the
+// real Maps JavaScript API — there is no WebGL context and no network. The
+// component renders its container before the SDK resolves, which is exactly what
+// these tests assert: which of the two map surfaces mounts, not what it draws.
+vi.mock('../map/googleMaps', async () => {
+  const actual =
+    await vi.importActual<typeof import('../map/googleMaps')>('../map/googleMaps')
+  return {
+    ...actual,
+    isMapAvailable: () => mapAvailable,
+    loadGoogleMaps: () => new Promise(() => {}),
+  }
 })
 let mapAvailable = false
 
@@ -345,7 +355,7 @@ describe('PlanTripPage — states and map', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/Could not find a place/)
   })
 
-  it('renders the schematic map when no TomTom key is configured', async () => {
+  it('renders the schematic map when no Google Maps key is configured', async () => {
     mapAvailable = false
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
     renderWithProviders(<PlanTripPage />)
@@ -353,12 +363,12 @@ describe('PlanTripPage — states and map', () => {
     expect(await screen.findByTestId('schematic-map')).toBeInTheDocument()
   })
 
-  it('mounts the TomTom map when a key is configured', async () => {
+  it('mounts the Google map when a key is configured', async () => {
     mapAvailable = true
     vi.spyOn(api.journeysApi, 'search').mockResolvedValue(journeySearch)
     renderWithProviders(<PlanTripPage />)
 
-    expect(await screen.findByTestId('tomtom-map')).toBeInTheDocument()
+    expect(await screen.findByTestId('google-map')).toBeInTheDocument()
     expect(screen.queryByTestId('schematic-map')).not.toBeInTheDocument()
     mapAvailable = false
   })
@@ -410,7 +420,10 @@ describe('PlanTripPage — taking a journey', () => {
     expect(screen.getByText(/\+\$1\.30 when reached/i)).toBeInTheDocument()
     expect(screen.getByText(/waiting time and delays never increase/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /complete next stop/i }))
-    await waitFor(() => expect(advance).toHaveBeenCalledWith(startedTransitSession.id, 'REACHED'))
+    // jsdom exposes no geolocation, so the position resolves to null -- which is
+    // the point: an unavailable fix must still advance the rider.
+    await waitFor(() => expect(advance)
+      .toHaveBeenCalledWith(startedTransitSession.id, 'REACHED', null))
     expect(screen.getAllByText(/You are here · Trenton Transit Center/i)).not.toHaveLength(0)
     expect(screen.getByRole('region', { name: /current fare/i }))
       .toHaveTextContent('$1.30')
@@ -506,7 +519,7 @@ describe('PlanTripPage — location autocomplete', () => {
     const search = vi.spyOn(api.locationsApi, 'search').mockResolvedValue([
       { providerPlaceId: 'p1', displayName: 'Philadelphia, PA', locality: 'Philadelphia',
         region: 'PA', country: 'US', latitude: 39.95, longitude: -75.16,
-        type: 'Geography', source: 'TOMTOM' },
+        type: 'Geography', source: 'GOOGLE' },
     ])
 
     renderWithProviders(<PlanTripPage />)
@@ -522,7 +535,7 @@ describe('PlanTripPage — location autocomplete', () => {
     vi.spyOn(api.locationsApi, 'search').mockResolvedValue([
       { providerPlaceId: 'p1', displayName: 'Philadelphia, PA', locality: 'Philadelphia',
         region: 'PA', country: 'US', latitude: 39.95, longitude: -75.16,
-        type: 'Geography', source: 'TOMTOM' },
+        type: 'Geography', source: 'GOOGLE' },
     ])
 
     renderWithProviders(<PlanTripPage />)
@@ -538,7 +551,7 @@ describe('PlanTripPage — location autocomplete', () => {
     vi.spyOn(api.locationsApi, 'search').mockResolvedValue([
       { providerPlaceId: 'denver-union', displayName: 'Denver Union Station',
         locality: 'Denver', region: 'CO', country: 'US', latitude: 39.7527,
-        longitude: -105.0002, type: 'POI', source: 'TOMTOM' },
+        longitude: -105.0002, type: 'POI', source: 'GOOGLE' },
     ])
     const nearby = vi.spyOn(api.transitApi, 'nearbyStops').mockResolvedValue([
       { id: 'gtfs:rtd:union', name: 'Union Station', regionCode: 'DEN',

@@ -32,8 +32,9 @@ class RouteGeometryIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("geometry is labelled SCHEMATIC, never implied to be surveyed")
     void geometryIsLabelled() throws Exception {
-        // TomTom has no transit routing, so these are straight lines between real
-        // stops. Saying so is the difference between honest and misleading.
+        // The curated fallback graph has no routed geometry, so these are straight
+        // lines between real stops. Saying so is the difference between honest
+        // and misleading.
         mockMvc.perform(get("/api/recommendations")
                         .param("origin", "Newark").param("destination", "Manhattan"))
                 .andExpect(status().isOk())

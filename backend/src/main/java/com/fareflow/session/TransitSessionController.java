@@ -56,10 +56,13 @@ public class TransitSessionController {
     @PostMapping("/{id}/advance")
     public TransitSessionResponse advance(
             @PathVariable UUID id,
-            @RequestBody(required = false) AdvanceTransitSessionRequest request) {
+            @Valid @RequestBody(required = false) AdvanceTransitSessionRequest request) {
         String outcome = request == null ? null : request.outcome();
+        RiderPosition position = request == null || !request.hasPosition() ? null
+                : new RiderPosition(request.latitude(), request.longitude(),
+                        request.accuracyMetres());
         return sessionService.advance(currentUserService.require(), id,
-                TransitProgressOutcome.parse(outcome));
+                TransitProgressOutcome.parse(outcome), position);
     }
 
     @PostMapping("/{id}/end")

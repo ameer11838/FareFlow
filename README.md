@@ -9,6 +9,17 @@ engine**. Charges are calculated from confirmed travel progress, service type,
 transfers, rider eligibility, and fare caps. Waiting time and delays never increase
 the fare.
 
+Each confirmed stop is checked against the rider's device location and graded
+**verified**, **unverified**, or **flagged** — but the grade never changes the
+fare. A rider underground, out of battery, or declining the permission is not a
+fare evader, and refusing to advance them would strand them in a trip they could
+not end or pay for. What verification buys is an auditable difference between a
+trip confirmed on the platform and one confirmed from a kilometre away.
+
+Fares settle through the FareFlow wallet, a simulated card, or **RLUSD on the XRP
+Ledger** — the one rail whose receipt a rider can verify without trusting
+FareFlow at all.
+
 > FareFlow pricing and payments are product simulations, not official agency fares
 > or claims of agency acceptance.
 
@@ -27,6 +38,10 @@ the fare.
 - Boarding charges, per-stop charges, operator transfer credits, student/senior/
   reduced fares, and daily or weekly caps.
 - Skipped-stop, route-diversion, transfer, and early-trip-ending support.
+- Location verification of each confirmed stop, graded and recorded per fare
+  event, which never blocks a rider or changes what they are charged.
+- RLUSD settlement on the XRP Ledger, with custodial testnet accounts, encrypted
+  key material, and a public transaction hash on every receipt.
 - Secure multi-user registration and JWT authentication with isolated profiles,
   trips, budgets, wallets, and payment histories.
 - Append-only fare events and ledger entries for auditable trip charges.
@@ -49,10 +64,11 @@ the fare.
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, ECharts, TomTom Maps SDK |
+| Frontend | React 19, TypeScript, Vite, ECharts, Google Maps JavaScript API |
 | Backend | Java 21, Spring Boot 3.5, Spring Security, JWT, Maven |
+| Settlement | XRP Ledger via xrpl4j (server-side signing), xrpl.js (browser verification) |
 | Data | PostgreSQL 17, Spring Data JPA, Flyway |
-| Routing | Google Routes API, GTFS Schedule/Realtime, curated fallback graph |
+| Routing | Google Routes API, Google Places API, GTFS Schedule/Realtime, curated fallback graph |
 | Testing | JUnit, Spring Boot Test, Vitest, Testing Library |
 
 ## Architecture
@@ -115,14 +131,26 @@ JWT_SECRET=paste-a-random-secret-with-at-least-32-bytes-here
 JWT_EXPIRATION=86400
 
 # Optional integrations
-GOOGLE_MAPS_ROUTES_API_KEY=
-TOMTOM_API_KEY=
+# One Google Maps Platform key backs tiles, place search, and transit routing.
+# Enable Maps JavaScript API, Places API (New), and Routes API on it.
+GOOGLE_MAPS_API_KEY=
 GEMINI_API_KEY=
+
+# Optional: RLUSD settlement on the XRP Ledger.
+# All four are required together; with any missing the rail reports itself
+# unavailable and wallet and card payments are unaffected.
+XRPL_NETWORK=TESTNET
+XRPL_RLUSD_ISSUER=
+XRPL_TREASURY_ADDRESS=
+XRPL_CUSTODY_KEY=
 ```
 
 Generate a local JWT secret with `openssl rand -base64 48`. Authentication mode
 supports separate user accounts; do not set `FAREFLOW_AUTH_ENABLED=false` when
 testing multi-user behavior.
+
+`GOOGLE_MAPS_ROUTES_API_KEY` still works if you prefer a separate key for the
+Routes API; without it, routing falls back to `GOOGLE_MAPS_API_KEY`.
 
 ### 3. Configure the frontend
 
@@ -131,10 +159,35 @@ cd frontend
 cp .env.example .env
 ```
 
-Add `VITE_TOMTOM_API_KEY` to `frontend/.env` for TomTom map tiles. Without a key,
-FareFlow uses a schematic route map.
+Add `VITE_GOOGLE_MAPS_API_KEY` to `frontend/.env` for map tiles. Without a key,
+FareFlow uses a schematic route map and everything else keeps working. The backend
+imports this file too, so the same key backs server-side place search.
 
-### 4. Run FareFlow
+### 4. Optional — enable RLUSD settlement
+
+The XRP Ledger rail is off unless all four `XRPL_*` values are set. To turn it on:
+
+1. Generate a custody key: `openssl rand -base64 32` → `XRPL_CUSTODY_KEY`.
+   This encrypts each rider's seed entropy at rest, so a leaked database row is
+   not by itself enough to move funds.
+2. Set `XRPL_RLUSD_ISSUER` to the RLUSD issuer address on your chosen test
+   network. No default ships — a guessed issuer would create a trustline to
+   nothing and fail every payment far from the cause.
+3. Create FareFlow's own account at the
+   [XRPL testnet faucet](https://xrpl.org/xrp-testnet-faucet.html), set a
+   trustline from it to that same issuer, and put its address in
+   `XRPL_TREASURY_ADDRESS`.
+
+Rider accounts are created lazily, the first time someone picks the rail, and
+funded from the public faucet. A rider who never chooses it never has a key held
+on their behalf.
+
+**Testnet only, deliberately.** `XRPL_NETWORK` accepts `TESTNET` or `DEVNET` and
+nothing else, enforced in both configuration and the database. This holds riders'
+signing keys, and custodial settlement of a real stablecoin is a regulated
+activity that a product documented as a simulation must not perform.
+
+### 5. Run FareFlow
 
 Backend — <http://localhost:8080>:
 
@@ -175,7 +228,7 @@ Protected endpoints require `Authorization: Bearer <token>`.
 | `GET` | `/api/locations?q=` | Address and place autocomplete |
 | `GET` | `/api/journeys?from=&to=&profile=` | Find and rank transit journeys |
 | `POST` | `/api/transit-sessions` | Start a stop-based trip session |
-| `POST` | `/api/transit-sessions/{id}/advance` | Record a reached, skipped, or diverted stop |
+| `POST` | `/api/transit-sessions/{id}/advance` | Record a reached, skipped, or diverted stop, optionally with the rider's position |
 | `POST` | `/api/transit-sessions/{id}/end` | End the trip at its actual stop |
 | `POST` | `/api/transit-sessions/{id}/pay` | Pay the final simulated fare |
 | `GET/PUT` | `/api/profile` | Read or update travel preferences |
@@ -183,6 +236,7 @@ Protected endpoints require `Authorization: Bearer <token>`.
 | `GET` | `/api/wallet` | Budget, balance, and recent activity |
 | `GET` | `/api/ledger` | Append-only charge and refund history |
 | `GET` | `/api/insights` | Personalized spending analytics |
+| `GET` | `/api/payments/rails` | Which payment rails this deployment can complete |
 | `POST` | `/api/assistant/ask` | Ask the optional FareFlow assistant |
 
 API errors use RFC 9457 Problem Details. Financial commands use server-owned

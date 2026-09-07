@@ -194,7 +194,8 @@ public class UsageFareEngine {
         long increment = gross - transfer - concession - cap;
         return new StopFarePoint(boundary.sequence(), boundary.stopName(), boundary.lineName(),
                 boundary.mode(), boundary.agency(), base, distance, stop, gross, transfer,
-                concession, cap, increment, cumulative, boundary.distanceMetres(), description);
+                concession, cap, increment, cumulative, boundary.distanceMetres(), description,
+                boundary.stopLatitude(), boundary.stopLongitude());
     }
 
     private static long percentage(long cents, int percent) {
@@ -226,9 +227,11 @@ public class UsageFareEngine {
                         (usedDistance / METRES_PER_MILE) * rule.centsPerMile());
                 long segmentDistance = unit == 1 ? usedDistance
                         : usedDistance - Math.round(leg.getDistanceMetres() * (unit - 1) / units);
-                result.add(new FareBoundary(++sequence, stopName(leg, unit, units),
+                StopPoint stop = stopPoint(leg, unit, units);
+                result.add(new FareBoundary(++sequence, stop.name(),
                         leg.getLineName(), leg.getMode(), leg.getAgency(), previousAgency,
-                        unit == 1, totalDistanceFare - previousDistanceFare, segmentDistance));
+                        unit == 1, totalDistanceFare - previousDistanceFare, segmentDistance,
+                        stop.latitude(), stop.longitude()));
                 previousDistanceFare = totalDistanceFare;
             }
             previousAgency = leg.getAgency();
@@ -252,9 +255,11 @@ public class UsageFareEngine {
                         (usedDistance / METRES_PER_MILE) * rule.centsPerMile());
                 long segmentDistance = unit == 1 ? usedDistance
                         : usedDistance - Math.round(legDistance * (unit - 1) / units);
-                result.add(new FareBoundary(++sequence, stopName(leg, unit, units),
+                StopPoint stop = stopPoint(leg, unit, units);
+                result.add(new FareBoundary(++sequence, stop.name(),
                         leg.lineName(), leg.mode().name(), leg.agency(), previousAgency,
-                        unit == 1, totalDistanceFare - previousDistanceFare, segmentDistance));
+                        unit == 1, totalDistanceFare - previousDistanceFare, segmentDistance,
+                        stop.latitude(), stop.longitude()));
                 previousDistanceFare = totalDistanceFare;
             }
             previousAgency = leg.agency();
@@ -276,34 +281,60 @@ public class UsageFareEngine {
         return Math.max(1, leg.waypoints().size() - 1);
     }
 
-    private static String stopName(PersistedJourneyLeg leg, int unit, int totalUnits) {
+    private static StopPoint stopPoint(PersistedJourneyLeg leg, int unit, int totalUnits) {
         List<JourneyLeg.Waypoint> waypoints = TransitStopGeometry.ensureStopBoundaries(
                         leg.decodedWaypoints(), leg.getFromName(), leg.getToName(),
                         leg.getLineName(), leg.getStopCount()).stream()
                 .filter(point -> point.name() != null && !point.name().isBlank()).toList();
-        if (unit >= 0 && unit < waypoints.size()) return waypoints.get(unit).name();
-        return unit == totalUnits ? leg.getToName() : null;
+        if (unit >= 0 && unit < waypoints.size()) return StopPoint.of(waypoints.get(unit));
+        return unit == totalUnits ? StopPoint.named(leg.getToName()) : StopPoint.UNKNOWN;
     }
 
-    private static String stopName(JourneyLeg leg, int unit, int totalUnits) {
+    private static StopPoint stopPoint(JourneyLeg leg, int unit, int totalUnits) {
         List<JourneyLeg.Waypoint> points = TransitStopGeometry.ensureStopBoundaries(
                 leg.waypoints(), leg.fromStopName(), leg.toStopName(), leg.lineName(), leg.stopCount());
-        if (unit >= 0 && unit < points.size()) return points.get(unit).name();
-        return unit == totalUnits ? leg.toStopName() : null;
+        if (unit >= 0 && unit < points.size()) return StopPoint.of(points.get(unit));
+        return unit == totalUnits ? StopPoint.named(leg.toStopName()) : StopPoint.UNKNOWN;
     }
 
     public static boolean isTransit(PersistedJourneyLeg leg) {
         return !"WALK".equals(leg.getMode());
     }
 
+    /**
+     * @param stopLatitude  null when the boundary falls on a stop the provider named
+     *                      but did not place; location verification is then impossible
+     *                      rather than merely failing, and is reported as such.
+     */
     private record FareBoundary(int sequence, String stopName, String lineName, String mode,
                                 String agency, String previousAgency, boolean firstInLeg,
-                                long distanceFareCents, long distanceMetres) {}
+                                long distanceFareCents, long distanceMetres,
+                                Double stopLatitude, Double stopLongitude) {}
+
+    /** A stop's identity and, when the provider supplied it, its position. */
+    private record StopPoint(String name, Double latitude, Double longitude) {
+        static final StopPoint UNKNOWN = new StopPoint(null, null, null);
+
+        static StopPoint of(JourneyLeg.Waypoint waypoint) {
+            return waypoint == null ? UNKNOWN
+                    : new StopPoint(waypoint.name(), waypoint.latitude(), waypoint.longitude());
+        }
+
+        static StopPoint named(String name) {
+            return new StopPoint(name, null, null);
+        }
+    }
 
     public record StopFarePoint(
             int sequence, String stopName, String lineName, String mode, String agency,
             long baseCents, long distanceCents, long stopCents, long grossCents,
             long transferDiscountCents, long concessionDiscountCents, long capDiscountCents,
             long fareIncrementCents, long cumulativeFareCents, long distanceMetres,
-            String description) {}
+            String description, Double stopLatitude, Double stopLongitude) {
+
+        /** Whether this boundary can be checked against a rider position at all. */
+        public boolean hasCoordinates() {
+            return stopLatitude != null && stopLongitude != null;
+        }
+    }
 }

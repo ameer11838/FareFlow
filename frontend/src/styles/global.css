@@ -792,6 +792,10 @@ svg { display: block; }
 
 /* ---- Map surface ---- */
 .map-canvas { position: absolute; inset: 0; background: #e9edf1; }
+/* The element the maps SDK owns outright. Kept separate from .map-canvas so the
+   loading state and the station card can be React children without the two
+   fighting over the same node. */
+.map-surface { position: absolute; inset: 0; }
 .map-canvas canvas { outline: none; }
 
 /* A faint grid so the surface never reads as a blank white void while tiles
@@ -1854,6 +1858,33 @@ svg { display: block; }
 .session-stop-copy, .session-stop-charge { display: grid; gap: 2px; min-width: 0; }
 .session-stop-copy b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
 .session-stop-copy small, .session-stop-charge small { color: var(--color-text-muted); font-size: 9px; }
+
+/* The location verdict for a completed stop.
+   Green reads "corroborated", amber reads "worth a look" — never red, because
+   nothing here was refused or reversed: a flagged stop was charged exactly like
+   a verified one, and colouring it as a failure would misstate what happened. */
+.session-stop-verdict { font-size: 9px; font-weight: 600; }
+.session-stop-verdict.is-verified { color: var(--color-positive); }
+.session-stop-verdict.is-flagged { color: var(--color-amber); }
+
+/* On-ledger settlement receipt.
+   Quiet by default: the hash is evidence a rider can act on, not a headline, and
+   the fare it settled is already stated above. Only the confirmation earns colour,
+   because "a public node agrees" is the one claim here FareFlow is not making. */
+.ledger-receipt {
+  display: grid; gap: 6px; margin-top: 12px; padding: 12px 14px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface-quiet, transparent);
+}
+.ledger-receipt-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.ledger-receipt-head strong { font-size: var(--text-xs); }
+.ledger-receipt-head span { font-size: 11px; color: var(--color-text-muted); }
+.ledger-receipt-head span.is-validated { color: var(--color-positive); font-weight: 600; }
+.ledger-receipt-hash {
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 10px;
+  color: var(--color-text-muted); overflow-wrap: anywhere; line-height: 1.5;
+}
+.ledger-receipt a { font-size: 11px; color: var(--color-info); justify-self: start; }
 .session-stop-charge { justify-items: end; text-align: right; }
 .session-stop-charge b { font-size: var(--text-xs); }
 .session-stop-row.is-upcoming { color: var(--color-text-secondary); }

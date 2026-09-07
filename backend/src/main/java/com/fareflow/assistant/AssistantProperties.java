@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Configuration for the Ask FareFlow assistant.
  *
- * <p>The assistant is optional in exactly the way the TomTom map is: with no key
+ * <p>The assistant is optional in exactly the way the map is: with no key
  * configured the rest of FareFlow works unchanged and the panel says so, rather
  * than the app failing to start or the endpoint returning 500s.
  *

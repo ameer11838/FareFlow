@@ -7,7 +7,7 @@ import java.util.List;
  *
  * <p>An interface because the geocoder is a swappable dependency and because unit
  * tests must never call a live third-party API. {@code StaticGeocodingProvider}
- * backs the tests; {@code TomTomGeocodingProvider} backs the running app.
+ * backs the tests; {@code GoogleGeocodingProvider} backs the running app.
  */
 public interface GeocodingProvider {
 

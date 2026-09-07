@@ -12,16 +12,17 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tomtom-international/web-sdk-maps": "^6.25.0",
     "echarts": "^6.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.0"
+    "react-router-dom": "^7.9.0",
+    "xrpl": "^5.1.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.5",
+    "@types/google.maps": "^3.58.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",

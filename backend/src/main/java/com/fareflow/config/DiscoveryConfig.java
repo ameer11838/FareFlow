@@ -6,7 +6,7 @@ import com.fareflow.gtfs.GtfsStopService;
 import com.fareflow.google.GoogleRoutesTransitProvider;
 import com.fareflow.location.GeocodingProvider;
 import com.fareflow.location.StaticGeocodingProvider;
-import com.fareflow.location.TomTomGeocodingProvider;
+import com.fareflow.location.GoogleGeocodingProvider;
 import com.fareflow.network.TransitGraphService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,13 +28,16 @@ import java.time.Duration;
 public class DiscoveryConfig {
 
     /**
-     * The primary geocoder. Falls back to the static gazetteer when no TomTom key
-     * is configured, so the app runs — and its tests pass — without one.
+     * The primary geocoder. Falls back to the static gazetteer when no Google Maps
+     * key is configured, so the app runs — and its tests pass — without one.
+     *
+     * <p>This is the same key that backs route discovery and the browser map:
+     * one Google Maps Platform project covers places, routing, and tiles.
      */
     @Bean
     @Primary
     public GeocodingProvider primaryGeocodingProvider(
-            @Value("${fareflow.tomtom.api-key:}") String apiKey,
+            @Value("${fareflow.google-maps.api-key:}") String apiKey,
             RestClient.Builder restClientBuilder) {
 
         if (apiKey == null || apiKey.isBlank()) {
@@ -42,11 +45,11 @@ public class DiscoveryConfig {
         }
 
         RestClient client = restClientBuilder
-                .baseUrl("https://api.tomtom.com")
+                .baseUrl("https://places.googleapis.com")
                 .requestFactory(timeoutFactory())
                 .build();
 
-        return new TomTomGeocodingProvider(client, apiKey.trim());
+        return new GoogleGeocodingProvider(client, apiKey.trim());
     }
 
     @Bean

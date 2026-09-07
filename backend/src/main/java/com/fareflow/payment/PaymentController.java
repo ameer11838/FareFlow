@@ -4,7 +4,9 @@ import com.fareflow.auth.CurrentUserService;
 import com.fareflow.payment.dto.ConfirmPaymentRequest;
 import com.fareflow.payment.dto.CreateJourneyPaymentRequest;
 import com.fareflow.payment.dto.PaymentIntentResponse;
+import com.fareflow.payment.dto.PaymentRailsResponse;
 import com.fareflow.payment.dto.PaymentReconciliationResponse;
+import com.fareflow.xrpl.RlusdGateway;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -28,11 +31,29 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final CurrentUserService currentUserService;
+    private final RlusdGateway rlusdGateway;
 
     public PaymentController(PaymentService paymentService,
-                             CurrentUserService currentUserService) {
+                             CurrentUserService currentUserService,
+                             RlusdGateway rlusdGateway) {
         this.paymentService = paymentService;
         this.currentUserService = currentUserService;
+        this.rlusdGateway = rlusdGateway;
+    }
+
+    /**
+     * The rails a rider can actually pick here. Unauthenticated on purpose: it
+     * describes the deployment, not the rider, and the client needs it to render
+     * the checkout before it knows whose checkout it is.
+     */
+    @GetMapping("/rails")
+    public PaymentRailsResponse rails() {
+        boolean ledger = rlusdGateway.isAvailable();
+        return new PaymentRailsResponse(
+                ledger
+                        ? List.of("FAREFLOW_WALLET", "SIMULATED_CARD", "XRPL_RLUSD")
+                        : List.of("FAREFLOW_WALLET", "SIMULATED_CARD"),
+                ledger ? rlusdGateway.network() : null);
     }
 
     @PostMapping("/intents")

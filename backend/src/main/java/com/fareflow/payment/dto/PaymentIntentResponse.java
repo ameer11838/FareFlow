@@ -3,6 +3,7 @@ package com.fareflow.payment.dto;
 import com.fareflow.payment.PaymentEvent;
 import com.fareflow.payment.PaymentIntent;
 import com.fareflow.trip.Trip;
+import com.fareflow.xrpl.XrplProperties;
 import com.fareflow.trip.dto.TripResponse;
 
 import java.time.Instant;
@@ -21,6 +22,11 @@ public record PaymentIntentResponse(
         String destination,
         int attemptCount,
         String providerReference,
+        /** On-ledger transaction hash, for payments settled in RLUSD. */
+        String xrplTransactionHash,
+        String xrplNetwork,
+        /** Public explorer link, so the rider can verify without trusting us. */
+        String xrplExplorerUrl,
         String failureCode,
         String failureMessage,
         TripResponse trip,
@@ -48,6 +54,10 @@ public record PaymentIntentResponse(
                 intent.getJourney().getDestinationDisplayName(),
                 intent.getAttemptCount(),
                 intent.getProviderReference(),
+                intent.getXrplTransactionHash(),
+                intent.getXrplNetwork(),
+                XrplProperties.explorerTransactionUrl(
+                        intent.getXrplNetwork(), intent.getXrplTransactionHash()),
                 intent.getFailureCode(),
                 intent.getFailureMessage(),
                 trip == null ? null : TripResponse.from(trip),
