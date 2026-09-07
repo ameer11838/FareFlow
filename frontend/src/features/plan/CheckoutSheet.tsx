@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import type { JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail } from '../../api/types'
-import { CheckIcon, CloseIcon, WalletIcon } from '../../components/Icons'
+import { useEffect, useState } from 'react'
+import { paymentsApi } from '../../api'
+import type {
+  JourneyOption, JourneySearchResponse, PaymentIntent, PaymentRail, PaymentRails,
+} from '../../api/types'
+import { CardIcon, CheckIcon, CloseIcon, WalletIcon, XrpIcon } from '../../components/Icons'
 import { formatCents, formatMinutes } from '../../lib/format'
 
 /** Route checkout: the explicit CHOOSE → PAY handoff in the product loop. */
@@ -17,12 +20,21 @@ export function CheckoutSheet({
   onRetry: () => void
 }) {
   const [method, setMethod] = useState<PaymentRail>('FAREFLOW_WALLET')
+  const [rails, setRails] = useState<PaymentRails | null>(null)
   const remaining = result.budgetContext && option.fareCents !== null
     ? result.budgetContext.weeklyBudgetCents
       - result.budgetContext.spentThisWeekCents
       - option.fareCents
     : null
   const failed = payment?.status === 'FAILED'
+
+  useEffect(() => {
+    let cancelled = false
+    void paymentsApi.rails()
+      .then((available) => { if (!cancelled) setRails(available) })
+      .catch(() => { if (!cancelled) setRails(null) })
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="checkout-backdrop" role="presentation" onMouseDown={(event) => {
@@ -77,10 +89,23 @@ export function CheckoutSheet({
               <input type="radio" name="payment-method" value="SIMULATED_CARD"
                      checked={method === 'SIMULATED_CARD'}
                      onChange={() => setMethod('SIMULATED_CARD')} />
-              <span className="checkout-method-icon numeric">••••</span>
+              <span className="checkout-method-icon"><CardIcon /></span>
               <span><strong>Simulated card</strong><small>No real money or card data</small></span>
               {method === 'SIMULATED_CARD' && <CheckIcon />}
             </label>
+            {rails?.rails.includes('XRPL_RLUSD') && (
+              <label className={`checkout-method${method === 'XRPL_RLUSD' ? ' selected' : ''}`}>
+                <input type="radio" name="payment-method" value="XRPL_RLUSD"
+                       checked={method === 'XRPL_RLUSD'}
+                       onChange={() => setMethod('XRPL_RLUSD')} />
+                <span className="checkout-method-icon"><XrpIcon /></span>
+                <span>
+                  <strong>Demo RLUSD on XRP Ledger</strong>
+                  <small>Public {rails.network?.toLowerCase()} settlement · no-value test asset</small>
+                </span>
+                {method === 'XRPL_RLUSD' && <CheckIcon />}
+              </label>
+            )}
           </fieldset>
         )}
 
@@ -116,10 +141,12 @@ export function CheckoutSheet({
           <button className="btn btn-primary checkout-submit" type="button"
                   onClick={() => onPay(method)} disabled={processing}>
             {processing
-              ? 'Authorizing and settling…'
+              ? method === 'XRPL_RLUSD' ? 'Validating on XRP Ledger…' : 'Authorizing and settling…'
               : option.fareCents === null
                 ? 'Record trip without charge'
-                : `Pay ${formatCents(option.fareCents)}`}
+                : method === 'XRPL_RLUSD'
+                  ? `Pay ${formatCents(option.fareCents)} in demo RLUSD`
+                  : `Pay ${formatCents(option.fareCents)}`}
           </button>
         )}
         <p className="checkout-fineprint">

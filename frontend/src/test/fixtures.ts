@@ -317,6 +317,12 @@ export const wallet: Wallet = {
       description: 'Exercises authorization and settlement without moving real money',
       status: 'AVAILABLE',
     },
+    {
+      id: 'XRPL_RLUSD',
+      name: 'Demo RLUSD on XRP Ledger',
+      description: 'Testnet stablecoin fares with a public, independently verifiable receipt',
+      status: 'AVAILABLE',
+    },
   ],
   recentActivity: ledgerEntries,
   recentPayments: [],

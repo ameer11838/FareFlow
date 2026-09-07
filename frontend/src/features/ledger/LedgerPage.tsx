@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ledgerApi, paymentsApi } from '../../api'
 import type { LedgerEntry, LedgerEntryType, Page, PaymentIntent } from '../../api/types'
-import { ChevronDownIcon, SearchIcon } from '../../components/Icons'
+import {
+  CardIcon, ChevronDownIcon, SearchIcon, WalletIcon, XrpIcon,
+} from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { Card, Section, Skeleton } from '../../components/Surface'
 import { Tile } from '../../components/Tile'
@@ -11,6 +13,7 @@ import { EmptyState, ErrorState } from '../../components/states'
 import { useAsync } from '../../hooks/useAsync'
 import { useCurrentUser } from '../../hooks/useAuth'
 import { formatCents, formatDateTime, formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
+import { verifyOnLedger, type LedgerCheck } from '../plan/payment/ledgerVerification'
 
 /**
  * The payment history, and deliberately the densest screen in the app.
@@ -238,15 +241,17 @@ function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
   const date = payment.settledAt ?? payment.refundedAt ?? payment.failedAt ?? payment.createdAt
   const method = payment.paymentMethod === 'FAREFLOW_WALLET'
     ? 'FareFlow Wallet'
-    : 'Simulated card'
+    : payment.paymentMethod === 'XRPL_RLUSD' ? 'Demo RLUSD · XRP Ledger' : 'Simulated card'
   const operator = payment.trip?.providerName ?? payment.journeySummary
   const refunded = payment.status === 'REFUNDED'
 
   return (
     <details className="payment-receipt" data-testid={`receipt-${payment.id}`}>
       <summary>
-        <span className="tile-plate receipt-icon" aria-hidden="true">
-          <Tile name={paymentTile(payment)} size={38} />
+        <span className="receipt-icon receipt-method-icon" aria-hidden="true">
+          {payment.paymentMethod === 'XRPL_RLUSD' ? <XrpIcon size={20} />
+            : payment.paymentMethod === 'FAREFLOW_WALLET' ? <WalletIcon size={20} />
+              : <CardIcon size={20} />}
           <span className={`payment-state-dot state-${payment.status.toLowerCase()}`} />
         </span>
         <span className="receipt-trip">
@@ -275,6 +280,7 @@ function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
             Open trip
           </Link>
         )}
+        {payment.xrplTransactionHash && <LedgerProof payment={payment} />}
         {payment.events.length > 0 && (
           <ol className="receipt-events" aria-label="Payment status timeline">
             {payment.events.map((event) => (
@@ -288,6 +294,37 @@ function PaymentReceipt({ payment }: { payment: PaymentIntent }) {
         )}
       </div>
     </details>
+  )
+}
+
+function LedgerProof({ payment }: { payment: PaymentIntent }) {
+  const [check, setCheck] = useState<LedgerCheck>({ state: 'checking' })
+
+  useEffect(() => {
+    let cancelled = false
+    void verifyOnLedger(payment).then((result) => { if (!cancelled) setCheck(result) })
+    return () => { cancelled = true }
+  }, [payment])
+
+  return (
+    <section className="ledger-receipt receipt-ledger-proof" aria-label="XRPL settlement proof">
+      <div className="ledger-receipt-head">
+        <strong>Demo RLUSD settlement · {payment.xrplNetwork?.toLowerCase()}</strong>
+        {check.state === 'checking' && <span>Verifying with xrpl.js…</span>}
+        {check.state === 'confirmed' && (
+          <span className={check.validated ? 'is-validated' : ''}>
+            {check.validated ? 'Validated by a public XRPL node' : 'Found, awaiting validation'}
+          </span>
+        )}
+        {check.state === 'unavailable' && <span>Public node temporarily unavailable</span>}
+      </div>
+      <code className="ledger-receipt-hash">{payment.xrplTransactionHash}</code>
+      {payment.xrplExplorerUrl && (
+        <a href={payment.xrplExplorerUrl} target="_blank" rel="noreferrer noopener">
+          Open transaction in XRPL Explorer
+        </a>
+      )}
+    </section>
   )
 }
 
@@ -322,14 +359,6 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       </span>
     </div>
   )
-}
-
-function paymentTile(payment: PaymentIntent): TileName {
-  if (payment.status === 'FAILED') return 'notifications/error'
-  if (payment.status === 'REFUNDED') return 'notifications/success'
-  return payment.paymentMethod === 'FAREFLOW_WALLET'
-    ? 'payments-wallet/wallet'
-    : 'payments-wallet/credit-card'
 }
 
 interface LedgerDay {

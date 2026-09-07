@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.xrpl.xrpl4j.client.XrplClient;
 import org.xrpl.xrpl4j.client.faucet.FaucetClient;
 import org.xrpl.xrpl4j.client.faucet.FundAccountRequest;
+import org.xrpl.xrpl4j.crypto.keys.Base58EncodedSecret;
 import org.xrpl.xrpl4j.crypto.keys.Entropy;
 import org.xrpl.xrpl4j.crypto.keys.KeyPair;
 import org.xrpl.xrpl4j.crypto.keys.PrivateKey;
@@ -16,9 +17,13 @@ import org.xrpl.xrpl4j.crypto.signing.SignatureService;
 import org.xrpl.xrpl4j.crypto.signing.SingleSignedTransaction;
 import org.xrpl.xrpl4j.model.client.accounts.AccountInfoRequestParams;
 import org.xrpl.xrpl4j.model.client.accounts.AccountInfoResult;
+import org.xrpl.xrpl4j.model.client.transactions.TransactionRequestParams;
+import org.xrpl.xrpl4j.model.client.transactions.TransactionResult;
 import org.xrpl.xrpl4j.model.client.transactions.SubmitResult;
 import org.xrpl.xrpl4j.model.transactions.Address;
 import org.xrpl.xrpl4j.model.transactions.IssuedCurrencyAmount;
+import org.xrpl.xrpl4j.model.transactions.Payment;
+import org.xrpl.xrpl4j.model.transactions.Transaction;
 import org.xrpl.xrpl4j.model.transactions.TrustSet;
 import org.xrpl.xrpl4j.model.transactions.XrpCurrencyAmount;
 
@@ -97,8 +102,62 @@ public class XrplWalletService {
         if (wallet.getTrustlineSetAt() == null
                 || !properties.issuerAddress().equals(wallet.getRlusdIssuerAddress())) {
             setTrustline(wallet);
+            // A trustline only grants permission to hold the asset, not any of it.
+            // Without this the rider's very first fare would fail on an empty
+            // balance, which reads as a broken rail rather than an empty wallet.
+            grantStartingBalance(wallet);
         }
         return repository.save(wallet);
+    }
+
+    /**
+     * Mints the rider's opening RLUSD balance from FareFlow's own issuer.
+     *
+     * <p>Only defensible because the issuer is FareFlow's and the ledger is a test
+     * network: this is the simulation's equivalent of topping up a demo card. On a
+     * real asset the rider would fund their own account and this step would not
+     * exist — which is why {@code XRPL_NETWORK} refuses mainnet outright.
+     */
+    private void grantStartingBalance(XrplWallet wallet) {
+        try {
+            KeyPair issuer = issuerKeyPair();
+            Address issuerAddress = Address.of(properties.issuerAddress());
+            AccountInfoResult accountInfo =
+                    xrplClient.accountInfo(AccountInfoRequestParams.of(issuerAddress));
+
+            Payment grant = Payment.builder()
+                    .account(issuerAddress)
+                    .destination(Address.of(wallet.getClassicAddress()))
+                    .amount(IssuedCurrencyAmount.builder()
+                            .currency(properties.currencyCode())
+                            .issuer(issuerAddress)
+                            .value(properties.riderGrantRlusd())
+                            .build())
+                    .fee(openLedgerFee())
+                    .sequence(accountInfo.accountData().sequence())
+                    .lastLedgerSequence(lastLedgerSequence(accountInfo))
+                    .signingPublicKey(issuer.publicKey())
+                    .build();
+
+            SingleSignedTransaction<Payment> signed =
+                    signatureService.sign(issuer.privateKey(), grant);
+            SubmitResult<Payment> result = xrplClient.submit(signed);
+            requireAccepted(result.engineResult(), "opening balance");
+            awaitValidated(signed, Payment.class, "opening balance");
+            log.info("Granted {} RLUSD to {}",
+                    properties.riderGrantRlusd(), wallet.getClassicAddress());
+        } catch (XrplRailException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new XrplRailException(
+                    "Could not fund this rider's RLUSD balance.", exception);
+        }
+    }
+
+    /** The issuer's signing key, derived from the configured seed. */
+    KeyPair issuerKeyPair() {
+        return Seed.fromBase58EncodedSecret(
+                Base58EncodedSecret.of(properties.issuerSeed().trim())).deriveKeyPair();
     }
 
     /** Re-derives the signing key for a stored wallet. */
@@ -185,6 +244,7 @@ public class XrplWalletService {
                     signatureService.sign(keyPair.privateKey(), trustSet);
             SubmitResult<TrustSet> result = xrplClient.submit(signed);
             requireAccepted(result.engineResult(), "trustline");
+            awaitValidated(signed, TrustSet.class, "trustline");
             wallet.markTrustlineSet(properties.issuerAddress(), clock.instant());
         } catch (XrplRailException exception) {
             throw exception;
@@ -218,5 +278,50 @@ public class XrplWalletService {
             throw new XrplRailException(
                     "The XRP Ledger rejected this %s (%s).".formatted(what, engineResult));
         }
+    }
+
+    /**
+     * Waits until consensus includes a submitted transaction in a validated ledger.
+     *
+     * <p>A successful {@code submit} result only means a server accepted the blob
+     * for relay. It does not mean the transaction made a validated ledger. This
+     * distinction matters during first-use provisioning: the trustline must be
+     * final before the issuer can fund it, and both must be final before the rider
+     * can spend the balance. It also keeps FareFlow from issuing an optimistic
+     * receipt for a transaction that later expires.
+     */
+    <T extends Transaction> TransactionResult<T> awaitValidated(
+            SingleSignedTransaction<T> signed, Class<T> transactionType, String what)
+            throws Exception {
+        Exception last = null;
+        for (int attempt = 0; attempt < 30; attempt++) {
+            try {
+                TransactionResult<T> result = xrplClient.transaction(
+                        TransactionRequestParams.of(signed.hash()), transactionType);
+                if (result.validated()) {
+                    String transactionResult = result.metadata()
+                            .map(metadata -> metadata.transactionResult())
+                            .orElseThrow(() -> new XrplRailException(
+                                    "The validated XRPL %s has no transaction result."
+                                            .formatted(what)));
+                    requireAccepted(transactionResult, what);
+                    return result;
+                }
+            } catch (XrplRailException exception) {
+                throw exception;
+            } catch (Exception exception) {
+                // txnNotFound is normal for the first few ledgers after submit.
+                last = exception;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+        }
+        throw new XrplRailException(
+                "The XRP Ledger did not validate this %s before it expired."
+                        .formatted(what), last);
     }
 }

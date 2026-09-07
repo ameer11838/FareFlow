@@ -1,0 +1,8 @@
+{
+  "name": "fareflow-xrpl-bootstrap",
+  "private": true,
+  "type": "module",
+  "description": "One-off: stands up FareFlow's XRPL testnet issuer and treasury.",
+  "scripts": { "start": "node bootstrap.mjs" },
+  "dependencies": { "xrpl": "^5.1.0" }
+}

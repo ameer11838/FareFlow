@@ -115,24 +115,27 @@ describe('InsightsPage', () => {
     expect(screen.queryByTestId('chart-spending')).not.toBeInTheDocument()
     expect(screen.queryByTestId('chart-average-duration')).not.toBeInTheDocument()
 
-    // Two operators and two modes still divide, so those keep their donuts.
-    expect(screen.getByTestId('chart-operators')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-modes')).toBeInTheDocument()
+    // Category data is directly labelled instead of rendered as two more charts.
+    expect(screen.getByRole('heading', { name: /what shaped your spending/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('chart-operators')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-modes')).not.toBeInTheDocument()
   }, 15_000)
 
-  it('draws the full time series once there are three active days', async () => {
+  it('draws one focused time series once there are three active days', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
     vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistoryThreeDays)
     renderWithProviders(<InsightsPage />)
 
     expect(await screen.findByTestId('chart-spending', {}, { timeout: 10_000 }))
       .toHaveAccessibleName(/spending over 30 days/i)
-    expect(screen.getByTestId('chart-trips')).toHaveAccessibleName(/trips over 30 days/i)
-    expect(screen.getByTestId('chart-savings')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-average-fare')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-average-duration')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-budget')).toBeInTheDocument()
-    expect(screen.getByTestId('chart-fare-duration')).toBeInTheDocument()
+    expect(screen.queryByTestId('chart-trips')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-savings')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-average-fare')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-average-duration')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-budget')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('chart-fare-duration')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /you spent .* across .* completed trips/i }))
+      .toBeInTheDocument()
     expect(screen.queryByTestId('sparse-series')).not.toBeInTheDocument()
   }, 15_000)
 
@@ -211,15 +214,14 @@ describe('InsightsPage — personalized from the profile', () => {
       .toBeInTheDocument()
   })
 
-  it('shows the projection and buffer as figures, not just prose', async () => {
+  it('keeps the projection and budget in the focused weekly lede', async () => {
     vi.spyOn(api.insightsApi, 'get').mockResolvedValue(insights)
     vi.spyOn(api.insightsApi, 'history').mockResolvedValue(spendingHistory)
     renderWithProviders(<InsightsPage />)
 
-    // Actual, projection, and budget now share an Apache ECharts bullet comparison.
-    expect(await screen.findByTestId('chart-budget')).toHaveAccessibleName(
-      /weekly budget compared with actual and projected spending/i)
-    expect(screen.getByText('$31.52 projected buffer')).toBeInTheDocument()
+    await screen.findByRole('heading', { name: /transportation analytics/i })
+    expect(screen.getByTestId('budget-lede')).toHaveTextContent('$18.48')
+    expect(screen.queryByTestId('chart-budget')).not.toBeInTheDocument()
   })
 
   it('links the saved commute straight into Plan', async () => {
@@ -236,9 +238,9 @@ describe('InsightsPage — personalized from the profile', () => {
     renderWithProviders(<InsightsPage />)
 
     expect(await screen.findByRole('button', { name: /set a weekly budget/i })).toBeInTheDocument()
-    // The analytics comparison explains why it cannot draw a budget reference.
+    // The lede explains the missing budget without drawing an empty chart.
     expect(await screen.findByText(/no budget set/i)).toBeInTheDocument()
-    expect(await screen.findByText(/set a weekly budget to unlock this comparison/i)).toBeInTheDocument()
+    expect(screen.queryByText(/set a weekly budget to unlock this comparison/i)).not.toBeInTheDocument()
 
     // The budget and remaining tiles read "Not set". Spent is genuinely $0.00
     // and still says so — an absent budget is not an absent ledger.

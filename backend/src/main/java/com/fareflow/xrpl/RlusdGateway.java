@@ -117,6 +117,7 @@ public class RlusdGateway {
             SingleSignedTransaction<Payment> signed = signer.sign(keyPair.privateKey(), payment);
             SubmitResult<Payment> result = client.submit(signed);
             XrplWalletService.requireAccepted(result.engineResult(), "payment");
+            wallets.awaitValidated(signed, Payment.class, "payment");
 
             String hash = signed.hash().value();
             log.info("Settled fare {} as RLUSD on XRPL {} in {}",

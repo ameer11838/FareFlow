@@ -114,6 +114,12 @@ export const CardIcon = icon(<>
   <path d="M3.5 10h17M7 14.5h3" />
 </>)
 
+/** XRP Ledger — the open upper and lower curves of the XRP mark. */
+export const XrpIcon = icon(<>
+  <path d="M4.5 5.5h3.1c.8 0 1.55.32 2.12.88L12 8.66l2.28-2.28a3 3 0 0 1 2.12-.88h3.1" />
+  <path d="M4.5 18.5h3.1c.8 0 1.55-.32 2.12-.88L12 15.34l2.28 2.28a3 3 0 0 0 2.12.88h3.1" />
+</>)
+
 export const RefundIcon = icon(<>
   <path d="M4 11.5a8 8 0 1 1 2.4 5.7" />
   <path d="M3.5 6v5.5H9" />

@@ -66,7 +66,7 @@ class XrplRailTest {
     }
 
     @Test
-    @DisplayName("the rail stays disabled unless issuer, treasury, and custody key are all set")
+    @DisplayName("the rail stays disabled unless issuer, issuer seed, treasury, and custody key are all set")
     void railRequiresCompleteConfiguration() {
         assertThat(properties("rIssuer", "rTreasury", KEY).isEnabled()).isTrue();
         assertThat(properties("rIssuer", "rTreasury", "").isEnabled()).isFalse();
@@ -100,6 +100,6 @@ class XrplRailTest {
 
     private static XrplProperties properties(String issuer, String treasury,
                                              String key, String network) {
-        return new XrplProperties(network, issuer, treasury, key, null);
+        return new XrplProperties(network, issuer, treasury, "sIssuerSeed", "250", key, null);
     }
 }

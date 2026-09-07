@@ -33,8 +33,8 @@ public record WalletResponse(
 ) {
 
     /**
-     * @param status AVAILABLE means it can pay for a fare now; COMING_SOON is
-     *               displayed but not selectable. No real rails are implemented.
+     * @param status AVAILABLE means it can pay for a fare now; UNAVAILABLE means
+     *               the optional rail exists but this deployment has not enabled it
      */
     public record PaymentMethod(
             String id,
@@ -43,6 +43,7 @@ public record WalletResponse(
             String status
     ) {
         public static final String AVAILABLE = "AVAILABLE";
+        public static final String UNAVAILABLE = "UNAVAILABLE";
         public static final String COMING_SOON = "COMING_SOON";
     }
 }

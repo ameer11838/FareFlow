@@ -43,7 +43,7 @@ describe('WalletPage', () => {
     expect(await screen.findByText('On track')).toBeInTheDocument()
   })
 
-  it('shows both implemented payment methods as active', async () => {
+  it('shows wallet, card, and XRPL RLUSD as active', async () => {
     vi.spyOn(api.walletApi, 'get').mockResolvedValue(wallet)
     renderWithProviders(<WalletPage />)
 
@@ -51,6 +51,8 @@ describe('WalletPage', () => {
     expect(within(balance).getByText('Active')).toBeInTheDocument()
 
     expect(within(screen.getByTestId('payment-SIMULATED_CARD')).getByText('Active')).toBeInTheDocument()
+    expect(within(screen.getByTestId('payment-XRPL_RLUSD')).getByText('Active')).toBeInTheDocument()
+    expect(screen.getByText(/verified in the browser with xrpl\.js/i)).toBeInTheDocument()
   })
 
   it('renders recent activity straight from the ledger', async () => {

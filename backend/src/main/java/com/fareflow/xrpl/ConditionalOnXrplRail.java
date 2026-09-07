@@ -22,6 +22,7 @@ import java.lang.annotation.*;
 @ConditionalOnExpression(
         "!'${fareflow.xrpl.issuer-address:}'.isEmpty()"
                 + " && !'${fareflow.xrpl.treasury-address:}'.isEmpty()"
+                + " && !'${fareflow.xrpl.issuer-seed:}'.isEmpty()"
                 + " && !'${fareflow.xrpl.custody-key:}'.isEmpty()")
 public @interface ConditionalOnXrplRail {
 }

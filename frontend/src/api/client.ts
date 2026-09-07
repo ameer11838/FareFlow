@@ -8,6 +8,7 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
 const TOKEN_KEY = 'fareflow.token'
+let tokenGeneration = 0
 
 /**
  * The token lives in localStorage. That is XSS-readable, which is the accepted
@@ -16,8 +17,14 @@ const TOKEN_KEY = 'fareflow.token'
  */
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  set: (token: string) => {
+    localStorage.setItem(TOKEN_KEY, token)
+    tokenGeneration += 1
+  },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY)
+    tokenGeneration += 1
+  },
 }
 
 /** Notified on a 401 so the app can drop to the login screen from anywhere. */
@@ -56,6 +63,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
+  const requestTokenGeneration = tokenGeneration
   try {
     const token = tokenStore.get()
     response = await fetch(`${BASE_URL}${path}`, {
@@ -76,7 +84,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     // An expired or rejected token invalidates the whole session, wherever we are.
-    if (response.status === 401) {
+    // A response can arrive after sign-out/sign-in has already established a
+    // different session. Never let that stale request clear the newer token.
+    if (response.status === 401 && requestTokenGeneration === tokenGeneration) {
       tokenStore.clear()
       onUnauthorized?.()
     }

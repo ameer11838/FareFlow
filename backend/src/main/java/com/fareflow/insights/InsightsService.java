@@ -114,6 +114,11 @@ public class InsightsService {
                 personalize(user, summary, usage, averageFareCents));
     }
 
+    /** A stated place's name, or null when the rider never gave one. */
+    private static String placeName(com.fareflow.profile.TypicalPlace place) {
+        return place == null || !place.isPresent() ? null : place.name();
+    }
+
     /**
      * The part of Insights that exists only because the rider answered onboarding.
      *
@@ -178,8 +183,12 @@ public class InsightsService {
                 frequency == null ? null : frequency.name(),
                 frequency == null ? null : frequency.displayName(),
                 daysPerWeek,
-                profile.getTypicalOrigin().name(),
-                profile.getTypicalDestination().name(),
+                // Null-safe for the same reason as hasTypicalCommute(): an
+                // @Embedded whose columns are all null materialises as a null
+                // reference, so a rider who skipped the commute question has no
+                // place object here at all.
+                placeName(profile.getTypicalOrigin()),
+                placeName(profile.getTypicalDestination()),
                 projected,
                 buffer,
                 suggestion == null ? null : suggestion.code(),

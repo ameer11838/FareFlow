@@ -72,18 +72,12 @@ export function InsightsPage() {
         <>
           <InsightsLede data={data} />
 
-          <HistoryModule weekly={data} />
+          <HistoryModule />
 
-          <section className="band band-quiet">
-            <div className="band-head">
-              <h2 className="band-title">Supporting figures</h2>
-            </div>
-            {/* Deliberately the quiet row. None of these is the reason anyone
-                opens this page, and giving them the same weight as the budget
-                figure above was most of why the screen read as undifferentiated.
-                Spend and savings are absent here because the lede already
-                carries both — printing them twice was the page's worst habit. */}
-            <div className="figures-open figures-open-quiet">
+          <details className="insights-support band">
+            <summary>View weekly supporting details</summary>
+            <div className="insights-support-body">
+              <div className="figures-open figures-open-quiet">
               <Metric label="Average fare"
                       value={formatOptionalCents(data.averageFareCents, '—')}
                       tone={data.averageFareCents === null ? 'muted' : 'default'}
@@ -104,16 +98,16 @@ export function InsightsPage() {
                       caption={data.projectedMonthlyCents === null
                         ? 'Needs a week with spending'
                         : 'Straight-line from this week alone'} />
+              </div>
+              <div className="insights-support-table">
+                <div className="band-head">
+                  <h2 className="band-title">Weekly operator detail</h2>
+                  <span className="band-note">Completed trips this week</span>
+                </div>
+                <OperatorTable data={data} />
+              </div>
             </div>
-          </section>
-
-          <section className="band">
-            <div className="band-head">
-              <h2 className="band-title">Operators</h2>
-              <span className="band-note">Where this week's fares went</span>
-            </div>
-            <OperatorTable data={data} />
-          </section>
+          </details>
 
           {passes.data && <PassModule recommendation={passes.data} />}
         </>
@@ -128,7 +122,7 @@ const RANGE_NAMES: Record<HistoryRange, string> = {
 
 const EMPTY_FILTERS: AnalyticsFilters = { operator: null, mode: null, bucketDate: null }
 
-function HistoryModule({ weekly }: { weekly: Insights }) {
+function HistoryModule() {
   const [range, setRange] = useState<HistoryRange>('30d')
   const [filters, setFilters] = useState<AnalyticsFilters>(EMPTY_FILTERS)
   const history = useAsync<SpendingHistory>(() => insightsApi.history(range), [range])
@@ -246,7 +240,6 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
           <Suspense fallback={<Skeleton height={420} />}>
             <InsightsCharts
               history={data}
-              weekly={weekly}
               view={view}
               filters={filters}
               onOperator={setOperator}
@@ -256,8 +249,8 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
           </Suspense>
 
           {view.routes.length > 0 && (
-            <div className="history-routes">
-              <h3>Most-used routes in this view</h3>
+            <details className="analytics-route-details">
+              <summary>View route-level details</summary>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead><tr><th>Route</th><th>Operator</th><th className="col-num">Trips</th><th className="col-total">Average fare</th></tr></thead>
@@ -271,7 +264,7 @@ function HistoryModule({ weekly }: { weekly: Insights }) {
                   ))}</tbody>
                 </table>
               </div>
-            </div>
+            </details>
           )}
         </>
       ) : (

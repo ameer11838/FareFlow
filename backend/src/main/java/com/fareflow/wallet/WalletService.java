@@ -9,6 +9,7 @@ import com.fareflow.payment.dto.PaymentIntentResponse;
 import com.fareflow.user.User;
 import com.fareflow.wallet.dto.WalletResponse;
 import com.fareflow.session.TransitSessionService;
+import com.fareflow.xrpl.RlusdGateway;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +31,18 @@ public class WalletService {
     private final LedgerService ledgerService;
     private final PaymentService paymentService;
     private final TransitSessionService transitSessionService;
+    private final RlusdGateway rlusdGateway;
 
     public WalletService(BudgetService budgetService,
                          LedgerService ledgerService,
                          PaymentService paymentService,
-                         TransitSessionService transitSessionService) {
+                         TransitSessionService transitSessionService,
+                         RlusdGateway rlusdGateway) {
         this.budgetService = budgetService;
         this.ledgerService = ledgerService;
         this.paymentService = paymentService;
         this.transitSessionService = transitSessionService;
+        this.rlusdGateway = rlusdGateway;
     }
 
     public WalletResponse forUser(User user) {
@@ -68,7 +72,7 @@ public class WalletService {
      * Payment rails. Both use the same intent lifecycle; the card rail is an
      * explicit simulation and never stores or moves real card data.
      */
-    private static List<WalletResponse.PaymentMethod> paymentMethods() {
+    private List<WalletResponse.PaymentMethod> paymentMethods() {
         return List.of(
                 new WalletResponse.PaymentMethod(
                         "FAREFLOW_BALANCE",
@@ -79,6 +83,15 @@ public class WalletService {
                         "SIMULATED_CARD",
                         "Simulated card",
                         "Exercises authorization and settlement without moving real money",
-                        WalletResponse.PaymentMethod.AVAILABLE));
+                        WalletResponse.PaymentMethod.AVAILABLE),
+                new WalletResponse.PaymentMethod(
+                        "XRPL_RLUSD",
+                        "Demo RLUSD on XRP Ledger",
+                        rlusdGateway.isAvailable()
+                                ? "Testnet demo-asset fares with a public, independently verifiable receipt"
+                                : "Requires the optional XRPL testnet configuration",
+                        rlusdGateway.isAvailable()
+                                ? WalletResponse.PaymentMethod.AVAILABLE
+                                : WalletResponse.PaymentMethod.UNAVAILABLE));
     }
 }

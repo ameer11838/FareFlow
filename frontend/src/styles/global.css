@@ -1966,6 +1966,11 @@ svg { display: block; }
 .payment-receipt > summary:hover { background: var(--color-surface-hover); }
 .payment-receipt[open] > summary { background: var(--color-accent-faint); }
 .receipt-icon { position: relative; width: 38px; height: 38px; }
+.receipt-method-icon {
+  display: grid; place-items: center; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+}
 .receipt-icon > .payment-state-dot {
   position: absolute; right: -2px; bottom: -2px;
   width: 9px; height: 9px; flex-basis: 9px;
@@ -1994,6 +1999,7 @@ svg { display: block; }
 .receipt-status.status-refunded { border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border)); color: var(--color-accent); }
 .receipt-fare { justify-self: end; font-size: var(--text-md); }
 .receipt-detail { padding: 0 var(--space-5) var(--space-5) 76px; }
+.receipt-ledger-proof { margin: 0 0 var(--space-4); }
 .receipt-detail dl {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3);
   margin: 0 0 var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border-subtle);

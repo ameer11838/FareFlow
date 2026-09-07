@@ -19,12 +19,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param treasuryAddress where fares are sent. FareFlow's own funded testnet
  *                        account, which must already trust the same issuer or the
  *                        payment is rejected by the ledger rather than by us.
+ * @param issuerSeed      the issuer's signing key. A rider who has never used the
+ *                        rail holds no RLUSD, so a trustline alone would leave
+ *                        them unable to pay; the issuer grants them a starting
+ *                        balance. Simulation-only, and the reason this is pinned
+ *                        to a test network — minting a real asset is not a thing
+ *                        a demo may do.
+ * @param riderGrantRlusd starting balance minted to each new rider account
  */
 @ConfigurationProperties(prefix = "fareflow.xrpl")
 public record XrplProperties(
         String network,
         String issuerAddress,
         String treasuryAddress,
+        String issuerSeed,
+        String riderGrantRlusd,
         String custodyKey,
         String currencyCode
 ) {
@@ -41,12 +50,15 @@ public record XrplProperties(
         }
         currencyCode = currencyCode == null || currencyCode.isBlank()
                 ? RLUSD_HEX : currencyCode.trim();
+        riderGrantRlusd = riderGrantRlusd == null || riderGrantRlusd.isBlank()
+                ? "250" : riderGrantRlusd.trim();
     }
 
     /** The rail is usable only with both an issuer to trust and a key to encrypt. */
     public boolean isEnabled() {
         return issuerAddress != null && !issuerAddress.isBlank()
                 && treasuryAddress != null && !treasuryAddress.isBlank()
+                && issuerSeed != null && !issuerSeed.isBlank()
                 && custodyKey != null && !custodyKey.isBlank();
     }
 

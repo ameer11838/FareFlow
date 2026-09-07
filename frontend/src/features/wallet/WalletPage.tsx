@@ -2,13 +2,11 @@ import { Link } from 'react-router-dom'
 import { insightsApi, walletApi } from '../../api'
 import type { Insights, LedgerEntry, PaymentIntent, PaymentMethod, Wallet } from '../../api/types'
 import { seriesColor } from '../../components/charts'
-import { ModeIcon } from '../../components/Icons'
+import { CardIcon, ModeIcon, WalletIcon, XrpIcon } from '../../components/Icons'
 import { PageHeader } from '../../components/PageHeader'
 import { BudgetLede, NoBudgetLede } from '../../components/BudgetLede'
 import { Card, Skeleton } from '../../components/Surface'
 import { EmptyState, ErrorState } from '../../components/states'
-import { Tile } from '../../components/Tile'
-import type { TileName } from '../../components/tileNames'
 import { useAsync } from '../../hooks/useAsync'
 import { formatCents, formatOptionalCents, formatSignedCents, formatTime, ledgerTypeText } from '../../lib/format'
 
@@ -151,9 +149,9 @@ export function WalletPage() {
             ))}
           </div>
         </Card>
-        <p className="band-note" style={{ marginTop: 'var(--space-3)' }}>
-          The card rail is a simulation for exercising authorization, settlement,
-          failure, retry, and refund flows. It never moves real money.
+        <p className="band-note payment-method-note" style={{ marginTop: 'var(--space-3)' }}>
+          The simulated card never moves real money. Demo RLUSD is a no-value, RLUSD-coded asset on an XRPL test network;
+          successful fares include a public hash verified in the browser with xrpl.js.
         </p>
       </section>
 
@@ -268,27 +266,21 @@ function OperatorTable({ rows, total }: {
  * second FareFlow balance, and showing the balance plate for it would be a
  * small lie about where the money comes from.
  */
-const METHOD_TILE: Record<string, TileName> = {
-  FAREFLOW_BALANCE: 'payments-wallet/wallet',
-  FAREFLOW_WALLET: 'payments-wallet/wallet',
-  SIMULATED_CARD: 'payments-wallet/credit-card',
-  APPLE_PAY: 'payments-wallet/apple-pay',
-  GOOGLE_PAY: 'payments-wallet/google-pay',
-}
-
 function PaymentMethodRow({ method }: { method: PaymentMethod }) {
   const available = method.status === 'AVAILABLE'
   return (
     <div className={`method${available ? ' method-available' : ''}`} data-testid={`payment-${method.id}`}>
-      <span className="tile-plate method-plate">
-        <Tile name={METHOD_TILE[method.id] ?? 'payments-wallet/credit-card'} size={34} />
+      <span className="method-icon" aria-hidden="true">
+        {method.id === 'XRPL_RLUSD' ? <XrpIcon />
+          : method.id === 'SIMULATED_CARD' ? <CardIcon />
+            : <WalletIcon />}
       </span>
       <div className="method-text">
         <span className="method-name">{method.name}</span>
         <span className="method-desc">{method.description}</span>
       </div>
       <span className={`method-status${available ? ' active' : ''}`}>
-        {available ? 'Active' : 'Coming later'}
+        {available ? 'Active' : method.status === 'UNAVAILABLE' ? 'Setup required' : 'Coming later'}
       </span>
     </div>
   )
@@ -301,7 +293,7 @@ function PaymentRow({ payment }: { payment: PaymentIntent }) {
       <div className="txn-text">
         <span className="txn-title">{payment.origin} → {payment.destination}</span>
         <span className="txn-meta">
-          {payment.paymentMethod === 'FAREFLOW_WALLET' ? 'FareFlow Wallet' : 'Simulated card'}
+          {paymentMethodName(payment.paymentMethod)}
           {' · '}{payment.status.toLowerCase()}
           {' · '}{payment.attemptCount} attempt{payment.attemptCount === 1 ? '' : 's'}
         </span>
@@ -309,6 +301,12 @@ function PaymentRow({ payment }: { payment: PaymentIntent }) {
       <span className="txn-amount numeric">{formatCents(payment.amountCents)}</span>
     </li>
   )
+}
+
+function paymentMethodName(method: PaymentIntent['paymentMethod']): string {
+  if (method === 'XRPL_RLUSD') return 'Demo RLUSD · XRP Ledger'
+  if (method === 'FAREFLOW_WALLET') return 'FareFlow Wallet'
+  return 'Simulated card'
 }
 
 /**

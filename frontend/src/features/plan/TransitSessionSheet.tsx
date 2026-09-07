@@ -4,7 +4,7 @@ import type {
   TransitSession, TransitFareEvent,
 } from '../../api/types'
 import {
-  CheckIcon, ClockIcon, CloseIcon, InfoIcon, WalletIcon,
+  CheckIcon, ClockIcon, CloseIcon, InfoIcon, WalletIcon, XrpIcon,
 } from '../../components/Icons'
 import { paymentsApi } from '../../api'
 import { verifyOnLedger, type LedgerCheck } from './payment/ledgerVerification'
@@ -377,8 +377,8 @@ function TripCheckout({
                              title="Simulated card" detail="No real card or money movement" />
         {rails?.rails.includes('XRPL_RLUSD') && (
           <PaymentMethodChoice method="XRPL_RLUSD" selected={method} onSelect={onMethod}
-                               title="RLUSD on the XRP Ledger"
-                               detail={`Settles on the public XRPL ${
+                               title="Demo RLUSD on the XRP Ledger"
+                               detail={`Uses a no-value demo asset on the public XRPL ${
                                  (rails.network ?? 'testnet').toLowerCase()}`} />
         )}
       </fieldset>
@@ -389,7 +389,7 @@ function TripCheckout({
           : payment?.status === 'FAILED' ? 'Retry payment'
             : payment?.status === 'SETTLED' ? 'Payment complete'
               : method === 'XRPL_RLUSD'
-                ? `Pay ${formatCents(fare)} in RLUSD`
+                ? `Pay ${formatCents(fare)} in demo RLUSD`
                 : `Pay ${formatCents(fare)} with FareFlow`}
       </button>
       {payment?.xrplTransactionHash && <LedgerReceipt payment={payment} />}
@@ -457,7 +457,7 @@ function PaymentMethodChoice({ method, selected, onSelect, title, detail }: {
              checked={selected === method} onChange={() => onSelect(method)} />
       <span className="checkout-method-icon">
         {method === 'FAREFLOW_WALLET' ? <WalletIcon />
-          : method === 'XRPL_RLUSD' ? <span aria-hidden="true">◈</span>
+          : method === 'XRPL_RLUSD' ? <XrpIcon />
             : <span className="numeric">••••</span>}
       </span>
       <span><strong>{title}</strong><small>{detail}</small></span>

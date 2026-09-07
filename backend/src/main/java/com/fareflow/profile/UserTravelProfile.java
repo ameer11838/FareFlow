@@ -200,8 +200,19 @@ public class UserTravelProfile {
         }
     }
 
+    /**
+     * Whether this rider has told FareFlow where they usually travel.
+     *
+     * <p>The embedded places are null-checked as well as asked {@code isPresent()}:
+     * Hibernate materialises an {@code @Embedded} whose every column is null as a
+     * null reference, not as an empty instance. A rider who skipped the commute
+     * question therefore has no object to ask, and dereferencing it turned
+     * {@code GET /api/profile} into a 500 for exactly the people least able to
+     * diagnose it — anyone who had just finished onboarding without a commute.
+     */
     public boolean hasTypicalCommute() {
-        return typicalOrigin.isPresent() && typicalDestination.isPresent();
+        return typicalOrigin != null && typicalOrigin.isPresent()
+                && typicalDestination != null && typicalDestination.isPresent();
     }
 
     public Long getId() {

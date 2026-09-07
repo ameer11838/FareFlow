@@ -3,11 +3,14 @@ spring:
     name: fareflow
 
   config:
-    # Local development keeps the browser map key in frontend/.env. Importing it
-    # as an optional property source lets the server use the same public Google
-    # Maps key for street-address geocoding without requiring developers to
-    # duplicate the key. Deployed environments should set GOOGLE_MAPS_API_KEY.
+    # Load the gitignored repository .env whether the backend is launched from
+    # this directory or the repository root. This is particularly important for
+    # optional rails: requiring a shell-specific `source` command made a fully
+    # configured XRPL integration silently look disabled in the UI.
+    # The browser map key remains importable from frontend/.env as well.
     import:
+      - "optional:file:../.env[.properties]"
+      - "optional:file:.env[.properties]"
       - "optional:file:../frontend/.env[.properties]"
       - "optional:file:frontend/.env[.properties]"
 
@@ -121,6 +124,11 @@ fareflow:
     issuer-address: ${XRPL_RLUSD_ISSUER:}
     # FareFlow's own funded account, which must trust the same issuer.
     treasury-address: ${XRPL_TREASURY_ADDRESS:}
+    # The issuer's signing key. A rider with a trustline still holds no RLUSD, so
+    # the issuer grants them an opening balance the first time they use the rail.
+    # This is the simulation's demo top-up and another reason mainnet is refused.
+    issuer-seed: ${XRPL_ISSUER_SEED:}
+    rider-grant-rlusd: ${XRPL_RIDER_GRANT_RLUSD:250}
     # base64 32-byte AES key encrypting rider seed entropy at rest.
     # Generate with: openssl rand -base64 32
     custody-key: ${XRPL_CUSTODY_KEY:}

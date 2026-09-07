@@ -330,7 +330,7 @@ export interface PaymentMethod {
   id: string
   name: string
   description: string
-  status: 'AVAILABLE' | 'COMING_SOON'
+  status: 'AVAILABLE' | 'UNAVAILABLE' | 'COMING_SOON'
 }
 
 /** Nullable fields mean "not derivable yet", never zero. */
